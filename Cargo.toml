@@ -1,1 +1,8 @@
+[package]
+name = "hacker"
+version = "0.1.0"
+edition = "2021"
+description = "A simple package management tool using dnf"
+authors = ["HackerOS Team <hackeros068@gmail.com>"]
 
+[dependencies]
