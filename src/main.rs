@@ -1,260 +1,260 @@
-use std::process::{Command, ExitStatus};
-use std::env;
-use std::os::unix::fs::PermissionsExt;
+use clap::{Parser, Subcommand};
 use colored::*;
-use std::io::{self, Write};
-use std::thread;
-use std::time::Duration;
+use std::process::Command;
+use uuid::Uuid;
 
-const DNF_PATH: &str = "/usr/lib/HackerOS/dnf";
-const VERSION: &str = "1.0.2";
-
-fn print_help() {
-    println!("{}", "HackerOS Package Manager".bold().green());
-    println!("Version: {}", VERSION);
-    println!("{}", "A simple and fast package management tool for Fedora".italic());
-    println!("\n{}", "Usage:".bold());
-    println!(" hacker <command> [arguments]");
-    println!("\n{}", "Available Commands:".bold());
-    let commands = [
-        ("autoremove", "Remove unneeded packages"),
-        ("install", "Install one or more packages"),
-        ("remove", "Remove one or more packages"),
-        ("purge", "Remove packages and their configuration files"),
-        ("list", "List installed packages"),
-        ("list-available", "List all available packages"),
-        ("list-upgradable", "List packages that can be upgraded"),
-        ("search", "Search for packages"),
-        ("show", "Show package information"),
-        ("hold", "Prevent a package from being upgraded"),
-        ("unhold", "Allow a package to be upgraded"),
-        ("repolist", "List enabled repositories"),
-        ("check", "Check for broken dependencies"),
-        ("version", "Show tool version"),
-        ("?", "Show this help message"),
-    ];
-    for (cmd, desc) in commands.iter() {
-        println!(" {:<16} {}", cmd.bold().cyan(), desc);
-    }
-    println!("\n{}", "Note:".bold());
-    println!(" Use 'hacker-update' for system updates and upgrades.");
-    println!(" Run commands with '--help' for detailed usage (e.g., 'hacker install --help').");
+#[derive(Parser)]
+#[command(name = "hacker", about = "A vibrant CLI tool for managing hacker tools, gaming, and system utilities", version = "1.0.0")]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
 }
 
-fn print_progress(message: &str) {
-    print!("{}", message);
-    io::stdout().flush().unwrap();
-    for _ in 0..3 {
-        thread::sleep(Duration::from_millis(500));
-        print!("{}", ".".yellow());
-        io::stdout().flush().unwrap();
-    }
-    println!();
+#[derive(Subcommand)]
+enum Commands {
+    /// Unpack various toolsets and applications
+    Unpack {
+        #[command(subcommand)]
+        unpack_command: UnpackCommands,
+    },
+    /// Display help information and list available commands
+    Help,
+    /// Placeholder for install command
+    Install {
+        package: String,
+    },
+    /// Placeholder for remove command
+    Remove {
+        package: String,
+    },
+    /// Run apt install or sudo apt install -y
+    AptInstall {
+        package: String,
+    },
+    /// Run apt remove or sudo apt remove -y
+    AptRemove {
+        package: String,
+    },
+    /// Run flatpak install -y
+    FlatpakInstall {
+        package: String,
+    },
+    /// Run flatpak remove -y
+    FlatpakRemove {
+        package: String,
+    },
+    /// Run flatpak update -y
+    FlatpakUpdate,
+    /// System-related commands
+    System {
+        #[command(subcommand)]
+        system_command: SystemCommands,
+    },
+    /// Run specific HackerOS scripts and applications
+    Run {
+        #[command(subcommand)]
+        run_command: RunCommands,
+    },
+    /// Handle update/upgrade command errors
+    Update,
+    Upgrade,
 }
 
-fn execute_dnf(args: Vec<&str>, use_sudo: bool) -> Result<ExitStatus, String> {
-    let mut command = if use_sudo {
-        let mut cmd = Command::new("sudo");
-        cmd.arg(DNF_PATH);
-        cmd
-    } else {
-        Command::new(DNF_PATH)
-    };
-    let output = command
-    .args(&args)
-    .status()
-    .map_err(|e| format!("Failed to execute dnf: {}", e))?;
-    Ok(output)
+#[derive(Subcommand)]
+enum UnpackCommands {
+    /// Install add-ons (Wine, BoxBuddy, Winezgui, Gearlever)
+    AddOns,
+    /// Install both gaming and cybersecurity tools
+    GS,
+    /// Install development tools (Atom)
+    Devtools,
+    /// Install emulators (PlayStation, Nintendo, DOSBox, PS3)
+    Emulators,
+    /// Install cybersecurity tools (nmap, wireshark, Metasploit, Ghidra, etc.)
+    Cybersecurity,
+    /// Interactive UI for selecting individual packages
+    Select,
+    /// Install gaming tools (OBS Studio, Lutris, Steam, etc.) with Roblox
+    Gaming,
+    /// Install gaming tools without Roblox
+    Noroblox,
 }
 
-fn can_run_without_sudo() -> bool {
-    if let Ok(metadata) = std::fs::metadata(DNF_PATH) {
-        let permissions = metadata.permissions();
-        let mode = permissions.mode();
-        (mode & 0o111) != 0 && (mode & 0o600) != 0
-    } else {
-        false
-    }
+#[derive(Subcommand)]
+enum SystemCommands {
+    /// Show system logs
+    Logs,
+}
+
+#[derive(Subcommand)]
+enum RunCommands {
+    /// Run HackerOS Cockpit
+    HackerosCockpit,
+    /// Switch to another session
+    SwitchToOtherSession,
+    /// Update the system
+    UpdateSystem,
+    /// Check for system updates
+    CheckUpdates,
+    /// Launch Steam via HackerOS script
+    Steam,
+    /// Launch HackerOS Launcher
+    HackerLauncher,
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        println!("{}", "Error: No command provided".red());
-        print_help();
-        std::process::exit(1);
+    let cli = Cli::parse();
+
+    match cli.command {
+        Commands::Unpack { unpack_command } => handle_unpack(unpack_command),
+        Commands::Help => display_help(),
+        Commands::Install { package } => println!("{}", format!("Install command is a placeholder for: {}", package).yellow()),
+        Commands::Remove { package } => println!("{}", format!("Remove command is a placeholder for: {}", package).yellow()),
+        Commands::AptInstall { package } => run_command("sudo", vec!["apt", "install", "-y", &package], "Running apt install"),
+        Commands::AptRemove { package } => run_command("sudo", vec!["apt", "remove", "-y", &package], "Running apt remove"),
+        Commands::FlatpakInstall { package } => run_command("flatpak", vec!["install", "-y", "flathub", &package], "Running flatpak install"),
+        Commands::FlatpakRemove { package } => run_command("flatpak", vec!["remove", "-y", &package], "Running flatpak remove"),
+        Commands::FlatpakUpdate => run_command("flatpak", vec!["update", "-y"], "Running flatpak update"),
+        Commands::System { system_command } => handle_system(system_command),
+        Commands::Run { run_command } => handle_run(run_command),
+        Commands::Update | Commands::Upgrade => println!("{}", "Unknown command: update/upgrade. Did you mean 'hacker-update'?".red()),
     }
+}
 
-    let command = &args[1];
-    let use_sudo = !can_run_without_sudo();
-
-    match command.as_str() {
-        "autoremove" => {
-            print_progress("Running autoremove");
-            match execute_dnf(vec!["autoremove", "-y"], use_sudo) {
-                Ok(status) if status.success() => println!("{}", "Autoremove completed successfully".green()),
-                Ok(_) => println!("{}", "Autoremove failed".red()),
-                Err(e) => println!("{} {}", "Error:".red(), e),
-            }
+fn handle_unpack(unpack_command: UnpackCommands) {
+    match unpack_command {
+        UnpackCommands::AddOns => {
+            println!("{}", "========== Installing Add-Ons ==========".cyan().bold());
+            run_command("flatpak", vec!["remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], "Adding flathub repo");
+            run_command("sudo", vec!["apt", "install", "-y", "wine", "winetricks"], "Installing Wine");
+            run_command("flatpak", vec!["install", "-y", "flathub", "io.github.dvlv.boxbuddyrs"], "Installing BoxBuddy");
+            run_command("flatpak", vec!["install", "-y", "flathub", "it.mijorus.winezgui"], "Installing Winezgui");
+            run_command("flatpak", vec!["install", "-y", "flathub", "it.mijorus.gearlever"], "Installing Gearlever");
+            println!("{}", "========== Install Add-Ons Complete ==========".green().bold());
         }
-        "install" => {
-            if args.len() < 3 {
-                println!("{}", "Error: At least one package name required for install".red());
-                println!("Usage: hacker install <package1> [package2 ...]");
-                std::process::exit(1);
-            }
-            let packages = &args[2..];
-            let mut dnf_args = vec!["install", "-y"];
-            dnf_args.extend(packages.iter().map(|s| s.as_str()));
-            print_progress(&format!("Installing {} ", packages.join(" ")));
-            match execute_dnf(dnf_args, use_sudo) {
-                Ok(status) if status.success() => println!("{}", format!("Package(s) {} installed successfully", packages.join(" ")).green()),
-                Ok(_) => println!("{}", format!("Failed to install package(s) {}", packages.join(" ")).red()),
-                Err(e) => println!("{} {}", "Error:".red(), e),
-            }
+        UnpackCommands::GS => {
+            handle_gaming();
+            handle_cybersecurity();
         }
-        "remove" => {
-            if args.len() < 3 {
-                println!("{}", "Error: At least one package name required for remove".red());
-                println!("Usage: hacker remove <package1> [package2 ...]");
-                std::process::exit(1);
-            }
-            let packages = &args[2..];
-            let mut dnf_args = vec!["remove", "-y"];
-            dnf_args.extend(packages.iter().map(|s| s.as_str()));
-            print_progress(&format!("Removing {} ", packages.join(" ")));
-            match execute_dnf(dnf_args, use_sudo) {
-                Ok(status) if status.success() => println!("{}", format!("Package(s) {} removed successfully", packages.join(" ")).green()),
-                Ok(_) => println!("{}", format!("Failed to remove package(s) {}", packages.join(" ")).red()),
-                Err(e) => println!("{} {}", "Error:".red(), e),
-            }
+        UnpackCommands::Devtools => {
+            println!("{}", "========== Installing Atom ==========".cyan().bold());
+            run_command("flatpak", vec!["remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], "Adding flathub repo");
+            run_command("flatpak", vec!["install", "-y", "flathub", "io.atom.Atom"], "Installing Atom");
+            println!("{}", "========== Install Dev Tools Complete ==========".green().bold());
         }
-        "purge" => {
-            if args.len() < 3 {
-                println!("{}", "Error: At least one package name required for purge".red());
-                println!("Usage: hacker purge <package1> [package2 ...]");
-                std::process::exit(1);
-            }
-            let packages = &args[2..];
-            let mut dnf_args = vec!["remove", "--remove-leaves", "-y"];
-            dnf_args.extend(packages.iter().map(|s| s.as_str()));
-            print_progress(&format!("Purging {} ", packages.join(" ")));
-            match execute_dnf(dnf_args, use_sudo) {
-                Ok(status) if status.success() => println!("{}", format!("Package(s) {} purged successfully", packages.join(" ")).green()),
-                Ok(_) => println!("{}", format!("Failed to purge package(s) {}", packages.join(" ")).red()),
-                Err(e) => println!("{} {}", "Error:".red(), e),
-            }
+        UnpackCommands::Emulators => {
+            println!("{}", "========== Installing Emulators ==========".cyan().bold());
+            run_command("flatpak", vec!["remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], "Adding flathub repo");
+            run_command("flatpak", vec!["install", "-y", "flathub", "org.shadps4.shadPS4"], "Installing PlayStation Emulator");
+            run_command("flatpak", vec!["install", "-y", "flathub", "io.github.ryubing.Ryujinx"], "Installing Nintendo Emulator");
+            run_command("flatpak", vec!["install", "-y", "flathub", "com.dosbox_x.DOSBox-X"], "Installing DOSBox");
+            run_command("sudo", vec!["snap", "install", "rpcs3-emu"], "Installing PlayStation 3 Emulator");
+            println!("{}", "========== Hacker-Unpack-Emulators Complete ==========".green().bold());
         }
-        "list" => {
-            print_progress("Listing installed packages");
-            match execute_dnf(vec!["list", "installed"], use_sudo) {
-                Ok(status) if status.success() => println!("{}", "Listed installed packages".green()),
-                Ok(_) => println!("{}", "Failed to list packages".red()),
-                Err(e) => println!("{} {}", "Error:".red(), e),
-            }
+        UnpackCommands::Cybersecurity => {
+            handle_cybersecurity();
         }
-        "list-available" => {
-            print_progress("Listing available packages");
-            match execute_dnf(vec!["list", "available"], use_sudo) {
-                Ok(status) if status.success() => println!("{}", "Listed available packages".green()),
-                Ok(_) => println!("{}", "Failed to list available packages".red()),
-                Err(e) => println!("{} {}", "Error:".red(), e),
-            }
+        UnpackCommands::Select => {
+            println!("{}", "Interactive package selection is not yet implemented.".yellow());
         }
-        "list-upgradable" => {
-            print_progress("Listing upgradable packages");
-            match execute_dnf(vec!["list", "upgrades"], use_sudo) {
-                Ok(status) if status.success() => println!("{}", "Listed upgradable packages".green()),
-                Ok(_) => println!("{}", "Failed to list upgradable packages".red()),
-                Err(e) => println!("{} {}", "Error:".red(), e),
-            }
+        UnpackCommands::Gaming => {
+            handle_gaming();
         }
-        "search" => {
-            if args.len() < 3 {
-                println!("{}", "Error: Search term required".red());
-                println!("Usage: hacker search <term>");
-                std::process::exit(1);
-            }
-            let term = &args[2];
-            print_progress(&format!("Searching for {}", term));
-            match execute_dnf(vec!["search", term], use_sudo) {
-                Ok(status) if status.success() => println!("{}", "Search completed".green()),
-                Ok(_) => println!("{}", "Search failed".red()),
-                Err(e) => println!("{} {}", "Error:".red(), e),
-            }
-        }
-        "show" => {
-            if args.len() < 3 {
-                println!("{}", "Error: Package name required for show".red());
-                println!("Usage: hacker show <package>");
-                std::process::exit(1);
-            }
-            let package = &args[2];
-            print_progress(&format!("Showing info for {}", package));
-            match execute_dnf(vec!["info", package], use_sudo) {
-                Ok(status) if status.success() => println!("{}", "Package information displayed".green()),
-                Ok(_) => println!("{}", "Failed to display package information".red()),
-                Err(e) => println!("{} {}", "Error:".red(), e),
-            }
-        }
-        "hold" => {
-            if args.len() < 3 {
-                println!("{}", "Error: Package name required for hold".red());
-                println!("Usage: hacker hold <package>");
-                std::process::exit(1);
-            }
-            let package = &args[2];
-            print_progress(&format!("Holding package {}", package));
-            match execute_dnf(vec!["mark", "install", package], use_sudo) {
-                Ok(status) if status.success() => println!("{}", format!("Package {} set to hold", package).green()),
-                Ok(_) => println!("{}", format!("Failed to hold package {}", package).red()),
-                Err(e) => println!("{} {}", "Error:".red(), e),
-            }
-        }
-        "unhold" => {
-            if args.len() < 3 {
-                println!("{}", "Error: Package name required for unhold".red());
-                println!("Usage: hacker unhold <package>");
-                std::process::exit(1);
-            }
-            let package = &args[2];
-            print_progress(&format!("Unholding package {}", package));
-            match execute_dnf(vec!["mark", "remove", package], use_sudo) {
-                Ok(status) if status.success() => println!("{}", format!("Package {} set to unhold", package).green()),
-                Ok(_) => println!("{}", format!("Failed to unhold package {}", package).red()),
-                Err(e) => println!("{} {}", "Error:".red(), e),
-            }
-        }
-        "repolist" => {
-            print_progress("Refreshing repository list");
-            match execute_dnf(vec!["repolist"], use_sudo) {
-                Ok(status) if status.success() => println!("{}", "Repository list refreshed".green()),
-                Ok(_) => println!("{}", "Failed to refresh repository list".red()),
-                Err(e) => println!("{} {}", "Error:".red(), e),
-            }
-        }
-        "check" => {
-            print_progress("Checking for broken dependencies");
-            match execute_dnf(vec!["check"], use_sudo) {
-                Ok(status) if status.success() => println!("{}", "Dependency check completed successfully".green()),
-                Ok(_) => println!("{}", "Dependency check found issues".red()),
-                Err(e) => println!("{} {}", "Error:".red(), e),
-            }
-        }
-        "version" => {
-            println!("{}", format!("HackerOS Package Manager v{}", VERSION).bold().green());
-        }
-        "update" | "upgrade" => {
-            println!("{}", "Error: Use 'hacker-update' for system updates and upgrades.".red());
-            std::process::exit(1);
-        }
-        "?" => {
-            print_help();
-        }
-        _ => {
-            println!("{}", format!("Error: Unknown command '{}'", command).red());
-            print_help();
-            std::process::exit(1);
+        UnpackCommands::Noroblox => {
+            println!("{}", "========== Installing Gaming Tools (No Roblox) ==========".cyan().bold());
+            run_command("flatpak", vec!["remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], "Adding flathub repo");
+            run_command("sudo", vec!["apt", "install", "-y", "obs-studio", "lutris"], "Installing OBS Studio and Lutris");
+            run_command("flatpak", vec!["install", "-y", "flathub", "com.valvesoftware.Steam"], "Installing Steam");
+            run_command("flatpak", vec!["install", "-y", "flathub", "io.github.giantpinkrobots.varia"], "Installing Pika Torrent");
+            run_command("flatpak", vec!["install", "-y", "flathub", "net.davidotek.pupgui2"], "Installing ProtonUp-Qt");
+            run_command("flatpak", vec!["install", "-y", "flathub", "com.heroicgameslauncher.hgl", "protontricks", "com.discordapp.Discord"], "Installing Heroic Games Launcher, Protontricks, and Discord");
+            println!("{}", "========== Hacker-Unpack-Gaming-NoRoblox Complete ==========".green().bold());
         }
     }
+}
+
+fn handle_cybersecurity() {
+    println!("{}", "========== Installing Penetration Tools ==========".cyan().bold());
+    run_command("flatpak", vec!["remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], "Adding flathub repo");
+    run_command("sudo", vec!["apt", "install", "-y", "nmap", "wireshark", "nikto", "john", "hydra", "aircrack-ng", "sqlmap", "ettercap-text-only", "tcpdump", "zmap", "bettercap", "wfuzz", "hashcat", "fail2ban", "rkhunter", "chkrootkit", "lynis", "clamav", "tor", "proxychains4", "httrack", "sublist3r", "macchanger", "inxi", "htop", "openvas", "openvpn"], "Installing cybersecurity tools");
+    println!("{}", "========== Installing Metasploit Framework ==========".cyan().bold());
+    run_command("sudo", vec!["snap", "install", "metasploit-framework"], "Installing Metasploit");
+    println!("{}", "========== Installing Ghidra ==========".cyan().bold());
+    run_command("flatpak", vec!["install", "-y", "flathub", "org.ghidra_sre.Ghidra"], "Installing Ghidra");
+    println!("{}", "========== Hacker-Unpack-Cybersecurity Complete ==========".green().bold());
+}
+
+fn handle_gaming() {
+    println!("{}", "========== Installing Gaming Tools ==========".cyan().bold());
+    run_command("flatpak", vec!["remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], "Adding flathub repo");
+    run_command("sudo", vec!["apt", "install", "-y", "obs-studio", "lutris"], "Installing OBS Studio and Lutris");
+    run_command("flatpak", vec!["install", "-y", "flathub", "com.valvesoftware.Steam"], "Installing Steam");
+    run_command("flatpak", vec!["install", "-y", "flathub", "io.github.giantpinkrobots.varia"], "Installing Pika Torrent");
+    run_command("flatpak", vec!["install", "-y", "flathub", "net.davidotek.pupgui2"], "Installing ProtonUp-Qt");
+    run_command("flatpak", vec!["install", "-y", "flathub", "com.heroicgameslauncher.hgl", "protontricks", "com.discordapp.Discord"], "Installing Heroic Games Launcher, Protontricks, and Discord");
+    run_command("flatpak", vec!["install", "--user", "https://sober.vinegarhq.org/sober.flatpakref"], "Installing Roblox");
+    run_command("flatpak", vec!["install", "-y", "flathub", "org.vinegarhq.Vinegar"], "Installing Roblox Studio");
+    println!("{}", "========== Hacker-Unpack-Gaming Complete ==========".green().bold());
+}
+
+fn handle_system(system_command: SystemCommands) {
+    match system_command {
+        SystemCommands::Logs => {
+            println!("{}", "========== System Logs ==========".cyan().bold());
+            run_command("sudo", vec!["journalctl", "-xe"], "Displaying system logs");
+        }
+    }
+}
+
+fn handle_run(run_command: RunCommands) {
+    match run_command {
+        RunCommands::HackerosCockpit => run_command("sudo", vec!["python3", "/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Cockpit/HackerOS-Cockpit.py"], "Running HackerOS Cockpit"),
+        RunCommands::SwitchToOtherSession => run_command("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/Switch_To_Other_Session.sh"], "Switching to other session"),
+        RunCommands::UpdateSystem => run_command("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/update-system.sh"], "Updating system"),
+        RunCommands::CheckUpdates => run_command("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/check_updates_notify.sh"], "Checking for updates"),
+        RunCommands::Steam => run_command("bash", vec!["/usr/share/HackerOS/Scripts/Steam/HackerOS-Steam.sh"], "Launching Steam"),
+        RunCommands::HackerLauncher => run_command("bash", vec!["/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker_Launcher"], "Launching HackerOS Launcher"),
+    }
+}
+
+fn run_command(program: &str, args: Vec<&str>, message: &str) {
+    println!("{}", format!("{}: {}", message, args.join(" ")).blue());
+    let output = Command::new(program)
+        .args(&args)
+        .output()
+        .expect(&format!("Failed to execute {}", program));
+    if output.status.success() {
+        println!("{}", String::from_utf8_lossy(&output.stdout).green());
+    } else {
+        println!("{}", String::from_utf8_lossy(&output.stderr).red());
+    }
+}
+
+fn display_help() {
+    println!("{}", "========== Commands List ==========".cyan().bold());
+    println!("{}", "hacker unpack add-ons: Install Wine, BoxBuddy, Winezgui, Gearlever".white());
+    println!("{}", "hacker unpack g-s: Install gaming and cybersecurity tools".white());
+    println!("{}", "hacker unpack devtools: Install Atom".white());
+    println!("{}", "hacker unpack emulators: Install PlayStation, Nintendo, DOSBox, PS3 emulators".white());
+    println!("{}", "hacker unpack cybersecurity: Install nmap, wireshark, Metasploit, Ghidra, etc.".white());
+    println!("{}", "hacker unpack hacker-mode: Install gamescope".white());
+    println!("{}", "hacker unpack select: Interactive package selection (not implemented)".white());
+    println!("{}", "hacker unpack gaming: Install OBS Studio, Lutris, Steam, Roblox, etc.".white());
+    println!("{}", "hacker unpack noroblox: Install gaming tools without Roblox".white());
+    println!("{}", "hacker help: Display this help message".white());
+    println!("{}", "hacker install <package>: Placeholder for installing packages".white());
+    println!("{}", "hacker remove <package>: Placeholder for removing packages".white());
+    println!("{}", "hacker apt-install <package>: Run apt install -y <package>".white());
+    println!("{}", "hacker apt-remove <package>: Run apt remove -y <package>".white());
+    println!("{}", "hacker flatpak-install <package>: Run flatpak install -y flathub <package>".white());
+    println!("{}", "hacker flatpak-remove <package>: Run flatpak remove -y <package>".white());
+    println!("{}", "hacker flatpak-update: Run flatpak update -y".white());
+    println!("{}", "hacker system logs: Show system logs".white());
+    println!("{}", "hacker run hackeros-cockpit: Run HackerOS Cockpit".white());
+    println!("{}", "hacker run switch-to-other-session: Switch to another session".white());
+    println!("{}", "hacker run update-system: Update the system".white());
+    println!("{}", "hacker run check-updates: Check for system updates".white());
+    println!("{}", "hacker run steam: Launch Steam via HackerOS script".white());
+    println!("{}", "hacker run hacker-launcher: Launch HackerOS Launcher".white());
+    println!("{}", "========== Instead of sudo apt, you can use hacker ==========".green().bold());
 }
