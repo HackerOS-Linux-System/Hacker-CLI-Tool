@@ -1,5 +1,5 @@
 use colored::*;
-use std::io::{self, Write};
+use std::io::{self};
 use rand::Rng;
 
 pub fn play_game() {
