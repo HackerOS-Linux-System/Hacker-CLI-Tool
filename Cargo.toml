@@ -1,11 +1,9 @@
 [package]
 name = "hacker"
-version = "1.0.2"  # Matches VERSION constant in the code
+version = "1.0.0"
 edition = "2021"
-description = "A simple package management tool using dnf."
-authors = ["HackerOS Team <hackeros068@gmail.com>"]
-license = "MIT"  # Added a common license; change if needed
-repository = "https://github.com/HackerOS-Linux-System/Hacker-Package-Manager.git"
 
 [dependencies]
-colored = "2.0"  # Required for colored output in the CLI
+clap = { version = "4.5", features = ["derive"] }
+colored = "2.1"
+uuid = { version = "1.10", features = ["v4"] }
