@@ -1,7 +1,6 @@
 use clap::{Parser, Subcommand};
 use colored::*;
 use std::process::Command;
-use uuid::Uuid;
 
 #[derive(Parser)]
 #[command(name = "hacker", about = "A vibrant CLI tool for managing hacker tools, gaming, and system utilities", version = "1.0.0")]
@@ -206,8 +205,8 @@ fn handle_system(system_command: SystemCommands) {
     }
 }
 
-fn handle_run(run_command: RunCommands) {
-    match run_command {
+fn handle_run(cmd: RunCommands) {
+    match cmd {
         RunCommands::HackerosCockpit => run_command("sudo", vec!["python3", "/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Cockpit/HackerOS-Cockpit.py"], "Running HackerOS Cockpit"),
         RunCommands::SwitchToOtherSession => run_command("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/Switch_To_Other_Session.sh"], "Switching to other session"),
         RunCommands::UpdateSystem => run_command("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/update-system.sh"], "Updating system"),
