@@ -1,5 +1,5 @@
 use colored::*;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::io::{self, Write};
 use std::thread;
 use std::time::Duration;
@@ -24,10 +24,14 @@ pub fn run_command_with_spinner(program: &str, args: Vec<&str>, message: &str) {
         let _ = io::stdout().flush();
     });
 
-    let output = Command::new(program)
-        .args(&args)
-        .output()
-        .expect(&format!("Failed to execute {}", program));
+    let child = Command::new(program)
+    .args(&args)
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .spawn()
+    .expect(&format!("Failed to execute {}", program));
+
+    let output = child.wait_with_output().expect("Failed to wait on child");
 
     stop.store(true, Ordering::Relaxed);
     handle.join().unwrap();
