@@ -78,5 +78,6 @@ pub fn handle_run(cmd: RunCommands) {
         RunCommands::CheckUpdates => run_command_with_spinner("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/check_updates_notify.sh"], "Checking for updates"),
         RunCommands::Steam => run_command_with_spinner("bash", vec!["/usr/share/HackerOS/Scripts/Steam/HackerOS-Steam.sh"], "Launching Steam"),
         RunCommands::HackerLauncher => run_command_with_spinner("bash", vec!["/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker_Launcher"], "Launching HackerOS Launcher"),
+        RunCommands::HackerosGameMode => run_command_with_spinner("", vec!["/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Game-Mode.AppImage"], "Running HackerOS Game Mode"),
     }
 }
