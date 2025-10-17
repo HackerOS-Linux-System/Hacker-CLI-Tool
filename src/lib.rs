@@ -52,4 +52,6 @@ pub enum RunCommands {
     Steam,
     /// Launch HackerOS Launcher
     HackerLauncher,
+    /// Run HackerOS Game Mode
+    HackerosGameMode,
 }
