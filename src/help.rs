@@ -31,6 +31,7 @@ pub fn display_help() {
     println!("{}", "hacker run check-updates: Check for system updates".purple().bold());
     println!("{}", "hacker run steam: Launch Steam via HackerOS script".purple().bold());
     println!("{}", "hacker run hacker-launcher: Launch HackerOS Launcher".purple().bold());
+    println!("{}", "hacker run hackeros-game-mode: Run HackerOS Game Mode".purple().bold());
     println!("{}", "Update and Game:".magenta().bold());
     println!("{}", "hacker update: Perform system update (apt, flatpak, snap, firmware)".red().bold());
     println!("{}", "hacker game: Play a fun Hacker Adventure game".red().bold());
