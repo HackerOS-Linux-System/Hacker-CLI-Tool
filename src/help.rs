@@ -1,5 +1,5 @@
 use colored::*;
-
+use std::fs;
 pub fn display_help() {
     println!("{}", "========== Commands List ==========".cyan().bold().on_black());
     println!("{}", "Unpack Commands:".magenta().bold().on_black());
@@ -36,5 +36,12 @@ pub fn display_help() {
     println!("{}", "hacker update: Perform system update (apt, flatpak, snap, firmware)".red().bold());
     println!("{}", "hacker game: Play a fun Hacker Adventure game".red().bold());
     println!("{}", "hacker hacker-lang: Information about Hacker programming language".red().bold());
+    println!("{}", "hacker ascii: Display HackerOS ASCII art".red().bold());
     println!("{}", "========== Instead of sudo apt, you can use hacker ==========".green().bold().on_black());
+}
+pub fn display_ascii() {
+    match fs::read_to_string("/usr/share/HackerOS/Config-Files/HackerOS-Ascii") {
+        Ok(content) => println!("{}", content.bright_cyan().bold().on_black()),
+        Err(_) => println!("{}", "File not found".red().bold().on_black()),
+    }
 }
