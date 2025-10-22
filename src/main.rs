@@ -58,6 +58,8 @@ enum Commands {
     Update,
     /// Play a simple terminal game
     Game,
+    /// Information about Hacker programming language
+    HackerLang,
 }
 
 fn main() {
@@ -66,8 +68,8 @@ fn main() {
     match cli.command {
         Commands::Unpack { unpack_command } => handle_unpack(unpack_command),
         Commands::Help => display_help(),
-        Commands::Install { package } => println!("{}", format!("Install command is a placeholder for: {}", package).yellow().bold()),
-        Commands::Remove { package } => println!("{}", format!("Remove command is a placeholder for: {}", package).yellow().bold()),
+        Commands::Install { package } => println!("{}", format!("Install command is a placeholder for: {}", package).yellow().bold().on_black()),
+        Commands::Remove { package } => println!("{}", format!("Remove command is a placeholder for: {}", package).yellow().bold().on_black()),
         Commands::AptInstall { package } => run_command_with_spinner("sudo", vec!["apt", "install", "-y", &package], "Running apt install"),
         Commands::AptRemove { package } => run_command_with_spinner("sudo", vec!["apt", "remove", "-y", &package], "Running apt remove"),
         Commands::FlatpakInstall { package } => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", &package], "Running flatpak install"),
@@ -77,5 +79,12 @@ fn main() {
         Commands::Run { run_command } => handle_run(run_command),
         Commands::Update => handle_update(),
         Commands::Game => play_game(),
+        Commands::HackerLang => {
+            println!("{}", "========== Hacker Programming Language ==========".magenta().bold().on_black());
+            println!("{}", "To use the hacker programming language for files/scripts with .hacker extension,".cyan().bold().on_black());
+            println!("{}", "use the command 'hackerc' to compile or run them.".cyan().bold().on_black());
+            println!("{}", "Note: This is for advanced users. Ensure hackerc is installed separately.".yellow().bold().on_black());
+            println!("{}", "========== End of Info ==========".magenta().bold().on_black());
+        }
     }
 }
