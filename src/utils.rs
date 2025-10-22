@@ -4,14 +4,11 @@ use std::io::{self, Write};
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
-
 pub fn run_command_with_spinner(program: &str, args: Vec<&str>, message: &str) {
     println!("{}", format!("{}: {}", message, args.join(" ")).blue().bold().on_black());
-
     let stop = Arc::new(AtomicBool::new(false));
     let stop_clone = stop.clone();
     let spinner_chars: Vec<&str> = vec!["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-
     let handle = thread::spawn(move || {
         let mut i = 0;
         while !stop_clone.load(Ordering::Relaxed) {
@@ -23,26 +20,21 @@ pub fn run_command_with_spinner(program: &str, args: Vec<&str>, message: &str) {
         print!("\r   \r");
         let _ = io::stdout().flush();
     });
-
     let child = Command::new(program)
     .args(&args)
     .stdout(Stdio::piped())
     .stderr(Stdio::piped())
     .spawn()
     .expect(&format!("Failed to execute {}", program));
-
     let output = child.wait_with_output().expect("Failed to wait on child");
-
     stop.store(true, Ordering::Relaxed);
     handle.join().unwrap();
-
     if output.status.success() {
         println!("{}", String::from_utf8_lossy(&output.stdout).green().bold().on_black());
     } else {
         println!("{}", String::from_utf8_lossy(&output.stderr).red().bold().on_black());
     }
 }
-
 pub fn handle_update() {
     println!("{}", "========== Starting System Update ==========".magenta().bold().on_black());
     run_command_with_spinner("sudo", vec!["apt", "update"], "Updating APT repositories");
@@ -52,7 +44,6 @@ pub fn handle_update() {
     run_command_with_spinner("fwupdmgr", vec!["update"], "Updating firmware");
     println!("{}", "========== System Update Complete ==========".green().bold().on_black());
 }
-
 pub fn handle_cybersecurity() {
     println!("{}", "========== Installing Penetration Tools ==========".cyan().bold().on_black());
     run_command_with_spinner("flatpak", vec!["remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], "Adding flathub repo");
@@ -63,7 +54,6 @@ pub fn handle_cybersecurity() {
     run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "org.ghidra_sre.Ghidra"], "Installing Ghidra");
     println!("{}", "========== Hacker-Unpack-Cybersecurity Complete ==========".green().bold().on_black());
 }
-
 pub fn handle_gaming() {
     println!("{}", "========== Installing Gaming Tools ==========".cyan().bold().on_black());
     run_command_with_spinner("flatpak", vec!["remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], "Adding flathub repo");
