@@ -4,7 +4,6 @@ use crate::UnpackCommands;
 use crate::SystemCommands;
 use crate::RunCommands;
 use std::io::{self};
-
 pub fn handle_unpack(unpack_command: UnpackCommands) {
     match unpack_command {
         UnpackCommands::AddOns => {
@@ -48,11 +47,9 @@ pub fn handle_unpack(unpack_command: UnpackCommands) {
             println!("{}", "5. Emulators (PlayStation, Nintendo, etc.)".white().bold());
             println!("{}", "6. Hacker Mode (gamescope)".white().bold());
             println!("{}", "7. Gaming No Roblox".white().bold());
-
             let mut input = String::new();
             io::stdin().read_line(&mut input).expect("Failed to read line");
             let selections: Vec<usize> = input.trim().split(',').filter_map(|s| s.parse().ok()).collect();
-
             for &sel in &selections {
                 match sel {
                     1 => handle_unpack(UnpackCommands::AddOns),
@@ -87,7 +84,6 @@ pub fn handle_unpack(unpack_command: UnpackCommands) {
         }
     }
 }
-
 pub fn handle_system(system_command: SystemCommands) {
     match system_command {
         SystemCommands::Logs => {
@@ -96,7 +92,6 @@ pub fn handle_system(system_command: SystemCommands) {
         }
     }
 }
-
 pub fn handle_run(cmd: RunCommands) {
     match cmd {
         RunCommands::HackerosCockpit => run_command_with_spinner("sudo", vec!["python3", "/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Cockpit/HackerOS-Cockpit.py"], "Running HackerOS Cockpit"),
