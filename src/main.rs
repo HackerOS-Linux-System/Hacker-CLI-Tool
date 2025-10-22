@@ -1,14 +1,12 @@
 use clap::{Parser, Subcommand};
 use colored::*;
-use hacker::{display_help, handle_run, handle_system, handle_unpack, handle_update, play_game, run_command_with_spinner, RunCommands, SystemCommands, UnpackCommands};
-
+use hacker::{display_ascii, display_help, handle_run, handle_system, handle_unpack, handle_update, play_game, run_command_with_spinner, RunCommands, SystemCommands, UnpackCommands};
 #[derive(Parser)]
 #[command(name = "hacker", about = "A vibrant CLI tool for managing hacker tools, gaming, and system utilities", version = "1.0.0")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
 }
-
 #[derive(Subcommand)]
 enum Commands {
     /// Unpack various toolsets and applications
@@ -60,11 +58,11 @@ enum Commands {
     Game,
     /// Information about Hacker programming language
     HackerLang,
+    /// Display HackerOS ASCII art
+    Ascii,
 }
-
 fn main() {
     let cli = Cli::parse();
-
     match cli.command {
         Commands::Unpack { unpack_command } => handle_unpack(unpack_command),
         Commands::Help => display_help(),
@@ -86,5 +84,6 @@ fn main() {
             println!("{}", "Note: This is for advanced users. Ensure hackerc is installed separately.".yellow().bold().on_black());
             println!("{}", "========== End of Info ==========".magenta().bold().on_black());
         }
+        Commands::Ascii => display_ascii(),
     }
 }
