@@ -4,7 +4,7 @@ mod help;
 mod utils;
 pub use commands::{handle_unpack, handle_system, handle_run};
 pub use game::play_game;
-pub use help::{display_help, display_ascii};
+pub use help::display_ascii;
 pub use utils::{handle_update, run_command_with_spinner};
 use clap::Subcommand;
 #[derive(Subcommand)]
