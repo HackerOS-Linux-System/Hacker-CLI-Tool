@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use colored::*;
-use hacker::{display_ascii, display_help, handle_run, handle_system, handle_unpack, handle_update, play_game, run_command_with_spinner, RunCommands, SystemCommands, UnpackCommands};
+use hacker::{display_ascii, handle_run, handle_system, handle_unpack, handle_update, play_game, run_command_with_spinner, RunCommands, SystemCommands, UnpackCommands};
+use std::process::Command;
 #[derive(Parser)]
 #[command(name = "hacker", about = "A vibrant CLI tool for managing hacker tools, gaming, and system utilities", version = "1.0.0")]
 struct Cli {
@@ -16,6 +17,8 @@ enum Commands {
     },
     /// Display help information and list available commands
     Help,
+    /// Display help UI
+    HelpUi,
     /// Placeholder for install command
     Install {
         package: String,
@@ -60,12 +63,41 @@ enum Commands {
     HackerLang,
     /// Display HackerOS ASCII art
     Ascii,
+    /// Enter interactive Hacker shell mode
+    Shell,
 }
 fn main() {
     let cli = Cli::parse();
     match cli.command {
         Commands::Unpack { unpack_command } => handle_unpack(unpack_command),
-        Commands::Help => display_help(),
+        Commands::Help => {
+            let home = std::env::var("HOME").unwrap_or_default();
+            let help_bin = format!("{}/.hackeros/hacker-help", home);
+            match Command::new(&help_bin).status() {
+                Ok(status) => {
+                    if !status.success() {
+                        println!("{}", "Error running hacker-help. Ensure it's installed and executable in ~/.hackeros/".red().bold().on_black());
+                    }
+                }
+                Err(e) => {
+                    println!("{}", format!("Failed to execute hacker-help: {}", e).red().bold().on_black());
+                }
+            }
+        }
+        Commands::HelpUi => {
+            let home = std::env::var("HOME").unwrap_or_default();
+            let help_bin = format!("{}/.hackeros/hacker-help", home);
+            match Command::new(&help_bin).status() {
+                Ok(status) => {
+                    if !status.success() {
+                        println!("{}", "Error running hacker-help. Ensure it's installed and executable in ~/.hackeros/".red().bold().on_black());
+                    }
+                }
+                Err(e) => {
+                    println!("{}", format!("Failed to execute hacker-help: {}", e).red().bold().on_black());
+                }
+            }
+        }
         Commands::Install { package } => println!("{}", format!("Install command is a placeholder for: {}", package).yellow().bold().on_black()),
         Commands::Remove { package } => println!("{}", format!("Remove command is a placeholder for: {}", package).yellow().bold().on_black()),
         Commands::AptInstall { package } => run_command_with_spinner("sudo", vec!["apt", "install", "-y", &package], "Running apt install"),
@@ -85,5 +117,19 @@ fn main() {
             println!("{}", "========== End of Info ==========".magenta().bold().on_black());
         }
         Commands::Ascii => display_ascii(),
+        Commands::Shell => {
+            let home = std::env::var("HOME").unwrap_or_default();
+            let shell_bin = format!("{}/.hackeros/hacker-shell", home);
+            match Command::new(&shell_bin).status() {
+                Ok(status) => {
+                    if !status.success() {
+                        println!("{}", "Error running hacker-shell. Ensure it's installed and executable in ~/.hackeros/".red().bold().on_black());
+                    }
+                }
+                Err(e) => {
+                    println!("{}", format!("Failed to execute hacker-shell: {}", e).red().bold().on_black());
+                }
+            }
+        }
     }
 }
