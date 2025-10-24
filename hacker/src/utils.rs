@@ -5,7 +5,7 @@ use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 pub fn run_command_with_spinner(program: &str, args: Vec<&str>, message: &str) {
-    println!("{}", format!("{}: {}", message, args.join(" ")).blue().bold().on_black());
+    println!("{}", format!("▶ {}: {}", message, args.join(" ")).blue().bold().on_black());
     let stop = Arc::new(AtomicBool::new(false));
     let stop_clone = stop.clone();
     let spinner_chars: Vec<&str> = vec!["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -30,19 +30,34 @@ pub fn run_command_with_spinner(program: &str, args: Vec<&str>, message: &str) {
     stop.store(true, Ordering::Relaxed);
     handle.join().unwrap();
     if output.status.success() {
-        println!("{}", String::from_utf8_lossy(&output.stdout).green().bold().on_black());
+        let out_str = String::from_utf8_lossy(&output.stdout).to_string();
+        if !out_str.is_empty() {
+            println!("{}", format!("┌── Output ────────────────").green().bold().on_black());
+            println!("{}", out_str.green().on_black());
+            println!("{}", format!("└──────────────────────────").green().bold().on_black());
+        } else {
+            println!("{}", "✔ Success (no output)".green().bold().on_black());
+        }
     } else {
-        println!("{}", String::from_utf8_lossy(&output.stderr).red().bold().on_black());
+        let err_str = String::from_utf8_lossy(&output.stderr).to_string();
+        println!("{}", format!("┌── Error ─────────────────").red().bold().on_black());
+        println!("{}", err_str.red().on_black());
+        println!("{}", format!("└──────────────────────────").red().bold().on_black());
     }
 }
 pub fn handle_update() {
-    println!("{}", "========== Starting System Update ==========".magenta().bold().on_black());
+    println!("{}", "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓".magenta().bold().on_black());
+    println!("{}", "┃                                      Starting System Update                                                        ┃".magenta().bold().on_black());
+    println!("{}", "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛".magenta().bold().on_black());
     run_command_with_spinner("sudo", vec!["apt", "update"], "Updating APT repositories");
     run_command_with_spinner("sudo", vec!["apt", "upgrade", "-y"], "Upgrading APT packages");
     run_command_with_spinner("flatpak", vec!["update", "-y"], "Updating Flatpak packages");
     run_command_with_spinner("snap", vec!["refresh"], "Refreshing Snap packages");
     run_command_with_spinner("fwupdmgr", vec!["update"], "Updating firmware");
-    println!("{}", "========== System Update Complete ==========".green().bold().on_black());
+    run_command_with_spinner("omz", vec!["update"], "Updating Oh-My-Zsh");
+    println!("{}", "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓".green().bold().on_black());
+    println!("{}", "┃                                      System Update Complete                                                        ┃".green().bold().on_black());
+    println!("{}", "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛".green().bold().on_black());
 }
 pub fn handle_cybersecurity() {
     println!("{}", "========== Installing Penetration Tools ==========".cyan().bold().on_black());
