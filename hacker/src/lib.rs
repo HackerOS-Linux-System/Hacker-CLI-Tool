@@ -2,11 +2,14 @@ mod commands;
 mod game;
 mod help;
 mod utils;
+
 pub use commands::{handle_unpack, handle_system, handle_run};
 pub use game::play_game;
 pub use help::display_ascii;
 pub use utils::{handle_update, run_command_with_spinner};
+
 use clap::Subcommand;
+
 #[derive(Subcommand)]
 pub enum UnpackCommands {
     /// Install add-ons (Wine, BoxBuddy, Winezgui, Gearlever)
@@ -28,11 +31,13 @@ pub enum UnpackCommands {
     /// Install gamescope for hacker mode
     HackerMode,
 }
+
 #[derive(Subcommand)]
 pub enum SystemCommands {
     /// Show system logs
     Logs,
 }
+
 #[derive(Subcommand)]
 pub enum RunCommands {
     /// Run HackerOS Cockpit
@@ -49,4 +54,6 @@ pub enum RunCommands {
     HackerLauncher,
     /// Run HackerOS Game Mode
     HackerosGameMode,
+    /// Update HackerOS
+    UpdateHackeros,
 }
