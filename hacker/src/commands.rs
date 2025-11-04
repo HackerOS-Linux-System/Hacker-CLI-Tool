@@ -4,6 +4,7 @@ use crate::UnpackCommands;
 use crate::SystemCommands;
 use crate::RunCommands;
 use std::io::{self};
+
 pub fn handle_unpack(unpack_command: UnpackCommands) {
     match unpack_command {
         UnpackCommands::AddOns => {
@@ -49,7 +50,7 @@ pub fn handle_unpack(unpack_command: UnpackCommands) {
             println!("{}", "7. Gaming No Roblox".white().bold());
             let mut input = String::new();
             io::stdin().read_line(&mut input).expect("Failed to read line");
-            let selections: Vec<usize> = input.trim().split(',').filter_map(|s| s.parse().ok()).collect();
+            let selections: Vec<u32> = input.trim().split(',').filter_map(|s| s.parse().ok()).collect();
             for &sel in &selections {
                 match sel {
                     1 => handle_unpack(UnpackCommands::AddOns),
@@ -84,6 +85,7 @@ pub fn handle_unpack(unpack_command: UnpackCommands) {
         }
     }
 }
+
 pub fn handle_system(system_command: SystemCommands) {
     match system_command {
         SystemCommands::Logs => {
@@ -92,6 +94,7 @@ pub fn handle_system(system_command: SystemCommands) {
         }
     }
 }
+
 pub fn handle_run(cmd: RunCommands) {
     match cmd {
         RunCommands::HackerosCockpit => run_command_with_spinner("sudo", vec!["python3", "/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Cockpit/HackerOS-Cockpit.py"], "Running HackerOS Cockpit"),
@@ -101,5 +104,6 @@ pub fn handle_run(cmd: RunCommands) {
         RunCommands::Steam => run_command_with_spinner("bash", vec!["/usr/share/HackerOS/Scripts/Steam/HackerOS-Steam.sh"], "Launching Steam"),
         RunCommands::HackerLauncher => run_command_with_spinner("bash", vec!["/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker_Launcher"], "Launching HackerOS Launcher"),
         RunCommands::HackerosGameMode => run_command_with_spinner("", vec!["/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Game-Mode.AppImage"], "Running HackerOS Game Mode"),
+        RunCommands::UpdateHackeros => run_command_with_spinner("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/update-hackeros.sh"], "Updating HackerOS"),
     }
 }
