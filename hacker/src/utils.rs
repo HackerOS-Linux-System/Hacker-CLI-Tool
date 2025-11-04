@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+
 pub fn run_command_with_spinner(program: &str, args: Vec<&str>, message: &str) {
     println!("{}", format!("▶ {}: {}", message, args.join(" ")).blue().bold().on_black());
     let stop = Arc::new(AtomicBool::new(false));
@@ -17,7 +18,7 @@ pub fn run_command_with_spinner(program: &str, args: Vec<&str>, message: &str) {
             i = (i + 1) % spinner_chars.len();
             thread::sleep(Duration::from_millis(100));
         }
-        print!("\r   \r");
+        print!("\r \r");
         let _ = io::stdout().flush();
     });
     let child = Command::new(program)
@@ -45,9 +46,10 @@ pub fn run_command_with_spinner(program: &str, args: Vec<&str>, message: &str) {
         println!("{}", format!("└──────────────────────────").red().bold().on_black());
     }
 }
+
 pub fn handle_update() {
     println!("{}", "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓".magenta().bold().on_black());
-    println!("{}", "┃                                      Starting System Update                                                        ┃".magenta().bold().on_black());
+    println!("{}", "┃ Starting System Update ┃".magenta().bold().on_black());
     println!("{}", "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛".magenta().bold().on_black());
     run_command_with_spinner("sudo", vec!["apt", "update"], "Updating APT repositories");
     run_command_with_spinner("sudo", vec!["apt", "upgrade", "-y"], "Upgrading APT packages");
@@ -56,9 +58,10 @@ pub fn handle_update() {
     run_command_with_spinner("fwupdmgr", vec!["update"], "Updating firmware");
     run_command_with_spinner("omz", vec!["update"], "Updating Oh-My-Zsh");
     println!("{}", "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓".green().bold().on_black());
-    println!("{}", "┃                                      System Update Complete                                                        ┃".green().bold().on_black());
+    println!("{}", "┃ System Update Complete ┃".green().bold().on_black());
     println!("{}", "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛".green().bold().on_black());
 }
+
 pub fn handle_cybersecurity() {
     println!("{}", "========== Installing Penetration Tools ==========".cyan().bold().on_black());
     run_command_with_spinner("flatpak", vec!["remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], "Adding flathub repo");
@@ -69,6 +72,7 @@ pub fn handle_cybersecurity() {
     run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "org.ghidra_sre.Ghidra"], "Installing Ghidra");
     println!("{}", "========== Hacker-Unpack-Cybersecurity Complete ==========".green().bold().on_black());
 }
+
 pub fn handle_gaming() {
     println!("{}", "========== Installing Gaming Tools ==========".cyan().bold().on_black());
     run_command_with_spinner("flatpak", vec!["remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], "Adding flathub repo");
