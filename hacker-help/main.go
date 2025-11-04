@@ -144,6 +144,11 @@ var commands = []Command{
 		Details:     "Launches the HackerOS Game Mode AppImage.",
 	},
 	{
+		Name:        "hacker run update-hackeros",
+		Description: "Update HackerOS",
+		Details:     "Runs the update-hackeros.sh script to update HackerOS.",
+	},
+	{
 		Name:        "hacker update",
 		Description: "Perform system update (apt, flatpak, snap, firmware, omz)",
 		Details:     "Updates APT, Flatpak, Snap, firmware, and Oh-My-Zsh.",
@@ -208,20 +213,16 @@ func newModel() model {
 	for _, c := range commands {
 		items = append(items, item{c})
 	}
-
 	delegate := list.NewDefaultDelegate()
 	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Foreground(lipgloss.Color("#FF75CB")).Bold(true)
-
 	l := list.New(items, delegate, 0, 0)
 	l.Title = "Commands"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
 	l.Styles.Title = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FA8072")).Padding(0, 1)
 	l.SetShowHelp(true)
-
 	vp := viewport.New(0, 0)
 	vp.Style = lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true).Padding(1)
-
 	return model{
 		list:     l,
 		viewport: vp,
@@ -235,7 +236,6 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-
 	switch msg := msg.(type) {
 		case tea.WindowSizeMsg:
 			m.list.SetWidth(msg.Width / 2 - 1)
@@ -246,12 +246,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ready = true
 			}
 			return m, nil
-
 		case tea.KeyMsg:
 			if key.Matches(msg, m.keys.quit) {
 				return m, tea.Quit
 			}
-
 			switch msg.String() {
 				case "enter":
 					if m.mode == listMode {
@@ -272,13 +270,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 			}
 	}
-
 	if m.mode == listMode {
 		m.list, cmd = m.list.Update(msg)
 	} else {
 		m.viewport, cmd = m.viewport.Update(msg)
 	}
-
 	return m, cmd
 }
 
@@ -286,24 +282,20 @@ func (m model) View() string {
 	if !m.ready {
 		return "Initializing..."
 	}
-
 	left := lipgloss.NewStyle().
 	Width(m.list.Width() + 2).
 	Border(lipgloss.NormalBorder(), false, true, false, false).
 	Render(m.list.View())
-
 	rightContent := "Select a command from the list to view details.\n\nPress 'enter' to select, 'esc' to go back, 'q' to quit."
 	if m.mode == detailsMode {
 		rightContent = m.viewport.View()
 	}
-
 	right := lipgloss.NewStyle().
 	Width(m.viewport.Width + 4). // account for padding and border
 	Height(m.list.Height() + 2).
 	Border(lipgloss.NormalBorder(), true).
 	Padding(1).
 	Render(rightContent)
-
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 }
 
