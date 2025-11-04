@@ -11,7 +11,6 @@ pub fn play_game() {
         println!("{}", "2. Medium (Cat Meme Database - Decode the Puzzle)".white().bold());
         println!("{}", "3. Hard (Alien UFO Control - Multi-Step Challenge)".white().bold());
         println!("{}", "4. Expert (Quantum Computer Hack - Advanced Riddles and Guesses)".white().bold());
-
         let mut input = String::new();
         io::stdin().read_line(&mut input).expect("Failed to read line");
         let choice: u32 = match input.trim().parse() {
@@ -21,10 +20,8 @@ pub fn play_game() {
                 2
             }
         };
-
         let mut score = 0;
         let mut won = false;
-
         match choice {
             1 => {
                 println!("{}", "Level 1: Hacking the Office Coffee Machine!".green().bold().on_black());
@@ -112,7 +109,7 @@ pub fn play_game() {
                 }
                 if !success {
                     println!("{}", "Challenge failed! UFO escapes.".red().bold().on_black());
-                    break;
+                    continue;
                 }
                 // Challenge 2: Choose path
                 println!("{}", "Challenge 2: Choose your hack path:".yellow().bold().on_black());
@@ -181,12 +178,10 @@ pub fn play_game() {
             }
             _ => continue,
         }
-
         println!("{}", format!("Your score: {}", score).blue().bold().on_black());
         if won {
             println!("{}", "You win the level!".green().bold().on_black());
         }
-
         println!("{}", "Play again? (y/n)".cyan().bold().on_black());
         let mut again = String::new();
         io::stdin().read_line(&mut again).expect("Failed to read line");
