@@ -4,7 +4,7 @@ use hacker::{display_ascii, handle_run, handle_system, handle_unpack, handle_upd
 use std::process::Command;
 
 #[derive(Parser)]
-#[command(name = "hacker", about = "A vibrant CLI tool for managing hacker tools, gaming, and system utilities", version = "1.0.0")]
+#[command(name = "hacker", about = "A vibrant CLI tool for managing hacker tools, gaming, and system utilities", version = "1.1.0")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -21,20 +21,12 @@ enum Commands {
     Help,
     /// Display help UI
     HelpUi,
-    /// Placeholder for install command
+    /// Install a package using apt
     Install {
         package: String,
     },
-    /// Placeholder for remove command
+    /// Remove a package using apt
     Remove {
-        package: String,
-    },
-    /// Run apt install or sudo apt install -y
-    AptInstall {
-        package: String,
-    },
-    /// Run apt remove or sudo apt remove -y
-    AptRemove {
         package: String,
     },
     /// Run flatpak install -y
@@ -101,10 +93,8 @@ fn main() {
                 }
             }
         }
-        Commands::Install { package } => println!("{}", format!("Install command is a placeholder for: {}", package).yellow().bold().on_black()),
-        Commands::Remove { package } => println!("{}", format!("Remove command is a placeholder for: {}", package).yellow().bold().on_black()),
-        Commands::AptInstall { package } => run_command_with_spinner("sudo", vec!["apt", "install", "-y", &package], "Running apt install"),
-        Commands::AptRemove { package } => run_command_with_spinner("sudo", vec!["apt", "remove", "-y", &package], "Running apt remove"),
+        Commands::Install { package } => run_command_with_spinner("sudo", vec!["apt", "install", "-y", &package], "Running apt install"),
+        Commands::Remove { package } => run_command_with_spinner("sudo", vec!["apt", "remove", "-y", &package], "Running apt remove"),
         Commands::FlatpakInstall { package } => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", &package], "Running flatpak install"),
         Commands::FlatpakRemove { package } => run_command_with_spinner("flatpak", vec!["remove", "-y", &package], "Running flatpak remove"),
         Commands::FlatpakUpdate => run_command_with_spinner("flatpak", vec!["update", "-y"], "Running flatpak update"),
