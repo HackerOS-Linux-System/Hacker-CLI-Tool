@@ -39,8 +39,6 @@ def display_command_list():
     tree.add("help: Display help")
     tree.add("install <package>")
     tree.add("remove <package>")
-    tree.add("apt-install <package>")
-    tree.add("apt-remove <package>")
     tree.add("flatpak-install <package>")
     tree.add("flatpak-remove <package>")
     tree.add("flatpak-update")
