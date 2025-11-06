@@ -5,10 +5,7 @@ use crate::SystemCommands;
 use crate::RunCommands;
 use std::io::{self, BufRead};
 use std::fs::{self, File};
-use std::path::Path;
-use std::process::{Command, Stdio};
 use chrono::{DateTime, Utc, Duration as ChronoDuration};
-use std::env;
 
 pub fn handle_unpack(unpack_command: UnpackCommands) {
     match unpack_command {
@@ -210,9 +207,9 @@ pub fn handle_back() {
     let snapshot_dir = "/var/cache/hacker/";
     // Find latest current- snapshot
     let mut snapshots: Vec<_> = fs::read_dir(snapshot_dir).unwrap()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_name().to_string_lossy().starts_with("current-"))
-        .collect();
+    .filter_map(|e| e.ok())
+    .filter(|e| e.file_name().to_string_lossy().starts_with("current-"))
+    .collect();
     snapshots.sort_by_key(|e| e.metadata().unwrap().modified().unwrap());
     if let Some(latest) = snapshots.last() {
         let path = latest.path().to_string_lossy().to_string();
