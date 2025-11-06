@@ -13,21 +13,21 @@ pub fn run_command_with_progress(program: &str, args: Vec<&str>, message: &str) 
         while progress_clone.load(Ordering::Relaxed) < 100 {
             let p = progress_clone.load(Ordering::Relaxed);
             let filled = (p as f32 / 100.0 * bar_length as f32) as usize;
-            let bar: String = (0..bar_length).map(|i| if i < filled { '#' } else { '.' }).collect();
-            print!("\r{}% <{}>", p, bar.purple().bold());
+            let bar: String = (0..bar_length).map(|i| if i < filled { '.' } else { ' ' }).collect();
+            print!("\r{}% <{} >", p, bar.purple().bold());
             let _ = io::stdout().flush();
             thread::sleep(Duration::from_millis(200)); // Simulate progress
             progress_clone.store((p + 2).min(99), Ordering::Relaxed); // Increment slowly
         }
-        print!("\r100% <{}>        \n", "#".repeat(bar_length).purple().bold());
+        print!("\r100% <{} >        \n", ".".repeat(bar_length).purple().bold());
         let _ = io::stdout().flush();
     });
-    let mut child = Command::new(program)
-        .args(&args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect(&format!("Failed to execute {}", program));
+    let child = Command::new(program)
+    .args(&args)
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .spawn()
+    .expect(&format!("Failed to execute {}", program));
     // Simple simulation, no real progress parsing for now
     let output = child.wait_with_output().expect("Failed to wait on child");
     progress.store(100, Ordering::Relaxed);
