@@ -79,16 +79,6 @@ var commands = []Command{
 		Details:     "Currently a placeholder; will print a message about the package.",
 	},
 	{
-		Name:        "hacker apt-install <package>",
-		Description: "Run apt install -y <package>",
-		Details:     "Uses sudo apt install -y to install the specified Debian package.",
-	},
-	{
-		Name:        "hacker apt-remove <package>",
-		Description: "Run apt remove -y <package>",
-		Details:     "Uses sudo apt remove -y to remove the specified Debian package.",
-	},
-	{
 		Name:        "hacker flatpak-install <package>",
 		Description: "Run flatpak install -y flathub <package>",
 		Details:     "Installs a Flatpak package from Flathub.",
