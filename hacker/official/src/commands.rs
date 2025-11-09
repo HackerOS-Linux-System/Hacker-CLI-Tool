@@ -4,7 +4,7 @@ use crate::UnpackCommands;
 use crate::SystemCommands;
 use crate::RunCommands;
 use std::io::{self};
-
+use std::process::Command;
 pub fn handle_unpack(unpack_command: UnpackCommands) {
     match unpack_command {
         UnpackCommands::AddOns => {
@@ -40,27 +40,54 @@ pub fn handle_unpack(unpack_command: UnpackCommands) {
         }
         UnpackCommands::Select => {
             println!("{}", "========== Interactive Package Selection ==========".yellow().bold().on_black());
-            println!("{}", "Select packages to install (enter numbers separated by commas, e.g., 1,3,5):".cyan().bold());
-            println!("{}", "1. Add-Ons (Wine, BoxBuddy, etc.)".white().bold());
-            println!("{}", "2. Gaming Tools (Steam, Lutris, etc.)".white().bold());
-            println!("{}", "3. Cybersecurity Tools (nmap, wireshark, etc.)".white().bold());
-            println!("{}", "4. Devtools (Atom)".white().bold());
-            println!("{}", "5. Emulators (PlayStation, Nintendo, etc.)".white().bold());
-            println!("{}", "6. Hacker Mode (gamescope)".white().bold());
-            println!("{}", "7. Gaming No Roblox".white().bold());
-            let mut input = String::new();
-            io::stdin().read_line(&mut input).expect("Failed to read line");
-            let selections: Vec<u32> = input.trim().split(',').filter_map(|s| s.parse().ok()).collect();
-            for &sel in &selections {
-                match sel {
-                    1 => handle_unpack(UnpackCommands::AddOns),
-                    2 => handle_unpack(UnpackCommands::Gaming),
-                    3 => handle_unpack(UnpackCommands::Cybersecurity),
-                    4 => handle_unpack(UnpackCommands::Devtools),
-                    5 => handle_unpack(UnpackCommands::Emulators),
-                    6 => handle_unpack(UnpackCommands::HackerMode),
-                    7 => handle_unpack(UnpackCommands::Noroblox),
-                    _ => println!("{}", "Invalid selection!".red().bold()),
+            let home = std::env::var("HOME").unwrap_or_default();
+            let select_bin = format!("{}/.hackeros/hacker-select", home);
+            let select_output = Command::new(&select_bin).arg("-mode").arg("unpack").output().expect("Failed to run hacker-select");
+            if !select_output.status.success() {
+                println!("{}", "Error running hacker-select".red().bold().on_black());
+                return;
+            }
+            let selected_str = String::from_utf8_lossy(&select_output.stdout).to_string();
+            let selected: Vec<String> = selected_str.lines().map(|s| s.to_string()).collect();
+            for s in selected {
+                if s.starts_with("category:") {
+                    let group = s.strip_prefix("category:").unwrap().trim().to_lowercase();
+                    match group.as_str() {
+                        "add-ons" => handle_unpack(UnpackCommands::AddOns),
+                        "gaming" => handle_unpack(UnpackCommands::Gaming),
+                        "cybersecurity" => handle_unpack(UnpackCommands::Cybersecurity),
+                        "devtools" => handle_unpack(UnpackCommands::Devtools),
+                        "emulators" => handle_unpack(UnpackCommands::Emulators),
+                        "hacker-mode" => handle_unpack(UnpackCommands::HackerMode),
+                        "noroblox" => handle_unpack(UnpackCommands::Noroblox),
+                        _ => println!("{}", format!("Unknown category: {}", group).red().bold()),
+                    }
+                } else if s.starts_with("app:") {
+                    let app = s.strip_prefix("app:").unwrap().trim();
+                    match app {
+                        "wine" => run_command_with_spinner("sudo", vec!["apt", "install", "-y", "wine"], "Installing wine"),
+                        "winetricks" => run_command_with_spinner("sudo", vec!["apt", "install", "-y", "winetricks"], "Installing winetricks"),
+                        "io.github.dvlv.boxbuddyrs" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "io.github.dvlv.boxbuddyrs"], "Installing BoxBuddy"),
+                        "it.mijorus.winezgui" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "it.mijorus.winezgui"], "Installing Winezgui"),
+                        "it.mijorus.gearlever" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "it.mijorus.gearlever"], "Installing Gearlever"),
+                        "obs-studio" => run_command_with_spinner("sudo", vec!["apt", "install", "-y", "obs-studio"], "Installing obs-studio"),
+                        "lutris" => run_command_with_spinner("sudo", vec!["apt", "install", "-y", "lutris"], "Installing lutris"),
+                        "com.valvesoftware.Steam" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "com.valvesoftware.Steam"], "Installing Steam"),
+                        "io.github.giantpinkrobots.varia" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "io.github.giantpinkrobots.varia"], "Installing Pika Torrent"),
+                        "net.davidotek.pupgui2" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "net.davidotek.pupgui2"], "Installing ProtonUp-Qt"),
+                        "com.heroicgameslauncher.hgl" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "com.heroicgameslauncher.hgl"], "Installing Heroic Games Launcher"),
+                        "protontricks" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "protontricks"], "Installing protontricks"),
+                        "com.discordapp.Discord" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "com.discordapp.Discord"], "Installing Discord"),
+                        "roblox" => run_command_with_spinner("flatpak", vec!["install", "--user", "https://sober.vinegarhq.org/sober.flatpakref"], "Installing Roblox"),
+                        "roblox-studio" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "org.vinegarhq.Vinegar"], "Installing Roblox Studio"),
+                        "io.atom.Atom" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "io.atom.Atom"], "Installing Atom"),
+                        "org.shadps4.shadPS4" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "org.shadps4.shadPS4"], "Installing shadPS4"),
+                        "io.github.ryubing.Ryujinx" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "io.github.ryubing.Ryujinx"], "Installing Ryujinx"),
+                        "com.dosbox_x.DOSBox-X" => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "com.dosbox_x.DOSBox-X"], "Installing DOSBox-X"),
+                        "rpcs3-emu" => run_command_with_spinner("sudo", vec!["snap", "install", "rpcs3-emu"], "Installing RPCS3"),
+                        "gamescope" => run_command_with_spinner("sudo", vec!["apt", "install", "-y", "gamescope"], "Installing gamescope"),
+                        _ => println!("{}", format!("Unknown app: {}", app).red().bold()),
+                    }
                 }
             }
             println!("{}", "========== Selection Complete ==========".green().bold().on_black());
@@ -85,7 +112,6 @@ pub fn handle_unpack(unpack_command: UnpackCommands) {
         }
     }
 }
-
 pub fn handle_system(system_command: SystemCommands) {
     match system_command {
         SystemCommands::Logs => {
@@ -94,11 +120,8 @@ pub fn handle_system(system_command: SystemCommands) {
         }
     }
 }
-
 pub fn handle_run(cmd: RunCommands) {
     match cmd {
-        RunCommands::HackerosCockpit => run_command_with_spinner("sudo", vec!["python3", "/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Cockpit/HackerOS-Cockpit.py"], "Running HackerOS Cockpit"),
-        RunCommands::SwitchToOtherSession => run_command_with_spinner("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/Switch_To_Other_Session.sh"], "Switching to other session"),
         RunCommands::UpdateSystem => run_command_with_spinner("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/update-system.sh"], "Updating system"),
         RunCommands::CheckUpdates => run_command_with_spinner("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/check_updates_notify.sh"], "Checking for updates"),
         RunCommands::Steam => run_command_with_spinner("bash", vec!["/usr/share/HackerOS/Scripts/Steam/HackerOS-Steam.sh"], "Launching Steam"),
