@@ -1,0 +1,20 @@
+usun komendy
+hacker run hackeros-cockpit
+hacker run switch-to-other-session
+zmien komende hacker unpack cybersecurity - aby nie instalowala nic lokalnie aby odpalala komendy:
+distrobox create --name cybersecurity --image archlinux:latest
+nastepnie wchodzi do tego kontenera distrobox enter cybersecurity
+i instaluje blackarcha
+curl -O https://blackarch.org/strap.sh
+echo e26445d34490cc06bd14b51f9924debf569e0ecb strap.sh | sha1sum -c
+chmod +x strap.sh
+sudo ./strap.sh
+sudo pacman -Syu
+(musi byc rowniez wlaczone multilib)
+ 
+nastepnie pyta sie uzytkownika jakie chce narzedzia w kontenerze i uzytkownik moze wybrac wszystkie czy konkretne kategorie (za pomoca strzalek wybiera za pomoca spacji zatwierdza za pomoca enter)
+ 
+dodaj komende hacker enter cybersecurity (wchodzi do tego kontenera)
+i dodaj komende ktora bedzie usuwac ten kontener jezeli uzytkownik juz nie bedzie chcial
+ 
+rozbuduj rowniez komende hacker unpack select aby ta komenda mozna bylo wybrac kazda aplikacje za pomoca strzalkami sterujesz interfejsem spacja wybierasz enter zatwierdzasz (uzytkownik moze wybrac pojedyncze aplikacje lub wybrane kategorie) dodaj rowniez mozliwosc wyszukiwania rozbuduj rowniez hacker-shell i hacker-help rozbuduj rowniez gre hacker game
