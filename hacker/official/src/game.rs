@@ -1,7 +1,6 @@
 use colored::*;
 use std::io::{self};
 use rand::Rng;
-
 pub fn play_game() {
     loop {
         println!("{}", "========== Welcome to Hacker Adventure! ==========".purple().bold().on_black());
@@ -11,6 +10,7 @@ pub fn play_game() {
         println!("{}", "2. Medium (Cat Meme Database - Decode the Puzzle)".white().bold());
         println!("{}", "3. Hard (Alien UFO Control - Multi-Step Challenge)".white().bold());
         println!("{}", "4. Expert (Quantum Computer Hack - Advanced Riddles and Guesses)".white().bold());
+        println!("{}", "5. Ultimate (Matrix Hack - Math and Logic Puzzles)".white().bold());
         let mut input = String::new();
         io::stdin().read_line(&mut input).expect("Failed to read line");
         let choice: u32 = match input.trim().parse() {
@@ -54,13 +54,16 @@ pub fn play_game() {
             }
             2 => {
                 println!("{}", "Level 2: Infiltrating the Cat Meme Database!".green().bold().on_black());
-                println!("{}", "Solve the riddle to decode the access key.".cyan().on_black());
+                println!("{}", "Solve the riddles to decode the access key.".cyan().on_black());
                 let riddles = vec![
                     ("What has keys but can't open locks?", "keyboard"),
                     ("I'm light as a feather, but the strongest hacker can't hold me for much more than a minute. What am I?", "breath"),
                     ("What do you call a hacker who skips school?", "truant"),
                     ("What gets wetter as it dries?", "towel"),
                     ("I speak without a mouth and hear without ears. I have no body, but I come alive with the wind. What am I?", "echo"),
+                    ("What has a ring but no finger?", "phone"),
+                    ("What can run but never walks, has a mouth but never talks?", "river"),
+                    ("What has one eye but can't see?", "needle"),
                 ];
                 for (riddle, answer) in riddles {
                     println!("{}", riddle.magenta().bold().on_black());
@@ -73,7 +76,7 @@ pub fn play_game() {
                         println!("{}", format!("Wrong! It was '{}'.", answer).red().on_black());
                     }
                 }
-                if score >= 150 {
+                if score >= 200 {
                     won = true;
                     println!("{}", "Database hacked! Endless cat memes unlocked!".green().bold().on_black());
                 } else {
@@ -83,7 +86,6 @@ pub fn play_game() {
             3 => {
                 println!("{}", "Level 3: Taking over an Alien UFO!".green().bold().on_black());
                 println!("{}", "Complete all challenges to win.".cyan().on_black());
-                // Challenge 1: Guess number
                 let num = rand::thread_rng().gen_range(1..101);
                 let mut attempts = 0;
                 let mut success = false;
@@ -111,7 +113,6 @@ pub fn play_game() {
                     println!("{}", "Challenge failed! UFO escapes.".red().bold().on_black());
                     continue;
                 }
-                // Challenge 2: Choose path
                 println!("{}", "Challenge 2: Choose your hack path:".yellow().bold().on_black());
                 println!("{}", "1. Brute force (risky)".white().bold());
                 println!("{}", "2. Stealth mode (safe)".white().bold());
@@ -129,7 +130,6 @@ pub fn play_game() {
                         score -= 50;
                     }
                 }
-                // Challenge 3: Final puzzle
                 println!("{}", "Final Challenge: What do hackers do at the beach?".magenta().bold().on_black());
                 println!("{}", "Hint: It involves waves.".cyan().on_black());
                 let mut guess = String::new();
@@ -149,6 +149,9 @@ pub fn play_game() {
                     ("I am not alive, but I grow; I don't have lungs, but I need air; I don't have a mouth, but water kills me. What am I?", "fire"),
                     ("What can travel around the world while staying in a corner?", "stamp"),
                     ("What has a head, a tail, is brown, and has no legs?", "penny"),
+                    ("What is always in front of you but can’t be seen?", "future"),
+                    ("What can you break, even if you never pick it up or touch it?", "promise"),
+                    ("I have branches, but no fruit, trunk or leaves. What am I?", "bank"),
                 ];
                 for (riddle, answer) in riddles {
                     println!("{}", riddle.magenta().bold().on_black());
@@ -161,7 +164,6 @@ pub fn play_game() {
                         println!("{}", format!("Wrong! It was '{}'.", answer).red().on_black());
                     }
                 }
-                // Quantum guess: Even or odd
                 let quantum = rand::thread_rng().gen_range(1..1001);
                 println!("{}", "Final Quantum Challenge: Guess if the state is even or odd (number 1-1000).".yellow().bold().on_black());
                 let mut guess = String::new();
@@ -174,6 +176,59 @@ pub fn play_game() {
                     won = true;
                 } else {
                     println!("{}", format!("Wrong! It was {}. Quantum collapse!", if is_even { "even" } else { "odd" }).red().on_black());
+                }
+            }
+            5 => {
+                println!("{}", "Level 5: Ultimate Matrix Hack!".green().bold().on_black());
+                println!("{}", "Solve math and logic puzzles to break the matrix.".cyan().on_black());
+                // Challenge 1: Math problem
+                println!("{}", "Challenge 1: What is 10 + 5 * 2 - 3?".magenta().bold().on_black());
+                let mut guess = String::new();
+                io::stdin().read_line(&mut guess).expect("Failed to read line");
+                if guess.trim() == "17" {
+                    println!("{}", "Correct! +150 points.".green().on_black());
+                    score += 150;
+                } else {
+                    println!("{}", "Wrong! It was 17.".red().on_black());
+                }
+                // Challenge 2: Logic riddle
+                println!("{}", "Challenge 2: If a red house is made of red bricks, a blue house of blue bricks, what is a greenhouse made of?".magenta().bold().on_black());
+                let mut guess = String::new();
+                io::stdin().read_line(&mut guess).expect("Failed to read line");
+                if guess.trim().to_lowercase() == "glass" {
+                    println!("{}", "Correct! +150 points.".green().on_black());
+                    score += 150;
+                } else {
+                    println!("{}", "Wrong! It's glass.".red().on_black());
+                }
+                // Challenge 3: Guess number with more range
+                let num = rand::thread_rng().gen_range(1..201);
+                let mut attempts = 0;
+                let mut success = false;
+                while attempts < 6 {
+                    attempts += 1;
+                    println!("{}", "Challenge 3: Guess the matrix code (1-200):".yellow().bold().on_black());
+                    let mut guess = String::new();
+                    io::stdin().read_line(&mut guess).expect("Failed to read line");
+                    let guess: i32 = match guess.trim().parse() {
+                        Ok(num) => num,
+                        Err(_) => continue,
+                    };
+                    if guess == num {
+                        println!("{}", "Code cracked! +200 points.".green().on_black());
+                        score += 200;
+                        success = true;
+                        break;
+                    } else if guess < num {
+                        println!("{}", "Too low! The matrix glitches.".yellow().on_black());
+                    } else {
+                        println!("{}", "Too high! The code shifts.".yellow().on_black());
+                    }
+                }
+                if !success {
+                    println!("{}", "Challenge failed! Matrix resets.".red().bold().on_black());
+                } else {
+                    won = true;
                 }
             }
             _ => continue,
