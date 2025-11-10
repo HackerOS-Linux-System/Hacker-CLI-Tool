@@ -1,6 +1,7 @@
 use colored::*;
 use std::io::{self};
 use rand::Rng;
+
 pub fn play_game() {
     loop {
         println!("{}", "========== Welcome to Hacker Adventure! ==========".purple().bold().on_black());
