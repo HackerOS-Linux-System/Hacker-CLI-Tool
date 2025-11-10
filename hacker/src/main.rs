@@ -3,12 +3,14 @@ use colored::*;
 use hacker::{display_ascii, handle_run, handle_system, handle_unpack, handle_update, play_game, run_command_with_spinner, RunCommands, SystemCommands, UnpackCommands};
 use std::process::Command;
 use std::io::{self, Write};
+
 #[derive(Parser)]
 #[command(name = "hacker", about = "A vibrant CLI tool for managing hacker tools, gaming, and system utilities", version = "1.1.0")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
 }
+
 #[derive(Subcommand)]
 enum Commands {
     /// Unpack various toolsets and applications
@@ -18,6 +20,8 @@ enum Commands {
     },
     /// Display help information and list available commands
     Help,
+    /// Display help information in UI
+    HelpUi,
     /// Install a package using apt
     Install {
         package: String,
@@ -65,11 +69,26 @@ enum Commands {
         container: String,
     },
 }
+
 fn main() {
     let cli = Cli::parse();
     match cli.command {
         Commands::Unpack { unpack_command } => handle_unpack(unpack_command),
         Commands::Help => {
+            let home = std::env::var("HOME").unwrap_or_default();
+            let help_bin = format!("{}/.hackeros/hacker-help", home);
+            match Command::new(&help_bin).status() {
+                Ok(status) => {
+                    if !status.success() {
+                        println!("{}", "Error running hacker-help. Ensure it's installed and executable in ~/.hackeros/".red().bold().on_black());
+                    }
+                }
+                Err(e) => {
+                    println!("{}", format!("Failed to execute hacker-help: {}", e).red().bold().on_black());
+                }
+            }
+        }
+        Commands::HelpUi => {
             let home = std::env::var("HOME").unwrap_or_default();
             let help_bin = format!("{}/.hackeros/hacker-help", home);
             match Command::new(&help_bin).status() {
