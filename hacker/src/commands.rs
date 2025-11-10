@@ -3,8 +3,8 @@ use crate::utils::{handle_cybersecurity, handle_gaming, run_command_with_spinner
 use crate::UnpackCommands;
 use crate::SystemCommands;
 use crate::RunCommands;
-use std::io::{self};
 use std::process::Command;
+
 pub fn handle_unpack(unpack_command: UnpackCommands) {
     match unpack_command {
         UnpackCommands::AddOns => {
@@ -112,6 +112,7 @@ pub fn handle_unpack(unpack_command: UnpackCommands) {
         }
     }
 }
+
 pub fn handle_system(system_command: SystemCommands) {
     match system_command {
         SystemCommands::Logs => {
@@ -120,6 +121,7 @@ pub fn handle_system(system_command: SystemCommands) {
         }
     }
 }
+
 pub fn handle_run(cmd: RunCommands) {
     match cmd {
         RunCommands::UpdateSystem => run_command_with_spinner("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/update-system.sh"], "Updating system"),
