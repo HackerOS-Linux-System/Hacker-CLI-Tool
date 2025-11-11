@@ -4,7 +4,6 @@ use crate::UnpackCommands;
 use crate::SystemCommands;
 use crate::RunCommands;
 use std::process::Command;
-
 pub fn handle_unpack(unpack_command: UnpackCommands) {
     match unpack_command {
         UnpackCommands::AddOns => {
@@ -110,9 +109,34 @@ pub fn handle_unpack(unpack_command: UnpackCommands) {
             run_command_with_spinner("sudo", vec!["apt", "install", "-y", "gamescope"], "Installing gamescope");
             println!("{}", "========== Hacker Mode Install Complete ==========".green().bold().on_black());
         }
+        UnpackCommands::GamescopeSessionSteam => {
+            println!("{}", "========== Setting up gamescope-session-steam ==========".cyan().bold().on_black());
+            // Check if gamescope is installed
+            let gamescope_installed = Command::new("gamescope").arg("--version").status().map(|s| s.success()).unwrap_or(false);
+            if !gamescope_installed {
+                run_command_with_spinner("sudo", vec!["apt", "install", "-y", "gamescope"], "Installing gamescope");
+            } else {
+                println!("{}", "gamescope is already installed.".green().bold().on_black());
+            }
+            // Check if Steam flatpak is installed
+            let steam_output = Command::new("flatpak").arg("list").output().map(|o| String::from_utf8_lossy(&o.stdout).contains("com.valvesoftware.Steam")).unwrap_or(false);
+            if !steam_output {
+                run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", "com.valvesoftware.Steam"], "Installing Steam flatpak");
+            } else {
+                println!("{}", "Steam flatpak is already installed.".green().bold().on_black());
+            }
+            // Clone repo to /tmp/
+            let repo_dir = "/tmp/gamescope-session-steam";
+            // Remove if exists
+            let _ = Command::new("rm").args(&["-rf", repo_dir]).output();
+            run_command_with_spinner("git", vec!["clone", "https://github.com/HackerOS-Linux-System/gamescope-session-steam.git", repo_dir], "Cloning repository");
+            // Run hackerc run unpack.hacker
+            let unpack_path = format!("{}/unpack.hacker", repo_dir);
+            run_command_with_spinner("hackerc", vec!["run", &unpack_path], "Running unpack.hacker");
+            println!("{}", "========== gamescope-session-steam Setup Complete ==========".green().bold().on_black());
+        }
     }
 }
-
 pub fn handle_system(system_command: SystemCommands) {
     match system_command {
         SystemCommands::Logs => {
@@ -121,7 +145,6 @@ pub fn handle_system(system_command: SystemCommands) {
         }
     }
 }
-
 pub fn handle_run(cmd: RunCommands) {
     match cmd {
         RunCommands::UpdateSystem => run_command_with_spinner("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/update-system.sh"], "Updating system"),
