@@ -1,174 +1,189 @@
 package main
+
 import (
 	"fmt"
 	"os"
+
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 )
+
 type Command struct {
-	Name string
+	Name        string
 	Description string
-	Details string
+	Details     string
 }
+
 var commands = []Command{
 	{
-		Name: "hacker unpack add-ons",
+		Name:        "hacker unpack add-ons",
 		Description: "Install Wine, BoxBuddy, Winezgui, Gearlever",
-		Details: "This command installs add-ons like Wine for running Windows applications, BoxBuddy for managing Flatpaks, Winezgui for Wine GUI, and Gearlever for additional utilities.",
+		Details:     "This command installs add-ons like Wine for running Windows applications, BoxBuddy for managing Flatpaks, Winezgui for Wine GUI, and Gearlever for additional utilities.",
 	},
 	{
-		Name: "hacker unpack g-s",
+		Name:        "hacker unpack g-s",
 		Description: "Install gaming and cybersecurity tools",
-		Details: "Installs both gaming (Steam, Lutris, etc.) and cybersecurity tools (container with BlackArch).",
+		Details:     "Installs both gaming (Steam, Lutris, etc.) and cybersecurity tools (container with BlackArch).",
 	},
 	{
-		Name: "hacker unpack devtools",
+		Name:        "hacker unpack devtools",
 		Description: "Install Atom",
-		Details: "Installs the Atom text editor via Flatpak for development purposes.",
+		Details:     "Installs the Atom text editor via Flatpak for development purposes.",
 	},
 	{
-		Name: "hacker unpack emulators",
+		Name:        "hacker unpack emulators",
 		Description: "Install PlayStation, Nintendo, DOSBox, PS3 emulators",
-		Details: "Installs various emulators including shadPS4, Ryujinx, DOSBox-X, and RPCS3.",
+		Details:     "Installs various emulators including shadPS4, Ryujinx, DOSBox-X, and RPCS3.",
 	},
 	{
-		Name: "hacker unpack cybersecurity",
+		Name:        "hacker unpack cybersecurity",
 		Description: "Setup cybersecurity container with BlackArch",
-		Details: "Creates a distrobox container with Arch Linux, installs BlackArch, enables multilib, and allows selecting categories or all tools.",
+		Details:     "Creates a distrobox container with Arch Linux, installs BlackArch, enables multilib, and allows selecting categories or all tools.",
 	},
 	{
-		Name: "hacker unpack hacker-mode",
+		Name:        "hacker unpack hacker-mode",
 		Description: "Install gamescope",
-		Details: "Installs gamescope for advanced gaming session management.",
+		Details:     "Installs gamescope for advanced gaming session management.",
 	},
 	{
-		Name: "hacker unpack select",
+		Name:        "hacker unpack select",
 		Description: "Interactive package selection with TUI",
-		Details: "Provides an interactive TUI to select categories or individual applications, with search capability.",
+		Details:     "Provides an interactive TUI to select categories or individual applications, with search capability.",
 	},
 	{
-		Name: "hacker unpack gaming",
+		Name:        "hacker unpack gaming",
 		Description: "Install OBS Studio, Lutris, Steam, etc.",
-		Details: "Installs gaming tools including OBS Studio, Lutris, Steam, Heroic Games Launcher, Discord, and Roblox support.",
+		Details:     "Installs gaming tools including OBS Studio, Lutris, Steam, Heroic Games Launcher, Discord, and Roblox support.",
 	},
 	{
-		Name: "hacker unpack noroblox",
+		Name:        "hacker unpack noroblox",
 		Description: "Install gaming tools without Roblox",
-		Details: "Installs gaming tools like the gaming command but excludes Roblox-related packages.",
+		Details:     "Installs gaming tools like the gaming command but excludes Roblox-related packages.",
 	},
 	{
-		Name: "hacker help",
+		Name:        "hacker unpack gamescope-session-steam",
+		Description: "Install and setup gamescope-session-steam",
+		Details:     "Checks and installs gamescope via apt, checks and installs Steam flatpak, clones the repo to /tmp, and runs unpack.hacker with hackerc.",
+	},
+	{
+		Name:        "hacker help",
 		Description: "Display this help message",
-		Details: "Launches this interactive help UI.",
+		Details:     "Launches this interactive help UI.",
 	},
 	{
-		Name: "hacker install <package>",
+		Name:        "hacker install <package>",
 		Description: "Install package using apt",
-		Details: "Runs sudo apt install -y <package>.",
+		Details:     "Runs sudo apt install -y <package>.",
 	},
 	{
-		Name: "hacker remove <package>",
+		Name:        "hacker remove <package>",
 		Description: "Remove package using apt",
-		Details: "Runs sudo apt remove -y <package>.",
+		Details:     "Runs sudo apt remove -y <package>.",
 	},
 	{
-		Name: "hacker flatpak-install <package>",
+		Name:        "hacker flatpak-install <package>",
 		Description: "Run flatpak install -y flathub <package>",
-		Details: "Installs a Flatpak package from Flathub.",
+		Details:     "Installs a Flatpak package from Flathub.",
 	},
 	{
-		Name: "hacker flatpak-remove <package>",
+		Name:        "hacker flatpak-remove <package>",
 		Description: "Run flatpak remove -y <package>",
-		Details: "Removes a Flatpak package.",
+		Details:     "Removes a Flatpak package.",
 	},
 	{
-		Name: "hacker flatpak-update",
+		Name:        "hacker flatpak-update",
 		Description: "Run flatpak update -y",
-		Details: "Updates all installed Flatpak packages.",
+		Details:     "Updates all installed Flatpak packages.",
 	},
 	{
-		Name: "hacker system logs",
+		Name:        "hacker system logs",
 		Description: "Show system logs",
-		Details: "Displays recent system logs using journalctl -xe.",
+		Details:     "Displays recent system logs using journalctl -xe.",
 	},
 	{
-		Name: "hacker run update-system",
+		Name:        "hacker run update-system",
 		Description: "Update the system",
-		Details: "Runs the system update script.",
+		Details:     "Runs the system update script.",
 	},
 	{
-		Name: "hacker run check-updates",
+		Name:        "hacker run check-updates",
 		Description: "Check for system updates",
-		Details: "Runs the update check notification script.",
+		Details:     "Runs the update check notification script.",
 	},
 	{
-		Name: "hacker run steam",
+		Name:        "hacker run steam",
 		Description: "Launch Steam via HackerOS script",
-		Details: "Launches Steam using a custom HackerOS script.",
+		Details:     "Launches Steam using a custom HackerOS script.",
 	},
 	{
-		Name: "hacker run hacker-launcher",
+		Name:        "hacker run hacker-launcher",
 		Description: "Launch HackerOS Launcher",
-		Details: "Runs the HackerOS application launcher.",
+		Details:     "Runs the HackerOS application launcher.",
 	},
 	{
-		Name: "hacker run hackeros-game-mode",
+		Name:        "hacker run hackeros-game-mode",
 		Description: "Run HackerOS Game Mode",
-		Details: "Launches the HackerOS Game Mode AppImage.",
+		Details:     "Launches the HackerOS Game Mode AppImage.",
 	},
 	{
-		Name: "hacker run update-hackeros",
+		Name:        "hacker run update-hackeros",
 		Description: "Update HackerOS",
-		Details: "Runs the update-hackeros.sh script to update HackerOS.",
+		Details:     "Runs the update-hackeros.sh script to update HackerOS.",
 	},
 	{
-		Name: "hacker update",
+		Name:        "hacker update",
 		Description: "Perform system update (apt, flatpak, snap, firmware, omz)",
-		Details: "Updates APT, Flatpak, Snap, firmware, and Oh-My-Zsh.",
+		Details:     "Updates APT, Flatpak, Snap, firmware, and Oh-My-Zsh.",
 	},
 	{
-		Name: "hacker game",
+		Name:        "hacker game",
 		Description: "Play a fun Hacker Adventure game",
-		Details: "Starts an interactive text-based adventure game in the terminal with expanded levels and challenges.",
+		Details:     "Starts an interactive text-based adventure game in the terminal with expanded levels and challenges.",
 	},
 	{
-		Name: "hacker hacker-lang",
+		Name:        "hacker hacker-lang",
 		Description: "Information about Hacker programming language",
-		Details: "Displays info about using the .hacker file extension and hackerc compiler.",
+		Details:     "Displays info about using the .hacker file extension and hackerc compiler.",
 	},
 	{
-		Name: "hacker ascii",
+		Name:        "hacker ascii",
 		Description: "Display HackerOS ASCII art",
-		Details: "Shows the HackerOS ASCII art from the config file.",
+		Details:     "Shows the HackerOS ASCII art from the config file.",
 	},
 	{
-		Name: "hacker enter <container>",
+		Name:        "hacker enter <container>",
 		Description: "Enter a distrobox container",
-		Details: "Runs distrobox enter <container> to access the container shell.",
+		Details:     "Runs distrobox enter <container> to access the container shell.",
 	},
 	{
-		Name: "hacker remove-container <container>",
+		Name:        "hacker remove-container <container>",
 		Description: "Remove a distrobox container",
-		Details: "Stops and removes the specified distrobox container after confirmation.",
+		Details:     "Stops and removes the specified distrobox container after confirmation.",
 	},
 }
+
 type item struct {
 	cmd Command
 }
-func (i item) Title() string { return i.cmd.Name }
+
+func (i item) Title() string       { return i.cmd.Name }
 func (i item) Description() string { return i.cmd.Description }
 func (i item) FilterValue() string { return i.cmd.Name + " " + i.cmd.Description }
+
 type mode int
+
 const (
 	listMode mode = iota
 	detailsMode
 )
+
 type keyMap struct {
 	quit key.Binding
 }
+
 func newKeyMap() *keyMap {
 	return &keyMap{
 		quit: key.NewBinding(
@@ -177,14 +192,16 @@ func newKeyMap() *keyMap {
 		),
 	}
 }
+
 type model struct {
-	list list.Model
+	list     list.Model
 	viewport viewport.Model
-	keys *keyMap
-	ready bool
-	mode mode
+	keys     *keyMap
+	ready    bool
+	mode     mode
 	selected int
 }
+
 func newModel() model {
 	var items []list.Item
 	items = append(items, item{Command{Name: "Exit", Description: "Press to exit"}})
@@ -202,14 +219,16 @@ func newModel() model {
 	vp := viewport.New(0, 0)
 	vp.Style = lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true).Padding(1)
 	return model{
-		list: l,
+		list:     l,
 		viewport: vp,
-		keys: newKeyMap(),
+		keys:     newKeyMap(),
 	}
 }
+
 func (m model) Init() tea.Cmd {
 	return nil
 }
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
@@ -253,6 +272,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return m, cmd
 }
+
 func (m model) View() string {
 	if !m.ready {
 		return "Initializing..."
@@ -273,6 +293,7 @@ func (m model) View() string {
 	Render(rightContent)
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 }
+
 func main() {
 	p := tea.NewProgram(newModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
