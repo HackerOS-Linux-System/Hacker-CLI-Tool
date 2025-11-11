@@ -3,14 +3,12 @@ use colored::*;
 use hacker::{display_ascii, handle_run, handle_system, handle_unpack, handle_update, play_game, run_command_with_spinner, RunCommands, SystemCommands, UnpackCommands};
 use std::process::Command;
 use std::io::{self, Write};
-
 #[derive(Parser)]
 #[command(name = "hacker", about = "A vibrant CLI tool for managing hacker tools, gaming, and system utilities", version = "1.1.0")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
 }
-
 #[derive(Subcommand)]
 enum Commands {
     /// Unpack various toolsets and applications
@@ -69,7 +67,6 @@ enum Commands {
         container: String,
     },
 }
-
 fn main() {
     let cli = Cli::parse();
     match cli.command {
