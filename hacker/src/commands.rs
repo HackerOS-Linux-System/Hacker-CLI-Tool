@@ -8,20 +8,17 @@ use std::process::Command;
 use std::path::Path;
 use std::os::unix::fs::symlink;
 use serde::{Deserialize, Serialize};
-
 #[derive(Serialize, Deserialize)]
 struct Plugin {
     description: Option<String>,
     commands: Vec<PluginCommand>,
 }
-
 #[derive(Serialize, Deserialize)]
 struct PluginCommand {
     program: String,
     args: Vec<String>,
     message: String,
 }
-
 pub fn handle_unpack(unpack_command: UnpackCommands) {
     match unpack_command {
         UnpackCommands::AddOns => {
@@ -163,9 +160,15 @@ pub fn handle_unpack(unpack_command: UnpackCommands) {
             run_command_with_spinner("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/unpack-liquorix.sh"], "Running unpack-liquorix.sh");
             println!("{}", "========== Liquorix Unpack Complete ==========".green().bold().on_black());
         }
+        UnpackCommands::AutomicUpdates => {
+            println!("{}", "========== Setting up Automatic Updates ==========".cyan().bold().on_black());
+            run_command_with_spinner("sudo", vec!["mv", "/usr/share/HackerOS/Archived/Services/hup.service", "/etc/systemd/system/"], "Moving hup.service to /etc/systemd/system/");
+            run_command_with_spinner("sudo", vec!["systemctl", "daemon-reload"], "Reloading systemd daemon");
+            run_command_with_spinner("sudo", vec!["systemctl", "enable", "hup.service"], "Enabling hup.service");
+            println!("{}", "========== Automatic Updates Setup Complete ==========".green().bold().on_black());
+        }
     }
 }
-
 pub fn handle_system(system_command: SystemCommands) {
     match system_command {
         SystemCommands::Logs => {
@@ -174,7 +177,6 @@ pub fn handle_system(system_command: SystemCommands) {
         }
     }
 }
-
 pub fn handle_run(cmd: RunCommands) {
     match cmd {
         RunCommands::UpdateSystem => run_command_with_spinner("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/update-system.sh"], "Updating system"),
@@ -186,7 +188,6 @@ pub fn handle_run(cmd: RunCommands) {
         RunCommands::UpdateWallpapers => run_command_with_spinner("sudo", vec!["/usr/share/HackerOS/Scripts/Bin/update-wallpapers.sh"], "Updating wallpapers"),
     }
 }
-
 pub fn handle_plugin(plugin_command: PluginCommands) {
     let home = std::env::var("HOME").unwrap_or_default();
     let config_dir = format!("{}/.config/hacker", home);
