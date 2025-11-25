@@ -29,6 +29,11 @@ var commands = []Command{
 		Details:     "Note: After restarting the system, there will be no default kernel, you will only have the liquorix kernel.",
 	},
 	{
+		Name:        "hacker unpack automic-updates",
+		Description: "Enable Automic Updates",
+		Details:     "Automatic updates are performed by the hup tool.",
+	},
+	{
 		Name:        "hacker unpack add-ons",
 		Description: "Install Wine, BoxBuddy, Winezgui, Gearlever",
 		Details:     "This command installs add-ons like Wine for running Windows applications, BoxBuddy for managing Flatpaks, Winezgui for Wine GUI, and Gearlever for additional utilities.",
