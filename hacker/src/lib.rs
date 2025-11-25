@@ -2,14 +2,11 @@ mod commands;
 mod game;
 mod help;
 mod utils;
-
 pub use commands::{handle_unpack, handle_system, handle_run, handle_plugin};
 pub use game::play_game;
 pub use help::display_ascii;
 pub use utils::{handle_update, run_command_with_spinner};
-
 use clap::Subcommand;
-
 #[derive(Subcommand)]
 pub enum UnpackCommands {
     /// Install add-ons (Wine, BoxBuddy, Winezgui, Gearlever)
@@ -36,14 +33,14 @@ pub enum UnpackCommands {
     Xanmod,
     /// Install Liquorix kernel
     Liquorix,
+    /// Setup automatic updates by enabling hup.service
+    AutomicUpdates,
 }
-
 #[derive(Subcommand)]
 pub enum SystemCommands {
     /// Show system logs
     Logs,
 }
-
 #[derive(Subcommand)]
 pub enum RunCommands {
     /// Update the system
@@ -61,7 +58,6 @@ pub enum RunCommands {
     /// Update wallpapers
     UpdateWallpapers,
 }
-
 #[derive(Subcommand)]
 pub enum PluginCommands {
     /// Create a new plugin template
