@@ -1,79 +1,89 @@
-mod commands;
-mod game;
-mod help;
-mod utils;
-pub use commands::{handle_unpack, handle_system, handle_run, handle_plugin};
-pub use game::play_game;
-pub use help::display_ascii;
-pub use utils::{handle_update, run_command_with_spinner};
-use clap::Subcommand;
-#[derive(Subcommand)]
-pub enum UnpackCommands {
-    /// Install add-ons (Wine, BoxBuddy, Winezgui, Gearlever)
-    AddOns,
-    /// Install both gaming and cybersecurity tools
-    GS,
-    /// Install development tools (Atom)
-    Devtools,
-    /// Install emulators (PlayStation, Nintendo, DOSBox, PS3)
-    Emulators,
-    /// Install cybersecurity tools (nmap, wireshark, Metasploit, Ghidra, etc.)
-    Cybersecurity,
-    /// Interactive UI for selecting individual packages
-    Select,
-    /// Install gaming tools (OBS Studio, Lutris, Steam, etc.) with Roblox
-    Gaming,
-    /// Install gaming tools without Roblox
-    Noroblox,
-    /// Install gamescope for hacker mode
-    HackerMode,
-    /// Install and setup gamescope-session-steam
-    GamescopeSessionSteam,
-    /// Install Xanmod kernel
-    Xanmod,
-    /// Install Liquorix kernel
-    Liquorix,
-    /// Setup automatic updates by enabling hup.service
-    AutomicUpdates,
-}
-#[derive(Subcommand)]
-pub enum SystemCommands {
-    /// Show system logs
-    Logs,
-}
-#[derive(Subcommand)]
-pub enum RunCommands {
-    /// Update the system
-    UpdateSystem,
-    /// Check for system updates
-    CheckUpdates,
-    /// Launch Steam via HackerOS script
-    Steam,
-    /// Launch HackerOS Launcher
-    HackerLauncher,
-    /// Run HackerOS Game Mode
-    HackerosGameMode,
-    /// Update HackerOS
-    UpdateHackeros,
-    /// Update wallpapers
-    UpdateWallpapers,
-}
-#[derive(Subcommand)]
-pub enum PluginCommands {
-    /// Create a new plugin template
-    Create {
-        name: String,
-    },
-    /// Enable a plugin
-    Enable {
-        name: String,
-    },
-    /// Disable a plugin
-    Disable {
-        name: String,
-    },
-    /// List available and enabled plugins
-    List,
-    /// Apply all enabled plugins (run their commands)
-    Apply,
-}
+require "./helpers"
+def handle_unpack(args : Array(String))
+  if args.empty? || args[0] == "help"
+    show_unpack_help
+    exit(0)
+  end
+  subcommand = args[0]
+  case subcommand
+  when "add-ons"
+    safe_run("sudo apt install -y wine winetricks")
+    safe_run("flatpak install -y flathub io.github.dvlv.boxbuddyrs")
+    safe_run("flatpak install -y flathub it.mijorus.winezgui")
+    safe_run("flatpak install -y flathub it.mijorus.gearlever")
+  when "gs"
+    # Installs hacker unpack gaming and cybersecurity
+    handle_unpack(["gaming"])
+    handle_unpack(["cybersecurity"])
+  when "devtools"
+    safe_run("flatpak install -y flathub io.atom.Atom")
+    safe_run("sudo apt install -y crystal && sudo apt install -y shards")
+    safe_run("sudo apt install -y npm && sudo apt install -y nodejs")
+    safe_run("flatpak install -y flathub com.visualstudio.code")
+    safe_run("curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh")
+    safe_run("sudo apt install -y golang-go")
+    safe_run("sudo apt install -y lua5.4")
+    safe_run("sudo snap install zig --beta --classic")
+  when "emulators"
+    safe_run("flatpak install -y flathub org.shadps4.shadPS4")
+    safe_run("flatpak install -y flathub io.ryujinx.Ryujinx")
+    safe_run("flatpak install -y flathub com.dosbox_x.DOSBox-X")
+    safe_run("sudo snap install rpcs3-emu")
+  when "cybersecurity"
+    safe_run("distrobox create --name blackarch --image docker.io/blackarchlinux/blackarch:latest")
+    safe_run("distrobox enter blackarch")
+    # Assuming installing all BlackArch tools is done inside the container, but for simplicity, we'll note it
+    puts "#{Colors::YELLOW}Install all BlackArch tools inside the container.#{Colors::RESET}"
+  when "select"
+    safe_run("~/.hackeros/hacker/hacker-select")
+  when "gaming"
+    safe_run("flatpak install -y flathub com.valvesoftware.Steam")
+    safe_run("flatpak install -y flathub com.github.Matoking.protontricks")
+    safe_run("flatpak install -y flathub com.heroicgameslauncher.hgl")
+    safe_run("flatpak install -y flathub com.vysp3r.ProtonPlus")
+    safe_run("flatpak install -y flathub io.github.giantpinkrobots.varia")
+    if args.size > 1 && args[1] == "with-roblox"
+      safe_run("flatpak install -y flathub org.vinegarhq.Sober")
+      safe_run("flatpak install -y flathub org.vinegarhq.Vinegar")
+    end
+  when "hacker-mode"
+    install_gamescope
+    safe_run("flatpak install -y flathub xyz.hyperplay.HyperPlay")
+    safe_run("flatpak install -y flathub com.valvesoftware.Steam")
+    safe_run("flatpak install -y flathub com.heroicgameslauncher.hgl")
+    safe_run("sudo apt install -y cage")
+  when "gamescope-session-steam"
+    safe_run("flatpak install -y flathub com.valvesoftware.Steam")
+    install_gamescope
+    safe_run("git clone https://github.com/HackerOS-Linux-System/gamescope-session-steam.git /tmp/gamescope-session-steam")
+    safe_run("hackerc run /tmp/gamescope-session-steam/unpack.hacker")
+  when "xanmod"
+    safe_run("/usr/share/HackerOS/Scripts/Bin/unpack-xanmod.sh")
+  when "liquorix"
+    safe_run("/usr/share/HackerOS/Scripts/Bin/unpack-liquorix.sh")
+  when "automatic-updates"
+    safe_run("sudo mv /usr/share/HackerOS/Archived/Services/hup.service /etc/systemd/system/")
+    safe_run("sudo systemctl daemon-reload")
+    safe_run("sudo systemctl enable hup.service")
+  else
+    puts "#{Colors::RED}Unknown unpack subcommand: #{subcommand}#{Colors::RESET}"
+    show_unpack_help
+    exit(1)
+  end
+end
+def show_unpack_help
+  puts "#{Colors::BOLD}#{Colors::MAGENTA}Unpack subcommands:#{Colors::RESET}"
+  puts " #{Colors::GRAY}add-ons #{Colors::RESET}- Install wine and related tools"
+  puts " #{Colors::GRAY}gs #{Colors::RESET}- Install gaming and cybersecurity"
+  puts " #{Colors::GRAY}devtools #{Colors::RESET}- Install development tools"
+  puts " #{Colors::GRAY}emulators #{Colors::RESET}- Install emulators"
+  puts " #{Colors::GRAY}cybersecurity #{Colors::RESET}- Set up BlackArch container"
+  puts " #{Colors::GRAY}select #{Colors::RESET}- Run hacker-select"
+  puts " #{Colors::GRAY}gaming #{Colors::RESET}- Install gaming tools"
+  puts " #{Colors::GRAY}gaming with-roblox #{Colors::RESET}- Install gaming with Roblox support"
+  puts " #{Colors::GRAY}hacker-mode #{Colors::RESET}- Install hacker mode tools"
+  puts " #{Colors::GRAY}gamescope-session-steam #{Colors::RESET}- Set up gamescope session for Steam"
+  puts " #{Colors::GRAY}xanmod #{Colors::RESET}- Unpack Xanmod kernel"
+  puts " #{Colors::GRAY}liquorix #{Colors::RESET}- Unpack Liquorix kernel"
+  puts " #{Colors::GRAY}automatic-updates #{Colors::RESET}- Enable automatic updates"
+end
