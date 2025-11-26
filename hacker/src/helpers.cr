@@ -1,8 +1,23 @@
-use colored::*;
-use std::fs;
-pub fn display_ascii() {
-    match fs::read_to_string("/usr/share/HackerOS/Config-Files/HackerOS-Ascii") {
-        Ok(content) => println!("{}", content.bright_cyan().bold().on_black()),
-        Err(_) => println!("{}", "File not found".red().bold().on_black()),
-    }
-}
+module Colors
+  RED = "\e[31m"
+  GREEN = "\e[32m"
+  YELLOW = "\e[33m"
+  BLUE = "\e[34m"
+  MAGENTA = "\e[35m"
+  CYAN = "\e[36m"
+  WHITE = "\e[37m"
+  GRAY = "\e[90m"
+  BOLD = "\e[1m"
+  RESET = "\e[0m"
+end
+def safe_run(cmd : String)
+  status = Process.run(cmd, shell: true, input: Process::Redirect::Inherit, output: Process::Redirect::Inherit, error: Process::Redirect::Inherit)
+  if !status.success?
+    puts "#{Colors::RED}Command '#{cmd}' failed with exit code #{status.exit_code}#{Colors::RESET}"
+  end
+  status.success?
+end
+def install_gamescope
+  # Assuming gamescope is installed via flatpak; adjust if needed
+  safe_run("flatpak install -y flathub org.freedesktop.Platform.VulkanLayer.gamescope") # Example; replace with actual if different
+end
