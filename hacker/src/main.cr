@@ -1,181 +1,125 @@
-use clap::{Parser, Subcommand};
-use colored::*;
-use hacker::{display_ascii, handle_run, handle_system, handle_unpack, play_game, run_command_with_spinner, RunCommands, SystemCommands, UnpackCommands, PluginCommands, handle_plugin};
-use std::process::Command;
-use std::io::{self, Write};
-#[derive(Parser)]
-#[command(name = "hacker", about = "A vibrant CLI tool for managing hacker tools, gaming, and system utilities", version = "1.7.0")]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-#[derive(Subcommand)]
-enum Commands {
-    /// Unpack various toolsets and applications
-    Unpack {
-        #[command(subcommand)]
-        unpack_command: UnpackCommands,
-    },
-    /// Display help information and list available commands
-    Help,
-    /// Display help information in UI
-    HelpUi,
-    /// Display documentation and FAQ in UI
-    Docs,
-    /// Install a package using apt
-    Install {
-        package: String,
-    },
-    /// Remove a package using apt
-    Remove {
-        package: String,
-    },
-    /// Run flatpak install -y
-    FlatpakInstall {
-        package: String,
-    },
-    /// Run flatpak remove -y
-    FlatpakRemove {
-        package: String,
-    },
-    /// Run flatpak update -y
-    FlatpakUpdate,
-    /// System-related commands
-    System {
-        #[command(subcommand)]
-        system_command: SystemCommands,
-    },
-    /// Run specific HackerOS scripts and applications
-    Run {
-        #[command(subcommand)]
-        run_command: RunCommands,
-    },
-    /// Update the system
-    Update,
-    /// Play a simple terminal game
-    Game,
-    /// Information about Hacker programming language
-    HackerLang,
-    /// Display HackerOS ASCII art
-    Ascii,
-    /// Enter interactive Hacker shell mode
-    Shell,
-    /// Enter a distrobox container
-    Enter {
-        container: String,
-    },
-    /// Remove a distrobox container
-    RemoveContainer {
-        container: String,
-    },
-    /// Manage plugins
-    Plugin {
-        #[command(subcommand)]
-        plugin_command: PluginCommands,
-    },
-    /// Restart a service
-    Restart {
-        service: String,
-    },
-}
-fn main() {
-    let cli = Cli::parse();
-    match cli.command {
-        Commands::Unpack { unpack_command } => handle_unpack(unpack_command),
-        Commands::Help | Commands::HelpUi => {
-            let home = std::env::var("HOME").unwrap_or_default();
-            let help_bin = format!("{}/.hackeros/hacker/hacker-help", home);
-            match Command::new(&help_bin).status() {
-                Ok(status) => {
-                    if !status.success() {
-                        println!("{}", "Error running hacker-help. Ensure it's installed and executable in ~/.hackeros/hacker/".red().bold().on_black());
-                    }
-                }
-                Err(e) => {
-                    println!("{}", format!("Failed to execute hacker-help: {}", e).red().bold().on_black());
-                }
-            }
-        }
-        Commands::Docs => {
-            let home = std::env::var("HOME").unwrap_or_default();
-            let docs_bin = format!("{}/.hackeros/hacker/hacker-docs", home);
-            match Command::new(&docs_bin).status() {
-                Ok(status) => {
-                    if !status.success() {
-                        println!("{}", "Error running hacker-docs. Ensure it's installed and executable in ~/.hackeros/hacker/".red().bold().on_black());
-                    }
-                }
-                Err(e) => {
-                    println!("{}", format!("Failed to execute hacker-docs: {}", e).red().bold().on_black());
-                }
-            }
-        }
-        Commands::Install { package } => run_command_with_spinner("sudo", vec!["apt", "install", "-y", &package], "Running apt install"),
-        Commands::Remove { package } => run_command_with_spinner("sudo", vec!["apt", "remove", "-y", &package], "Running apt remove"),
-        Commands::FlatpakInstall { package } => run_command_with_spinner("flatpak", vec!["install", "-y", "flathub", &package], "Running flatpak install"),
-        Commands::FlatpakRemove { package } => run_command_with_spinner("flatpak", vec!["remove", "-y", &package], "Running flatpak remove"),
-        Commands::FlatpakUpdate => run_command_with_spinner("flatpak", vec!["update", "-y"], "Running flatpak update"),
-        Commands::System { system_command } => handle_system(system_command),
-        Commands::Run { run_command } => handle_run(run_command),
-        Commands::Update => {
-            let home = std::env::var("HOME").unwrap_or_default();
-            let updater_bin = format!("{}/.hackeros/hacker/HackerOS-Updater", home);
-            match Command::new(&updater_bin).status() {
-                Ok(status) => {
-                    if !status.success() {
-                        println!("{}", "Error running HackerOS-Updater. Ensure it's installed and executable in ~/.hackeros/hacker/".red().bold().on_black());
-                    }
-                }
-                Err(e) => {
-                    println!("{}", format!("Failed to execute HackerOS-Updater: {}", e).red().bold().on_black());
-                }
-            }
-        }
-        Commands::Game => play_game(),
-        Commands::HackerLang => {
-            println!("{}", "========== Hacker Programming Language ==========".magenta().bold().on_black());
-            println!("{}", "To use the hacker programming language for files/scripts with .hacker extension,".cyan().bold().on_black());
-            println!("{}", "use the command 'hackerc' to compile or run them.".cyan().bold().on_black());
-            println!("{}", "Note: This is for advanced users. Ensure hackerc is installed separately.".yellow().bold().on_black());
-            println!("{}", "========== End of Info ==========".magenta().bold().on_black());
-        }
-        Commands::Ascii => display_ascii(),
-        Commands::Shell => {
-            let home = std::env::var("HOME").unwrap_or_default();
-            let shell_bin = format!("{}/.hackeros/hacker/hacker-shell", home);
-            match Command::new(&shell_bin).status() {
-                Ok(status) => {
-                    if !status.success() {
-                        println!("{}", "Error running hacker-shell. Ensure it's installed and executable in ~/.hackeros/hacker/".red().bold().on_black());
-                    }
-                }
-                Err(e) => {
-                    println!("{}", format!("Failed to execute hacker-shell: {}", e).red().bold().on_black());
-                }
-            }
-        }
-        Commands::Enter { container } => {
-            run_command_with_spinner("distrobox", vec!["enter", &container], "Entering container");
-        }
-        Commands::RemoveContainer { container } => {
-            print!("Are you sure to remove container {}? (y/n): ", container);
-            let _ = io::stdout().flush();
-            let mut input = String::new();
-            io::stdin().read_line(&mut input).expect("Failed to read line");
-            if input.trim().to_lowercase() == "y" {
-                run_command_with_spinner("distrobox", vec!["stop", "--name", &container], "Stopping container");
-                run_command_with_spinner("distrobox", vec!["rm", "--name", &container], "Removing container");
-            } else {
-                println!("{}", "Cancelled.".yellow().bold().on_black());
-            }
-        }
-        Commands::Plugin { plugin_command } => handle_plugin(plugin_command),
-        Commands::Restart { service } => {
-            if service == "pipewire" {
-                run_command_with_spinner("systemctl", vec!["--user", "restart", "pipewire"], "Restarting pipewire");
-            } else {
-                println!("{}", format!("Unknown service: {}", service).red().bold().on_black());
-            }
-        }
-    }
-}
+require "./helpers"
+require "./unpack_commands"
+require "./run_commands"
+require "./game"
+def main
+  if ARGV.empty? || ARGV[0] == "help"
+    show_main_help
+    exit(0)
+  end
+  command = ARGV[0]
+  case command
+  when "unpack"
+    handle_unpack(ARGV[1..])
+  when "help-ui"
+    safe_run("~/.hackeros/hacker/hacker-help")
+  when "docs"
+    safe_run("~/.hackeros/hacker/hacker-docs")
+  when "install"
+    if ARGV.size < 2
+      puts "#{Colors::RED}Usage: hacker install <package>#{Colors::RESET}"
+      exit(1)
+    end
+    package = ARGV[1..].join(" ")
+    safe_run("sudo apt install -y #{package}")
+  when "remove"
+    if ARGV.size < 2
+      puts "#{Colors::RED}Usage: hacker remove <package>#{Colors::RESET}"
+      exit(1)
+    end
+    package = ARGV[1..].join(" ")
+    safe_run("sudo apt remove -y #{package}")
+  when "flatpak-install"
+    if ARGV.size < 2
+      puts "#{Colors::RED}Usage: hacker flatpak-install <package>#{Colors::RESET}"
+      exit(1)
+    end
+    package = ARGV[1..].join(" ")
+    safe_run("flatpak install -y #{package}")
+  when "flatpak-remove"
+    if ARGV.size < 2
+      puts "#{Colors::RED}Usage: hacker flatpak-remove <package>#{Colors::RESET}"
+      exit(1)
+    end
+    package = ARGV[1..].join(" ")
+    safe_run("flatpak remove -y #{package}")
+  when "system"
+    handle_system(ARGV[1..])
+  when "run"
+    handle_run(ARGV[1..])
+  when "update"
+    safe_run("~/.hackeros/hacker/HackerOS-Updater")
+  when "game"
+    play_text_game
+  when "hacker-lang"
+    puts "#{Colors::YELLOW}To use the hacker programming language for files/scripts with .hacker extension,#{Colors::RESET}"
+    puts "#{Colors::YELLOW}use the command 'hackerc' to compile or run them.#{Colors::RESET}"
+    puts "#{Colors::YELLOW}Note: This is for advanced users. Ensure hackerc is installed separately.#{Colors::RESET}"
+  when "ascii"
+    safe_run("cat /usr/share/HackerOS/Config-Files/HackerOS-Ascii")
+  when "shell"
+    safe_run("~/.hackeros/hacker/hacker-shell")
+  when "enter"
+    if ARGV.size < 2
+      puts "#{Colors::RED}Usage: hacker enter <container>#{Colors::RESET}"
+      exit(1)
+    end
+    container = ARGV[1]
+    safe_run("distrobox enter #{container}")
+  when "remove-container"
+    if ARGV.size < 2
+      puts "#{Colors::RED}Usage: hacker remove-container <container>#{Colors::RESET}"
+      exit(1)
+    end
+    container = ARGV[1]
+    safe_run("distrobox rm #{container}")
+  when "restart"
+    if ARGV.size < 2
+      puts "#{Colors::RED}Usage: hacker restart <service>#{Colors::RESET}"
+      exit(1)
+    end
+    service = ARGV[1]
+    safe_run("sudo systemctl restart #{service}")
+  else
+    puts "#{Colors::RED}Unknown command: #{command}#{Colors::RESET}"
+    show_main_help
+    exit(1)
+  end
+end
+def show_main_help
+  puts "#{Colors::BOLD}#{Colors::MAGENTA}HackerOS Tool - Available commands:#{Colors::RESET}"
+  puts " #{Colors::GRAY}unpack #{Colors::RESET}- Unpack and install various components (use 'hacker unpack' for subcommands)"
+  puts " #{Colors::GRAY}help #{Colors::RESET}- Show this help"
+  puts " #{Colors::GRAY}help-ui #{Colors::RESET}- Show help UI"
+  puts " #{Colors::GRAY}docs #{Colors::RESET}- Show documentation"
+  puts " #{Colors::GRAY}install <pkg> #{Colors::RESET}- Install APT package"
+  puts " #{Colors::GRAY}remove <pkg> #{Colors::RESET}- Remove APT package"
+  puts " #{Colors::GRAY}flatpak-install <pkg> #{Colors::RESET}- Install Flatpak package"
+  puts " #{Colors::GRAY}flatpak-remove <pkg> #{Colors::RESET}- Remove Flatpak package"
+  puts " #{Colors::GRAY}system #{Colors::RESET}- System-related commands (use 'hacker system' for subcommands)"
+  puts " #{Colors::GRAY}run #{Colors::RESET}- Run scripts and tools (use 'hacker run' for subcommands)"
+  puts " #{Colors::GRAY}update #{Colors::RESET}- Run HackerOS updater"
+  puts " #{Colors::GRAY}game #{Colors::RESET}- Play a text-based game"
+  puts " #{Colors::GRAY}hacker-lang #{Colors::RESET}- Info about hacker language"
+  puts " #{Colors::GRAY}ascii #{Colors::RESET}- Display ASCII art"
+  puts " #{Colors::GRAY}shell #{Colors::RESET}- Run hacker shell"
+  puts " #{Colors::GRAY}enter <container> #{Colors::RESET}- Enter Distrobox container"
+  puts " #{Colors::GRAY}remove-container <container> #{Colors::RESET}- Remove Distrobox container"
+  puts " #{Colors::GRAY}restart <service> #{Colors::RESET}- Restart system service"
+end
+def handle_system(args : Array(String))
+  if args.empty?
+    puts "#{Colors::BOLD}#{Colors::MAGENTA}System subcommands:#{Colors::RESET}"
+    puts " #{Colors::GRAY}logs #{Colors::RESET}- Display system logs"
+    exit(0)
+  end
+  subcommand = args[0]
+  case subcommand
+  when "logs"
+    safe_run("journalctl -xe")
+  else
+    puts "#{Colors::RED}Unknown system subcommand: #{subcommand}#{Colors::RESET}"
+    exit(1)
+  end
+end
+main
