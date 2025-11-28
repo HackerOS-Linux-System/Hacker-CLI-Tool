@@ -2,6 +2,7 @@ require "./helpers"
 require "./unpack_commands"
 require "./run_commands"
 require "./game"
+
 def main
   if ARGV.empty? || ARGV[0] == "help"
     show_main_help
@@ -80,12 +81,53 @@ def main
     end
     service = ARGV[1]
     safe_run("sudo systemctl restart #{service}")
+  when "plugin"
+    handle_plugin(ARGV[1..])
   else
-    puts "#{Colors::RED}Unknown command: #{command}#{Colors::RESET}"
-    show_main_help
-    exit(1)
+    custom_file = CUSTOM_DIR / "#{command}.hacker"
+    if File.exists?(custom_file)
+      begin
+        config = parse_hacker_file(custom_file.to_s)
+        exec_cmd = config["exec"]?.as?(String)
+        if exec_cmd
+          safe_run("#{exec_cmd} #{ARGV[1..].join(" ")}")
+        else
+          puts "#{Colors::RED}No 'exec' defined in custom command file.#{Colors::RESET}"
+          exit(1)
+        end
+      rescue ex
+        puts "#{Colors::RED}Error processing custom command: #{ex.message}#{Colors::RESET}"
+        exit(1)
+      end
+    else
+      found = false
+      Dir.glob((PLUGIN_DIR / "*.hacker").to_s).each do |f_path|
+        begin
+          config = parse_hacker_file(f_path)
+          next unless config["enabled"]? == "true"
+          commands = config["commands"]?.as?(Config)
+          next unless commands
+          sub_config = commands[command]?.as?(Config)
+          next unless sub_config
+          exec_cmd = sub_config["exec"]?.as?(String)
+          if exec_cmd
+            safe_run("#{exec_cmd} #{ARGV[1..].join(" ")}")
+            found = true
+            break
+          end
+        rescue
+          # Skip invalid plugins
+        end
+      end
+      unless found
+        puts "#{Colors::RED}Unknown command: #{command}#{Colors::RESET}"
+        show_main_help
+        exit(1)
+      end
+    end
   end
 end
+
 def show_main_help
   puts "#{Colors::BOLD}#{Colors::MAGENTA}HackerOS Tool - Available commands:#{Colors::RESET}"
   puts " #{Colors::GRAY}unpack #{Colors::RESET}- Unpack and install various components (use 'hacker unpack' for subcommands)"
@@ -106,7 +148,55 @@ def show_main_help
   puts " #{Colors::GRAY}enter <container> #{Colors::RESET}- Enter Distrobox container"
   puts " #{Colors::GRAY}remove-container <container> #{Colors::RESET}- Remove Distrobox container"
   puts " #{Colors::GRAY}restart <service> #{Colors::RESET}- Restart system service"
+  puts " #{Colors::GRAY}plugin #{Colors::RESET}- Manage plugins (use 'hacker plugin' for subcommands)"
+
+  puts "#{Colors::BOLD}#{Colors::MAGENTA}Custom commands:#{Colors::RESET}"
+  Dir.glob((CUSTOM_DIR / "*.hacker").to_s).sort.each do |f|
+    name = File.basename(f, ".hacker")
+    begin
+      config = parse_hacker_file(f)
+      desc = if description = config["description"]?
+               if description.is_a?(String)
+                 description
+               else
+                 "No description"
+               end
+             else
+               "No description"
+             end
+      puts " #{Colors::GRAY}#{name} #{Colors::RESET}- #{desc}"
+    rescue
+      puts " #{Colors::GRAY}#{name} #{Colors::RESET}- Invalid config"
+    end
+  end
+
+  puts "#{Colors::BOLD}#{Colors::MAGENTA}Plugin commands:#{Colors::RESET}"
+  Dir.glob((PLUGIN_DIR / "*.hacker").to_s).sort.each do |f|
+    begin
+      config = parse_hacker_file(f)
+      next unless config["enabled"]? == "true"
+      commands = config["commands"]?.as?(Config)
+      next unless commands
+      commands.each do |cmd_name, cmd_config|
+        next unless cmd_config.is_a?(String | Config)
+        next unless cmd_config.is_a?(Config)
+        desc = if description = cmd_config["description"]?
+                 if description.is_a?(String)
+                   description
+                 else
+                   "No description"
+                 end
+               else
+                 "No description"
+               end
+        puts " #{Colors::GRAY}#{cmd_name} #{Colors::RESET}- #{desc}"
+      end
+    rescue
+      # Skip
+    end
+  end
 end
+
 def handle_system(args : Array(String))
   if args.empty?
     puts "#{Colors::BOLD}#{Colors::MAGENTA}System subcommands:#{Colors::RESET}"
@@ -122,4 +212,84 @@ def handle_system(args : Array(String))
     exit(1)
   end
 end
+
+def handle_plugin(args : Array(String))
+  if args.empty?
+    show_plugin_help
+    exit(0)
+  end
+  subcommand = args[0]
+  case subcommand
+  when "list"
+    puts "#{Colors::BOLD}#{Colors::MAGENTA}Plugins:#{Colors::RESET}"
+    Dir.glob((PLUGIN_DIR / "*.hacker").to_s).each do |f|
+      begin
+        config = parse_hacker_file(f)
+        name = if name_val = config["name"]?
+                 if name_val.is_a?(String)
+                   name_val
+                 else
+                   File.basename(f, ".hacker")
+                 end
+               else
+                 File.basename(f, ".hacker")
+               end
+        enabled = config["enabled"]? == "true"
+        puts " #{name} - #{enabled ? "#{Colors::GREEN}enabled#{Colors::RESET}" : "#{Colors::RED}disabled#{Colors::RESET}"}"
+      rescue
+        puts " #{File.basename(f, ".hacker")} - #{Colors::RED}invalid#{Colors::RESET}"
+      end
+    end
+  when "enable"
+    if args.size < 2
+      puts "#{Colors::RED}Usage: hacker plugin enable <plugin-name>#{Colors::RESET}"
+      exit(1)
+    end
+    name = args[1]
+    file = PLUGIN_DIR / "#{name}.hacker"
+    if File.exists?(file)
+      begin
+        config = parse_hacker_file(file.to_s)
+        config["enabled"] = "true"
+        write_hacker_file(file.to_s, config)
+        puts "#{Colors::GREEN}Enabled plugin '#{name}'.#{Colors::RESET}"
+      rescue ex
+        puts "#{Colors::RED}Error enabling plugin: #{ex.message}#{Colors::RESET}"
+      end
+    else
+      puts "#{Colors::RED}Plugin '#{name}' not found.#{Colors::RESET}"
+    end
+  when "disable"
+    if args.size < 2
+      puts "#{Colors::RED}Usage: hacker plugin disable <plugin-name>#{Colors::RESET}"
+      exit(1)
+    end
+    name = args[1]
+    file = PLUGIN_DIR / "#{name}.hacker"
+    if File.exists?(file)
+      begin
+        config = parse_hacker_file(file.to_s)
+        config["enabled"] = "false"
+        write_hacker_file(file.to_s, config)
+        puts "#{Colors::GREEN}Disabled plugin '#{name}'.#{Colors::RESET}"
+      rescue ex
+        puts "#{Colors::RED}Error disabling plugin: #{ex.message}#{Colors::RESET}"
+      end
+    else
+      puts "#{Colors::RED}Plugin '#{name}' not found.#{Colors::RESET}"
+    end
+  else
+    puts "#{Colors::RED}Unknown plugin subcommand: #{subcommand}#{Colors::RESET}"
+    show_plugin_help
+    exit(1)
+  end
+end
+
+def show_plugin_help
+  puts "#{Colors::BOLD}#{Colors::MAGENTA}Plugin subcommands:#{Colors::RESET}"
+  puts " #{Colors::GRAY}list #{Colors::RESET}- List all plugins and their status"
+  puts " #{Colors::GRAY}enable <name> #{Colors::RESET}- Enable a plugin"
+  puts " #{Colors::GRAY}disable <name> #{Colors::RESET}- Disable a plugin"
+end
+
 main
