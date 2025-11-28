@@ -20,6 +20,8 @@ def handle_run(args : Array(String))
     safe_run("/usr/share/HackerOS/Scripts/Bin/update-hackeros.sh")
   when "update-wallpapers"
     safe_run("/usr/share/HackerOS/Scripts/Bin/update-wallpapers.sh")
+  when "remove-debian-kernel"
+    safe_run("/usr/share/HackerOS/Scripts/Bin/remove-debian-kernel.sh")
   else
     puts "#{Colors::RED}Unknown run subcommand: #{subcommand}#{Colors::RESET}"
     show_run_help
@@ -35,4 +37,5 @@ def show_run_help
   puts " #{Colors::GRAY}hackeros-game-mode #{Colors::RESET}- Run Game Mode AppImage"
   puts " #{Colors::GRAY}update-hackeros #{Colors::RESET}- Update HackerOS"
   puts " #{Colors::GRAY}update-wallpapers #{Colors::RESET}- Update wallpapers"
+  puts " #{Colors::GRAY}remove-debian-kernel #{Colors::RESET}- Remove Debian kernel"
 end
