@@ -1,0 +1,7 @@
+[
+description> Aktualizuje wszystko naraz: system, Flatpaki, HackerOS, snap i ściąga nowe tapety
+exec> sudo apt update && sudo apt upgrade -y && flatpak update -y && hacker run update-hackeros && hacker run update-wallpapers && sudo snap refresh
+
+# Opcjonalnie możesz dodać krótki komunikat po zakończeniu:
+post-exec> echo "Wszystko zaktualizowane! Twój system jest teraz świeży jak poranna kawa z kofeiną 9000mg."
+]
