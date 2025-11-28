@@ -1,0 +1,30 @@
+[
+name> NetTools Suite
+description> Zestaw przydatnych narzędzi sieciowych (ping, traceroute, nmap, curl)
+enabled> true
+
+commands>
+  ping>
+    description> Ping do wybranego hosta (np. hacker ping google.com)
+    exec> ping -c 4
+
+  trace>
+    description> Traceroute do hosta (hacker trace 1.1.1.1)
+    exec> traceroute
+
+  nmap-scan>
+    description> Szybki skan portów (hacker nmap-scan 192.168.1.1)
+    exec> sudo nmap -F --open
+
+  myip>
+    description> Pokaż twój publiczny adres IP
+    exec> curl -s ifconfig.me && echo
+
+  speedtest>
+    description> Test prędkości internetu (wymaga speedtest-cli)
+    exec> speedtest-cli --simple
+
+  whois>
+    description> Informacje WHOIS o domenie
+    exec> whois
+]
