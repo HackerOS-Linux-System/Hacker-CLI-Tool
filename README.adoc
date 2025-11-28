@@ -70,13 +70,13 @@ Poniżej znajduje się lista komend w formie tabeli:
 Uruchom `hacker game`, aby zacząć. Wybierz poziomy od Łatwego do Mitycznego, rozwiązuj zagadki, zgaduj liczby i walcz w zabawnej, hakerskiej przygodzie.
 === Updater
 Uruchom `~/.hackeros/hacker/HackerOS-Updater` do aktualizacji systemu. Użyj `--with-gui` dla menu GUI w terminalu po aktualizacji.
-Aby włączyć automatyczne aktualizacje przy starcie: Uruchom z `--auto` lub wybierz w GUI.
 == Struktura projektu
-- `src/`: Źródło Rust dla głównego CLI.
-  - `commands.rs`: Obsługuje komendy unpack, system, run.
-  - `game.rs`: Logika gry przygodowej.
-  - `help.rs`: Wyświetlanie ASCII.
-  - `utils.rs`: Spinnery, aktualizacje, pomoce do gier/cyber.
+- `src/`: Źródło Crystal dla głównego CLI.
+  - `unpack_commands.cr`: Obsługuje komendy unpack i wszystkie subkomendy.
+  - `run_commands.cr`: Obsługuje komendy dla komend run i jego subkomend.
+  - `game.cr`: Logika gry przygodowej.
+  - `helper.cr`: Wyświetlanie ASCII.
+pomoce do gier/cyber.
 - `hacker-docs/`, `hacker-help/`, `hacker-select/`: TUIs w Go.
 - `hacker-shell/`: Interaktywny shell w Python.
 - `HackerOS-Updater/`: Updater w Crystal.
@@ -89,5 +89,5 @@ Zgłaszaj problemy poprzez GitHub Issues.
 == Licencja
 Ten projekt jest licencjonowany na licencji MIT - szczegóły w pliku LICENSE.
 == Podziękowania
-- Zbudowane z użyciem https://www.rust-lang.org/[Rust], https://go.dev/[Go], https://www.python.org/[Python] i https://crystal-lang.org/[Crystal].
-- Używa bibliotek takich jak `clap`, `colored`, `bubbletea`, `rich` itp.
+- Zbudowane z użyciem https://go.dev/[Go], https://www.python.org/[Python] i https://crystal-lang.org/[Crystal].
+- Używa bibliotek takich jak `colored`, `bubbletea`, `rich` itp.
