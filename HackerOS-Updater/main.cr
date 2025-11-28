@@ -165,19 +165,10 @@ end
 def main
   with_gui = false
   gui_mode = false
-  disable_auto = false
-  auto_mode = false
   OptionParser.parse do |parser|
     parser.banner = "Usage: HackerOS-Updater [options]"
     parser.on("--with-gui", "Run in GUI mode with Alacritty") { with_gui = true }
     parser.on("--gui-mode", "Internal GUI mode") { gui_mode = true }
-    parser.on("--disable-automatic-update", "Disable automatic updates") { disable_auto = true }
-    parser.on("--auto", "Run in automatic mode (internal)") { auto_mode = true }
-  end
-
-  if disable_auto
-    disable_automatic_updates
-    return
   end
 
   if with_gui
