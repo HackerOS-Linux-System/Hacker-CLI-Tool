@@ -1,4 +1,5 @@
 require "./helpers"
+
 def handle_unpack(args : Array(String))
   if args.empty? || args[0] == "help"
     show_unpack_help
@@ -71,6 +72,7 @@ def handle_unpack(args : Array(String))
     exit(1)
   end
 end
+
 def show_unpack_help
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Unpack subcommands:#{Colors::RESET}"
   puts " #{Colors::GRAY}add-ons #{Colors::RESET}- Install wine and related tools"
