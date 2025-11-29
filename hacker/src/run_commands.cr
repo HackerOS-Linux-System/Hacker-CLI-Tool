@@ -1,5 +1,4 @@
 require "./helpers"
-
 def handle_run(args : Array(String))
   if args.empty?
     show_run_help
@@ -29,7 +28,6 @@ def handle_run(args : Array(String))
     exit(1)
   end
 end
-
 def show_run_help
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Run subcommands:#{Colors::RESET}"
   puts " #{Colors::GRAY}update-system #{Colors::RESET}- Update system"
