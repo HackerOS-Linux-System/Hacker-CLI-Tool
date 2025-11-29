@@ -2,7 +2,6 @@ require "./helpers"
 require "./unpack_commands"
 require "./run_commands"
 require "./game"
-
 def main
   if ARGV.empty? || ARGV[0] == "help"
     show_main_help
@@ -83,6 +82,10 @@ def main
     safe_run("sudo systemctl restart #{service}")
   when "plugin"
     handle_plugin(ARGV[1..])
+  when "enable"
+    handle_enable(ARGV[1..])
+  when "disable"
+    handle_disable(ARGV[1..])
   else
     custom_file = CUSTOM_DIR / "#{command}.hacker"
     if File.exists?(custom_file)
@@ -127,7 +130,6 @@ def main
     end
   end
 end
-
 def show_main_help
   puts "#{Colors::BOLD}#{Colors::MAGENTA}HackerOS Tool - Available commands:#{Colors::RESET}"
   puts " #{Colors::GRAY}unpack #{Colors::RESET}- Unpack and install various components (use 'hacker unpack' for subcommands)"
@@ -149,7 +151,8 @@ def show_main_help
   puts " #{Colors::GRAY}remove-container <container> #{Colors::RESET}- Remove Distrobox container"
   puts " #{Colors::GRAY}restart <service> #{Colors::RESET}- Restart system service"
   puts " #{Colors::GRAY}plugin #{Colors::RESET}- Manage plugins (use 'hacker plugin' for subcommands)"
-
+  puts " #{Colors::GRAY}enable #{Colors::RESET}- Enable features (use 'hacker enable' for subcommands)"
+  puts " #{Colors::GRAY}disable #{Colors::RESET}- Disable features (use 'hacker disable' for subcommands)"
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Custom commands:#{Colors::RESET}"
   Dir.glob((CUSTOM_DIR / "*.hacker").to_s).sort.each do |f|
     name = File.basename(f, ".hacker")
@@ -169,7 +172,6 @@ def show_main_help
       puts " #{Colors::GRAY}#{name} #{Colors::RESET}- Invalid config"
     end
   end
-
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Plugin commands:#{Colors::RESET}"
   Dir.glob((PLUGIN_DIR / "*.hacker").to_s).sort.each do |f|
     begin
@@ -196,7 +198,6 @@ def show_main_help
     end
   end
 end
-
 def handle_system(args : Array(String))
   if args.empty?
     puts "#{Colors::BOLD}#{Colors::MAGENTA}System subcommands:#{Colors::RESET}"
@@ -212,7 +213,6 @@ def handle_system(args : Array(String))
     exit(1)
   end
 end
-
 def handle_plugin(args : Array(String))
   if args.empty?
     show_plugin_help
@@ -284,12 +284,62 @@ def handle_plugin(args : Array(String))
     exit(1)
   end
 end
-
 def show_plugin_help
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Plugin subcommands:#{Colors::RESET}"
   puts " #{Colors::GRAY}list #{Colors::RESET}- List all plugins and their status"
   puts " #{Colors::GRAY}enable <name> #{Colors::RESET}- Enable a plugin"
   puts " #{Colors::GRAY}disable <name> #{Colors::RESET}- Disable a plugin"
 end
-
+def handle_enable(args : Array(String))
+  if args.empty?
+    show_enable_help
+    exit(0)
+  end
+  subcommand = args[0]
+  case subcommand
+  when "motd"
+    safe_run("sudo cp -r /usr/share/HackerOS/Archived/hackeros-motd /usr/libexec/")
+    safe_run("sudo cp /usr/share/HackerOS/Archived/user-motd.sh /etc/profile.d/")
+    safe_run("sudo chmod a+x /usr/libexec/hackeros-motd")
+    safe_run("sudo chmod a+x /etc/profile.d/user-motd.sh")
+    puts "#{Colors::GREEN}Enabled MOTD.#{Colors::RESET}"
+  when "special-motd"
+    safe_run("sudo cp -r /usr/share/HackerOS/Archived/hackeros-special-motd /usr/libexec/hackeros-motd")
+    safe_run("sudo cp /usr/share/HackerOS/Archived/user-motd.sh /etc/profile.d/")
+    safe_run("sudo chmod a+x /usr/libexec/hackeros-motd")
+    safe_run("sudo chmod a+x /etc/profile.d/user-motd.sh")
+    puts "#{Colors::GREEN}Enabled special MOTD.#{Colors::RESET}"
+  else
+    puts "#{Colors::RED}Unknown enable subcommand: #{subcommand}#{Colors::RESET}"
+    show_enable_help
+    exit(1)
+  end
+end
+def show_enable_help
+  puts "#{Colors::BOLD}#{Colors::MAGENTA}Enable subcommands:#{Colors::RESET}"
+  puts " #{Colors::GRAY}motd #{Colors::RESET}- Enable standard MOTD"
+  puts " #{Colors::GRAY}special-motd #{Colors::RESET}- Enable special MOTD"
+end
+def handle_disable(args : Array(String))
+  if args.empty?
+    show_disable_help
+    exit(0)
+  end
+  subcommand = args[0]
+  case subcommand
+  when "motd", "special-motd"
+    safe_run("sudo rm -rf /usr/libexec/hackeros-motd")
+    safe_run("sudo rm -f /etc/profile.d/user-motd.sh")
+    puts "#{Colors::GREEN}Disabled MOTD.#{Colors::RESET}"
+  else
+    puts "#{Colors::RED}Unknown disable subcommand: #{subcommand}#{Colors::RESET}"
+    show_disable_help
+    exit(1)
+  end
+end
+def show_disable_help
+  puts "#{Colors::BOLD}#{Colors::MAGENTA}Disable subcommands:#{Colors::RESET}"
+  puts " #{Colors::GRAY}motd #{Colors::RESET}- Disable MOTD"
+  puts " #{Colors::GRAY}special-motd #{Colors::RESET}- Disable special MOTD"
+end
 main
