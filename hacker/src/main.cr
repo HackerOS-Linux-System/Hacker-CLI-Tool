@@ -17,18 +17,20 @@ def main
     safe_run("~/.hackeros/hacker/hacker-docs")
   when "install"
     if ARGV.size < 2
-      puts "#{Colors::RED}Usage: hacker install <package>#{Colors::RESET}"
+      puts "#{Colors::RED}Please use 'hpm install <package>'#{Colors::RESET}"
       exit(1)
     end
     package = ARGV[1..].join(" ")
-    safe_run("sudo apt install -y #{package}")
+    puts "please use hpm install #{package}"
+    exit(0)
   when "remove"
     if ARGV.size < 2
-      puts "#{Colors::RED}Usage: hacker remove <package>#{Colors::RESET}"
+      puts "#{Colors::RED}Please use 'hpm remove <package>'#{Colors::RESET}"
       exit(1)
     end
     package = ARGV[1..].join(" ")
-    safe_run("sudo apt remove -y #{package}")
+    puts "please use hpm remove #{package}"
+    exit(0)
   when "flatpak-install"
     if ARGV.size < 2
       puts "#{Colors::RED}Usage: hacker flatpak-install <package>#{Colors::RESET}"
@@ -136,8 +138,6 @@ def show_main_help
   puts " #{Colors::GRAY}help #{Colors::RESET}- Show this help"
   puts " #{Colors::GRAY}help-ui #{Colors::RESET}- Show help UI"
   puts " #{Colors::GRAY}docs #{Colors::RESET}- Show documentation"
-  puts " #{Colors::GRAY}install <pkg> #{Colors::RESET}- Install APT package"
-  puts " #{Colors::GRAY}remove <pkg> #{Colors::RESET}- Remove APT package"
   puts " #{Colors::GRAY}flatpak-install <pkg> #{Colors::RESET}- Install Flatpak package"
   puts " #{Colors::GRAY}flatpak-remove <pkg> #{Colors::RESET}- Remove Flatpak package"
   puts " #{Colors::GRAY}system #{Colors::RESET}- System-related commands (use 'hacker system' for subcommands)"
@@ -343,3 +343,4 @@ def show_disable_help
   puts " #{Colors::GRAY}special-motd #{Colors::RESET}- Disable special MOTD"
 end
 main
+
