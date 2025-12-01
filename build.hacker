@@ -1,0 +1,23 @@
+// crystal
+// go
+// python3
+
+> cd hacker
+> crystal build src/main.cr --release
+> sudo mv main hacker
+> cd ..
+> cd hacker-help
+> go get hacker-help
+> go build
+> cd ..
+> cd hacker-select
+> go get hacker-select
+> go build
+> cd ..
+> cd hacker-docs
+> go get hacker-docs
+> go build
+> cd ..
+> cd hacker-shell
+> python3 -m nuitka --onefile main.py
+> sudo mv main.bin hacker-shell
