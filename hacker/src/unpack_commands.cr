@@ -1,10 +1,13 @@
 require "./helpers"
+
 def handle_unpack(args : Array(String))
   if args.empty? || args[0] == "help"
     show_unpack_help
     exit(0)
   end
+
   subcommand = args[0]
+
   case subcommand
   when "add-ons"
     safe_run("sudo apt install -y wine winetricks")
@@ -32,7 +35,6 @@ def handle_unpack(args : Array(String))
   when "cybersecurity"
     safe_run("distrobox create --name blackarch --image docker.io/blackarchlinux/blackarch:latest")
     safe_run("distrobox enter blackarch")
-    # Assuming installing all BlackArch tools is done inside the container, but for simplicity, we'll note it
     puts "#{Colors::YELLOW}Install all BlackArch tools inside the container.#{Colors::RESET}"
   when "select"
     safe_run("~/.hackeros/hacker/hacker-select")
@@ -65,12 +67,17 @@ def handle_unpack(args : Array(String))
     safe_run("sudo mv /usr/share/HackerOS/Archived/Services/hup.service /etc/systemd/system/")
     safe_run("sudo systemctl daemon-reload")
     safe_run("sudo systemctl enable hup.service")
+  when "alacritty-config"
+    safe_run("mkdir -p ~/.config/alacritty")
+    safe_run("cp /usr/share/HackerOS/Archived/alacritty.toml ~/.config/alacritty/alacritty.toml")
+    puts "#{Colors::GREEN}Alacritty configuration has been successfully installed to ~/.config/alacritty/alacritty.toml#{Colors::RESET}"
   else
     puts "#{Colors::RED}Unknown unpack subcommand: #{subcommand}#{Colors::RESET}"
     show_unpack_help
     exit(1)
   end
 end
+
 def show_unpack_help
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Unpack subcommands:#{Colors::RESET}"
   puts " #{Colors::GRAY}add-ons #{Colors::RESET}- Install wine and related tools"
@@ -86,4 +93,5 @@ def show_unpack_help
   puts " #{Colors::GRAY}xanmod #{Colors::RESET}- Unpack Xanmod kernel"
   puts " #{Colors::GRAY}liquorix #{Colors::RESET}- Unpack Liquorix kernel"
   puts " #{Colors::GRAY}automatic-updates #{Colors::RESET}- Enable automatic updates"
+  puts " #{Colors::GRAY}alacritty-config #{Colors::RESET}- Install Alacritty configuration (copies alacritty.toml to ~/.config/alacritty/)"
 end
