@@ -54,9 +54,9 @@ def main
   when "game"
     play_text_game
   when "hacker-lang"
-    puts "#{Colors::YELLOW}To use the hacker programming language for files/scripts with .hacker extension,#{Colors::RESET}"
-    puts "#{Colors::YELLOW}use the command 'hackerc' to compile or run them.#{Colors::RESET}"
-    puts "#{Colors::YELLOW}Note: This is for advanced users. Ensure hackerc is installed separately.#{Colors::RESET}"
+     puts "#{Colors::YELLOW}To use the hacker programming language for files/scripts with the .hacker extension, #{Colors::RESET}"
+     puts "#{Colors::YELLOW}use the "hackerc" command, or for larger projects, "hli" and "bytes" to download dependencies, to compile or run them.#{Colors::RESET}"
+     puts "#{Colors::YELLOW}Note: This command is intended for advanced users. Make sure the hackerc program is installed separately.#{Colors::RESET}"
   when "ascii"
     safe_run("cat /usr/share/HackerOS/Config-Files/HackerOS-Ascii")
   when "shell"
