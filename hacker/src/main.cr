@@ -88,6 +88,10 @@ def main
     handle_enable(ARGV[1..])
   when "disable"
     handle_disable(ARGV[1..])
+  when "how-to-create-commands"
+    puts "#{Colors::YELLOW}To create a custom command:#{Colors::RESET}"
+    puts "Create a file {command-name}.hacker in ~/.config/hackeros/hacker/custom-commands/"
+    puts "An example file for a custom command can be found at: https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker"
   else
     custom_file = CUSTOM_DIR / "#{command}.hacker"
     if File.exists?(custom_file)
@@ -153,6 +157,7 @@ def show_main_help
   puts " #{Colors::GRAY}plugin #{Colors::RESET}- Manage plugins (use 'hacker plugin' for subcommands)"
   puts " #{Colors::GRAY}enable #{Colors::RESET}- Enable features (use 'hacker enable' for subcommands)"
   puts " #{Colors::GRAY}disable #{Colors::RESET}- Disable features (use 'hacker disable' for subcommands)"
+  puts " #{Colors::GRAY}how-to-create-commands #{Colors::RESET}- Show how to create custom commands"
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Custom commands:#{Colors::RESET}"
   Dir.glob((CUSTOM_DIR / "*.hacker").to_s).sort.each do |f|
     name = File.basename(f, ".hacker")
@@ -343,4 +348,3 @@ def show_disable_help
   puts " #{Colors::GRAY}special-motd #{Colors::RESET}- Disable special MOTD"
 end
 main
-
