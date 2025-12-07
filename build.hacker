@@ -18,6 +18,12 @@
 > go get hacker-docs
 > go build
 > cd ..
+> cd HackerOS-Updater
+> crystal build src/main.cr --release
+> cd better
+> go get hackeros-updater
+> go build
+> sudo mv hackeros-updater HackerOS-Update-Better
 > cd hacker-shell
 > python3 -m nuitka --onefile main.py
 > sudo mv main.bin hacker-shell
