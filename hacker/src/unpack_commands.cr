@@ -46,11 +46,8 @@ def handle_unpack(args : Array(String))
       safe_run("flatpak install -y flathub org.vinegarhq.Vinegar")
     end
   when "hacker-mode"
-    install_gamescope
-    safe_run("flatpak install -y flathub xyz.hyperplay.HyperPlay")
-    safe_run("flatpak install -y flathub com.valvesoftware.Steam")
-    safe_run("flatpak install -y flathub com.heroicgameslauncher.hgl")
-    safe_run("sudo apt install -y cage")
+    safe_run("git clone https://github.com/HackerOS-Linux-System/Hacker-Mode.git /tmp/Hacker-Mode")
+    safe_run("hackerc run /tmp/Hacker-Mode/unpack.hacker")
   when "gamescope-session-steam"
     safe_run("flatpak install -y flathub com.valvesoftware.Steam")
     install_gamescope
@@ -68,6 +65,12 @@ def handle_unpack(args : Array(String))
     safe_run("mkdir -p ~/.config/alacritty")
     safe_run("cp /usr/share/HackerOS/Archived/alacritty.toml ~/.config/alacritty/alacritty.toml")
     puts "#{Colors::GREEN}Alacritty configuration has been successfully installed to ~/.config/alacritty/alacritty.toml#{Colors::RESET}"
+  when "hackeros-tv"
+    safe_run("git clone https://github.com/HackerOS-Linux-System/HackerOS-TV.git /tmp/HackerOS-TV")
+    safe_run("hackerc run /tmp/HackerOS-TV/unpack.hacker")
+  when "security-mode"
+    safe_run("git clone https://github.com/HackerOS-Linux-System/Security-Mode.git /tmp/Security-Mode")
+    safe_run("hackerc run /tmp/Security-Mode/unpack.hacker")
   else
     puts "#{Colors::RED}Unknown unpack subcommand: #{subcommand}#{Colors::RESET}"
     show_unpack_help
@@ -90,4 +93,6 @@ def show_unpack_help
   puts " #{Colors::GRAY}liquorix #{Colors::RESET}- Unpack Liquorix kernel"
   puts " #{Colors::GRAY}automatic-updates #{Colors::RESET}- Enable automatic updates"
   puts " #{Colors::GRAY}alacritty-config #{Colors::RESET}- Install Alacritty configuration (copies alacritty.toml to ~/.config/alacritty/)"
+  puts " #{Colors::GRAY}hackeros-tv #{Colors::RESET}- Install HackerOS TV"
+  puts " #{Colors::GRAY}security-mode #{Colors::RESET}- Install Security Mode"
 end
