@@ -50,7 +50,7 @@ def main
   when "run"
     handle_run(ARGV[1..])
   when "update"
-    safe_run("~/.hackeros/hacker/HackerOS-Updater")
+    handle_update(ARGV[1..])
   when "game"
     play_text_game
   when "hacker-lang"
@@ -138,6 +138,27 @@ def main
     end
   end
 end
+def handle_update(args : Array(String))
+  updater_path = "~/.hackeros/hacker/HackerOS-Updater"
+  better_updater_path = "~/.hackeros/hacker/HackerOS-Update-Better"
+  if args.empty?
+    safe_run(updater_path)
+  else
+    flag = args[0]
+    case flag
+    when "--with-gui"
+      safe_run("#{updater_path} --with-gui")
+    when "--gui-mode"
+      safe_run("#{updater_path} --gui-mode")
+    when "--better"
+      safe_run(better_updater_path)
+    else
+      puts "#{Colors::RED}Unknown flag for update: #{flag}#{Colors::RESET}"
+      puts "Available flags: --with-gui, --gui-mode, --better"
+      exit(1)
+    end
+  end
+end
 def show_hackeros_tools
   puts "#{Colors::BOLD}#{Colors::MAGENTA}HackerOS Tools Index:#{Colors::RESET}"
   puts " * bytes - manager pakietow dla hacker lang"
@@ -170,7 +191,7 @@ def show_main_help
   puts " #{Colors::GRAY}flatpak-remove <pkg> #{Colors::RESET}- Remove Flatpak package"
   puts " #{Colors::GRAY}system #{Colors::RESET}- System-related commands (use 'hacker system' for subcommands)"
   puts " #{Colors::GRAY}run #{Colors::RESET}- Run scripts and tools (use 'hacker run' for subcommands)"
-  puts " #{Colors::GRAY}update #{Colors::RESET}- Run HackerOS updater"
+  puts " #{Colors::GRAY}update [ --with-gui | --gui-mode | --better ] #{Colors::RESET}- Run HackerOS updater (with optional flags)"
   puts " #{Colors::GRAY}game #{Colors::RESET}- Play a text-based game"
   puts " #{Colors::GRAY}hacker-lang #{Colors::RESET}- Info about hacker language"
   puts " #{Colors::GRAY}ascii #{Colors::RESET}- Display ASCII art"
