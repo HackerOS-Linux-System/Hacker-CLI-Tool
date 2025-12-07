@@ -1,5 +1,6 @@
 require "./helpers"
 require "./unpack_commands"
+require "./pack_commands"
 require "./run_commands"
 require "./game"
 def main
@@ -11,6 +12,8 @@ def main
   case command
   when "unpack"
     handle_unpack(ARGV[1..])
+  when "pack"
+    handle_pack(ARGV[1..])
   when "help-ui"
     safe_run("~/.hackeros/hacker/hacker-help")
   when "docs"
@@ -184,6 +187,7 @@ end
 def show_main_help
   puts "#{Colors::BOLD}#{Colors::MAGENTA}HackerOS Tool - Available commands:#{Colors::RESET}"
   puts " #{Colors::GRAY}unpack #{Colors::RESET}- Unpack and install various components (use 'hacker unpack' for subcommands)"
+  puts " #{Colors::GRAY}pack #{Colors::RESET}- Pack and remove various components (use 'hacker pack' for subcommands)"
   puts " #{Colors::GRAY}help #{Colors::RESET}- Show this help"
   puts " #{Colors::GRAY}help-ui #{Colors::RESET}- Show help UI"
   puts " #{Colors::GRAY}docs #{Colors::RESET}- Show documentation"
