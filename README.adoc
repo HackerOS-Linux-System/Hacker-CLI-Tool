@@ -51,6 +51,7 @@ Poniżej znajduje się lista komend w formie tabeli:
 |`hacker run hackeros-game-mode` |Uruchom tryb gry.
 |`hacker run update-hackeros` |Aktualizuj HackerOS.
 |`hacker update` |Pełna aktualizacja systemu (APT, Flatpak, Snap itp.).
+|`hacker update --better` |Ładniejsza wersja.
 |`hacker game` |Graj w grę Hacker Adventure.
 |`hacker hacker-lang` |Informacje o języku programowania Hacker.
 |`hacker ascii` |Wyświetl ASCII art.
