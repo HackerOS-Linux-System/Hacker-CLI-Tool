@@ -59,12 +59,6 @@ Poniżej znajduje się lista komend w formie tabeli:
 |`hacker enter <kontener>` |Wejdź do kontenera Distrobox.
 |`hacker remove-container <kontener>` |Usuń kontener Distrobox.
 |`hacker unpack atomatic-updates` |Uruchom automatyczne aktualizacje za pomocą hup.
-|`hacker plugin create <nazwa>` |Utwórz nowy plugin.
-|`hacker plugin enable <nazwa>` |Włącz plugin.
-|`hacker plugin disable <nazwa>` |Wyłącz plugin.
-|`hacker plugin list` |Lista wszystkich pluginów.
-|`hacker plugin apply` |Użyj pluginu.
-
 |===
 
 === Gra Hacker Adventure
@@ -92,3 +86,6 @@ Ten projekt jest licencjonowany na licencji MIT - szczegóły w pliku LICENSE.
 == Podziękowania
 - Zbudowane z użyciem https://go.dev/[Go], https://www.python.org/[Python] i https://crystal-lang.org/[Crystal].
 - Używa bibliotek takich jak `colored`, `bubbletea`, `rich` itp.
+
+=== Tworzenie własnych komend
+Twórz pliki {nazwa komendy}.hacker w ~/.config/hackeros/hacker/ przyklad takiego pliku znajdziesz na: https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker
