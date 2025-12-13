@@ -31,8 +31,7 @@ def handle_pack(args : Array(String))
   when "cybersecurity"
     safe_run("distrobox rm -f blackarch")
   when "select"
-    # No removal needed for select, as it's a run command
-    puts "#{Colors::YELLOW}No pack action for select.#{Colors::RESET}"
+    safe_run("~/.hackeros/hacker/hacker-select --pack")
   when "gaming"
     safe_run("flatpak uninstall -y flathub com.valvesoftware.Steam")
     safe_run("flatpak uninstall -y flathub com.github.Matoking.protontricks")
@@ -79,7 +78,7 @@ def show_pack_help
   puts " #{Colors::GRAY}devtools #{Colors::RESET}- Remove development tools"
   puts " #{Colors::GRAY}emulators #{Colors::RESET}- Remove emulators"
   puts " #{Colors::GRAY}cybersecurity #{Colors::RESET}- Remove BlackArch container"
-  puts " #{Colors::GRAY}select #{Colors::RESET}- No action"
+  puts " #{Colors::GRAY}select #{Colors::RESET}- Run hacker-select in pack mode"
   puts " #{Colors::GRAY}gaming #{Colors::RESET}- Remove gaming tools"
   puts " #{Colors::GRAY}hacker-mode #{Colors::RESET}- Remove hacker mode tools"
   puts " #{Colors::GRAY}gamescope-session-steam #{Colors::RESET}- Remove gamescope session for Steam"
