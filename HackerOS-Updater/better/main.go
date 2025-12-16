@@ -2,328 +2,325 @@ package main
 
 import (
 	"bufio"
-	"flag"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
-	"sync"
+	"time"
 
-	"github.com/pterm/pterm"
-	"github.com/vbauerster/mpb/v8"
-	"github.com/vbauerster/mpb/v8/decor"
-	"golang.org/x/term"
-)
-
-const (
-	HackerOSUpdateScript   = "/usr/share/HackerOS/Scripts/Bin/update-hackeros.sh"
-	WallpapersUpdateScript = "/usr/share/HackerOS/Scripts/Bin/update-wallpapers.sh"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/stopwatch"
+	"github.com/charmbracelet/bubbles/viewport"
+	"github.com/charmbracelet/lipgloss"
 )
 
 var (
-	binPath        string
-	AutoScriptPath = filepath.Join(os.Getenv("HOME"), ".hackeros/auto-update.sh")
-	blueStyle      = pterm.NewStyle(pterm.FgBlue)
-	redStyle       = pterm.NewStyle(pterm.FgRed)
-	yellowStyle    = pterm.NewStyle(pterm.FgYellow)
-	greenStyle     = pterm.NewStyle(pterm.FgGreen)
-	cyanStyle      = pterm.NewStyle(pterm.FgCyan)
-	magentaStyle   = pterm.NewStyle(pterm.FgMagenta)
+	yellowStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFF00"))
+	greenStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00"))
+	blueStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#0000FF"))
+	redStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000"))
+	cyanStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FFFF"))
+	magentaStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF00FF"))
+	spinnerStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF00FF"))
+	viewportStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240")).Padding(0, 1)
 )
 
-func displayHeader(title string) {
-	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgYellow)).WithTextStyle(pterm.NewStyle(pterm.FgBlack)).Println(title)
+type step struct {
+	title string
+	cmds  []string
 }
 
-func runCommand(cmdStr string) (bool, string) {
-	cmd := exec.Command("bash", "-c", cmdStr)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	return err == nil, ""
+var steps = []step{
+	{"System Update", []string{"sudo apt update", "sudo apt upgrade -y", "sudo apt autoclean"}},
+	{"Flatpak Update", []string{"flatpak update -y"}},
+	{"Snap Update", []string{"sudo snap refresh"}},
+	{"Brew Update", []string{"brew update", "brew upgrade"}},
+	{"Firmware Update", []string{"sudo fwupdmgr update"}},
+	{"Oh My Zsh Update", []string{"omz update"}},
+	{"Distrobox Update", []string{"distrobox-upgrade --all"}},
+	{"HackerOS Update", []string{"/usr/share/HackerOS/Scripts/Bin/update-hackeros.sh"}},
+	{"Wallpaper Updates", []string{"/usr/share/HackerOS/Scripts/Bin/update-wallpapers.sh"}},
 }
 
-func getStatus(success bool) string {
-	if success {
-		return blueStyle.Sprint("COMPLETE")
-	}
-	return redStyle.Sprint("FAILED")
+type tickMsg time.Time
+type lineMsg string
+type doneMsg bool
+
+type model struct {
+	steps     []step
+	current   int
+	statuses  []string
+	spinner   spinner.Model
+	progress  progress.Model
+	stopwatch stopwatch.Model
+	viewport  viewport.Model
+	output    []string
+	running   bool
+	inMenu    bool
+	lines     chan string
+	done      chan bool
+	ctx       context.Context
+	cancel    context.CancelFunc
+	width     int
+	height    int
 }
 
-func runCommandWithProgress(cmdStr, name string, progress *mpb.Progress) bool {
-	bar := progress.AddBar(100,
-			       mpb.PrependDecorators(
-				       decor.Name(name, decor.WC{C: decor.DSyncWidthR}),
-						     decor.Percentage(decor.WCSyncSpace),
-			       ),
-			mpb.AppendDecorators(
-				decor.OnComplete(decor.Name("done"), "done"),
-			),
-			mpb.BarFillerOnComplete("✓"),
-	)
-
-	cmd := exec.Command("bash", "-c", cmdStr)
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		bar.Abort(false)
-		return false
+func New() *model {
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = spinnerStyle
+	p := progress.New(progress.WithDefaultGradient())
+	vp := viewport.New(80, 10)
+	vp.Style = viewportStyle
+	sw := stopwatch.New()
+	statuses := make([]string, len(steps))
+	return &model{
+		steps:     steps,
+		statuses:  statuses,
+		spinner:   s,
+		progress:  p,
+		stopwatch: sw,
+		viewport:  vp,
+		output:    []string{},
 	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		bar.Abort(false)
-		return false
+}
+
+func (m *model) Init() tea.Cmd {
+	return tea.Batch(m.stopwatch.Init(), m.nextStep())
+}
+
+func (m *model) nextStep() tea.Cmd {
+	if m.current >= len(m.steps) {
+		m.inMenu = true
+		return nil
 	}
-	cmd.Stdin = os.Stdin
+	m.running = true
+	m.output = []string{}
+	m.viewport.SetContent("")
+	m.lines = make(chan string, 100)
+	m.done = make(chan bool)
+	ctx, cancel := context.WithCancel(context.Background())
+	m.ctx = ctx
+	m.cancel = cancel
+	go m.runStep()
+	return tea.Batch(m.spinner.Tick, tick())
+}
 
-	if err := cmd.Start(); err != nil {
-		bar.Abort(false)
-		return false
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stdout)
+func (m *model) runStep() {
+	success := true
+	for _, cmdStr := range m.steps[m.current].cmds {
+		cmd := exec.CommandContext(m.ctx, "bash", "-c", cmdStr)
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			m.lines <- fmt.Sprintf("Error creating stdout pipe: %v", err)
+			success = false
+			continue
+		}
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			m.lines <- fmt.Sprintf("Error creating stderr pipe: %v", err)
+			success = false
+			continue
+		}
+		if err := cmd.Start(); err != nil {
+			m.lines <- fmt.Sprintf("Error starting command: %v", err)
+			success = false
+			continue
+		}
+		reader := io.MultiReader(stdout, stderr)
+		scanner := bufio.NewScanner(reader)
 		for scanner.Scan() {
-			line := scanner.Text()
-			fmt.Println(line)
-			updateProgressFromLine(line, bar)
+			m.lines <- scanner.Text()
 		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			line := scanner.Text()
-			fmt.Println(line)
-			updateProgressFromLine(line, bar)
+		if err := scanner.Err(); err != nil {
+			m.lines <- fmt.Sprintf("Error reading output: %v", err)
 		}
-	}()
-
-	wg.Wait()
-	err = cmd.Wait()
-	if err == nil {
-		bar.SetCurrent(100)
-		return true
-	} else {
-		bar.Abort(false)
-		return false
-	}
-}
-
-func updateProgressFromLine(line string, bar *mpb.Bar) {
-	// Parse % patterns
-	rePercent := regexp.MustCompile(`(\d+)%`)
-	match := rePercent.FindStringSubmatch(line)
-	if len(match) > 1 {
-		perc, err := strconv.ParseInt(match[1], 10, 64)
-		if err == nil {
-			bar.SetCurrent(perc)
+		if err := cmd.Wait(); err != nil {
+			m.lines <- fmt.Sprintf("Command failed: %v", err)
+			success = false
 		}
 	}
+	m.done <- success
+	close(m.lines)
+	close(m.done)
+}
 
-	// Parse step patterns like 1/10
-	reStep := regexp.MustCompile(`(\d+)/(\d+)`)
-	matchStep := reStep.FindStringSubmatch(line)
-	if len(matchStep) > 2 {
-		curr, _ := strconv.ParseInt(matchStep[1], 10, 64)
-		total, _ := strconv.ParseInt(matchStep[2], 10, 64)
-		if total > 0 {
-			bar.SetCurrent((curr * 100) / total)
+func tick() tea.Cmd {
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	switch msg := msg.(type) {
+		case tea.WindowSizeMsg:
+			m.width = msg.Width
+			m.height = msg.Height
+			m.progress.Width = msg.Width - 4
+			if m.width > 80 {
+				m.viewport.Width = 80
+			} else {
+				m.viewport.Width = m.width - 4
+			}
+			m.viewport.Height = m.height/2 - 5
+		case tea.KeyMsg:
+			if m.running || !m.inMenu {
+				return m, nil
+			}
+			switch strings.ToUpper(msg.String()) {
+				case "Q":
+					return m, tea.Quit
+				case "R":
+					exec.Command("sudo", "reboot").Run()
+				case "S":
+					exec.Command("sudo", "shutdown", "-h", "now").Run()
+				case "L":
+					exec.Command("qdbus", "org.kde.ksmserver", "/KSMServer", "logout", "0", "0", "0").Run()
+				case "T":
+					exec.Command("alacritty").Start()
+				case "A":
+					m.enableAutomaticUpdates()
+			}
+				case spinner.TickMsg:
+					if m.running {
+						var cmd tea.Cmd
+						m.spinner, cmd = m.spinner.Update(msg)
+						cmds = append(cmds, cmd)
+					}
+				case stopwatch.TickMsg:
+					var cmd tea.Cmd
+					m.stopwatch, cmd = m.stopwatch.Update(msg)
+					cmds = append(cmds, cmd)
+				case progress.FrameMsg:
+					var cmd tea.Cmd
+					var tm tea.Model
+					tm, cmd = m.progress.Update(msg)
+					m.progress = tm.(progress.Model)
+					cmds = append(cmds, cmd)
+				case tickMsg:
+					loop := true
+					for loop {
+						select {
+				case line, ok := <-m.lines:
+					if !ok {
+						loop = false
+						break
+					}
+					m.output = append(m.output, line)
+					content := strings.Join(m.output, "\n")
+					m.viewport.SetContent(content)
+					m.viewport.GotoBottom()
+				case success, ok := <-m.done:
+					if !ok {
+						loop = false
+						break
+					}
+					m.running = false
+					status := "FAILED"
+					if success {
+						status = "COMPLETE"
+					}
+					m.statuses[m.current] = status
+					frac := float64(m.current+1) / float64(len(m.steps))
+					pcmd := m.progress.SetPercent(frac)
+					m.current++
+					cmds = append(cmds, pcmd, m.nextStep())
+					loop = false
+				default:
+					loop = false
+						}
+					}
+					if m.running {
+						cmds = append(cmds, tick())
+					}
+	}
+	return m, tea.Batch(cmds...)
+}
+
+func (m *model) View() string {
+	var b strings.Builder
+	b.WriteString(yellowStyle.Render("HackerOS Updater") + "\n\n")
+	b.WriteString("Time elapsed: " + m.stopwatch.View() + "\n")
+	b.WriteString(m.progress.View() + "\n\n")
+	if !m.inMenu {
+		if m.current < len(m.steps) {
+			b.WriteString(yellowStyle.Render("<--------[ " + m.steps[m.current].title + " ]-------->") + "\n")
+			if m.running {
+				b.WriteString(m.spinner.View() + " Running...\n\n")
+			}
+			b.WriteString(m.viewport.View() + "\n")
 		}
+		return b.String()
 	}
-}
-
-func performUpdates(progress *mpb.Progress) (string, string, string, string, string, string, string, string) {
-	// APT Update
-	displayHeader("System Update")
-	aptSuccess := true
-	aptSuccess = aptSuccess && runCommandWithProgress("sudo apt update", "APT Update", progress)
-	aptSuccess = aptSuccess && runCommandWithProgress("sudo apt upgrade -y", "APT Upgrade", progress)
-	aptSuccess = aptSuccess && runCommandWithProgress("sudo apt autoclean", "APT Autoclean", progress)
-	aptStatus := getStatus(aptSuccess)
-
-	// Flatpak Update
-	displayHeader("Flatpak Update")
-	flatpakSuccess := runCommandWithProgress("flatpak update -y", "Flatpak Update", progress)
-	flatpakStatus := getStatus(flatpakSuccess)
-
-	// Snap Update
-	displayHeader("Snap Update")
-	snapSuccess := runCommandWithProgress("sudo snap refresh", "Snap Update", progress)
-	snapStatus := getStatus(snapSuccess)
-
-	// Firmware Update
-	displayHeader("Firmware Update")
-	fwSuccess := runCommandWithProgress("sudo fwupdmgr update", "Firmware Update", progress)
-	fwStatus := getStatus(fwSuccess)
-
-	// Oh My Zsh Update
-	displayHeader("Oh My Zsh Update")
-	omzSuccess := runCommandWithProgress("omz update", "Oh My Zsh Update", progress)
-	omzStatus := getStatus(omzSuccess)
-
-	// Distrobox Update
-	displayHeader("Distrobox Update")
-	distroboxSuccess := runCommandWithProgress("distrobox-upgrade --all", "Distrobox Update", progress)
-	distroboxStatus := getStatus(distroboxSuccess)
-
-	// HackerOS Update
-	displayHeader("HackerOS Update")
-	hackerSuccess, _ := runCommand(HackerOSUpdateScript)
-	hackerStatus := getStatus(hackerSuccess)
-
-	// Wallpapers Update
-	displayHeader("Wallpaper Updates")
-	wallSuccess, _ := runCommand(WallpapersUpdateScript)
-	wallStatus := getStatus(wallSuccess)
-
-	return aptStatus, flatpakStatus, snapStatus, fwStatus, omzStatus, distroboxStatus, hackerStatus, wallStatus
-}
-
-func showSummary(aptStatus, flatpakStatus, snapStatus, fwStatus, omzStatus, distroboxStatus, hackerStatus, wallStatus string) {
-	data := [][]string{
-		{"System Updates", aptStatus},
-		{"Flatpak Updates", flatpakStatus},
-		{"Snap Updates", snapStatus},
-		{"Firmware Updates", fwStatus},
-		{"Oh My Zsh Updates", omzStatus},
-		{"Distrobox Updates", distroboxStatus},
-		{"HackerOS Updates", hackerStatus},
-		{"Wallpaper Updates", wallStatus},
+	// Summary
+	b.WriteString("Summary:\n")
+	for i, st := range m.steps {
+		s := st.title + " - "
+		status := m.statuses[i]
+		if status == "COMPLETE" {
+			s += blueStyle.Render(status)
+		} else if status == "FAILED" {
+			s += redStyle.Render(status)
+		} else {
+			s += status // for empty, just -
+		}
+		b.WriteString(s + "\n")
 	}
-	pterm.DefaultTable.WithHasHeader(false).WithData(data).Render()
+	b.WriteString("\n")
+	// Menu
+	b.WriteString(yellowStyle.Render("=== HackerOS Updater Menu ===") + "\n")
+	b.WriteString(greenStyle.Render("[Q]uit") + " " + cyanStyle.Render("- Close this terminal") + "\n")
+	b.WriteString(greenStyle.Render("[R]eboot") + " " + cyanStyle.Render("- Reboot the system") + "\n")
+	b.WriteString(greenStyle.Render("[S]hutdown") + " " + cyanStyle.Render("- Shutdown the system") + "\n")
+	b.WriteString(greenStyle.Render("[L]og out") + " " + cyanStyle.Render("- Log out from current session") + "\n")
+	b.WriteString(greenStyle.Render("[T]erminal") + " " + cyanStyle.Render("- Open a new Alacritty terminal") + "\n")
+	b.WriteString(greenStyle.Render("[A]utomatic Updates") + " " + cyanStyle.Render("- Enable automatic updates on boot") + "\n")
+	b.WriteString(magentaStyle.Render("Enter your choice: "))
+	return b.String()
 }
 
-func enableAutomaticUpdates() {
-	autoScript := fmt.Sprintf(`#!/bin/bash
+func (m *model) enableAutomaticUpdates() {
+	binPath, err := os.Executable()
+	if err != nil {
+		return
+	}
+	home := os.Getenv("HOME")
+	autoScriptPath := filepath.Join(home, ".hackeros/auto-update.sh")
+	script := fmt.Sprintf(`#!/bin/bash
 	while ! ping -c 1 google.com &> /dev/null; do
 		sleep 5
 		done
 		%s`, binPath)
-	os.WriteFile(AutoScriptPath, []byte(autoScript), 0755)
-
-	currentCrontab := getCrontab()
-	entry := fmt.Sprintf("@reboot %s", AutoScriptPath)
+	if err := os.WriteFile(autoScriptPath, []byte(script), 0755); err != nil {
+		return
+	}
+	out, err := exec.Command("crontab", "-l").CombinedOutput()
+	currentCrontab := string(out)
+	if err != nil && !strings.Contains(err.Error(), "exit status 1") {
+		return
+	}
+	entry := "@reboot " + autoScriptPath
 	if !strings.Contains(currentCrontab, entry) {
 		newCrontab := currentCrontab + "\n" + entry + "\n"
-		setCrontab(newCrontab)
-	}
-	pterm.Println(greenStyle.Sprint("Automatic updates enabled."))
-}
-
-func disableAutomaticUpdates() {
-	currentCrontab := getCrontab()
-	lines := strings.Split(currentCrontab, "\n")
-	var newLines []string
-	entry := fmt.Sprintf("@reboot %s", AutoScriptPath)
-	for _, line := range lines {
-		if !strings.Contains(line, entry) {
-			newLines = append(newLines, line)
-		}
-	}
-	newCrontab := strings.Join(newLines, "\n")
-	setCrontab(newCrontab)
-	os.Remove(AutoScriptPath)
-	pterm.Println(greenStyle.Sprint("Automatic updates disabled."))
-}
-
-func getCrontab() string {
-	cmd := exec.Command("crontab", "-l")
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	return string(out)
-}
-
-func setCrontab(content string) {
-	tmpFile := "/tmp/crontab.txt"
-	os.WriteFile(tmpFile, []byte(content), 0644)
-	runCommand(fmt.Sprintf("crontab %s", tmpFile))
-	os.Remove(tmpFile)
-}
-
-func showGuiMenu() {
-	for {
-		pterm.Println(yellowStyle.Sprint("=== HackerOS Updater Menu ==="))
-		pterm.Println(greenStyle.Sprint("[Q]uit") + " " + cyanStyle.Sprint("- Close this terminal"))
-		pterm.Println(greenStyle.Sprint("[R]eboot") + " " + cyanStyle.Sprint("- Reboot the system"))
-		pterm.Println(greenStyle.Sprint("[S]hutdown") + " " + cyanStyle.Sprint("- Shutdown the system"))
-		pterm.Println(greenStyle.Sprint("[L]og out") + " " + cyanStyle.Sprint("- Log out from current session"))
-		pterm.Println(greenStyle.Sprint("[T]erminal") + " " + cyanStyle.Sprint("- Open a new Alacritty terminal"))
-		pterm.Println(greenStyle.Sprint("[A]utomatic Updates") + " " + cyanStyle.Sprint("- Enable automatic updates on boot"))
-		pterm.Print(magentaStyle.Sprint("Enter your choice: "))
-
-		oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
-		if err != nil {
-			fmt.Println(err)
+		tmpPath := "/tmp/crontab.txt"
+		if err := os.WriteFile(tmpPath, []byte(newCrontab), 0644); err != nil {
 			return
 		}
-		defer term.Restore(int(os.Stdin.Fd()), oldState)
-
-		byteBuf := make([]byte, 1)
-		_, err = os.Stdin.Read(byteBuf)
-		if err != nil && err != io.EOF {
-			fmt.Println(err)
-			return
-		}
-		choice := strings.ToUpper(string(byteBuf[0]))
-		fmt.Println(choice)
-
-		switch choice {
-			case "Q":
-				os.Exit(0)
-			case "R":
-				runCommand("sudo reboot")
-			case "S":
-				runCommand("sudo shutdown -h now")
-			case "L":
-				runCommand("qdbus org.kde.ksmserver /KSMServer logout 0 0 0")
-			case "T":
-				exec.Command("alacritty").Start()
-			case "A":
-				enableAutomaticUpdates()
-			default:
-				pterm.Println(redStyle.Sprint("Invalid choice. Try again."))
-		}
+		exec.Command("crontab", tmpPath).Run()
+		os.Remove(tmpPath)
 	}
 }
 
 func main() {
-	var withGui bool
-	var guiMode bool
-	flag.BoolVar(&withGui, "with-gui", false, "Run in GUI mode with Alacritty")
-	flag.BoolVar(&guiMode, "gui-mode", false, "Internal GUI mode")
-	flag.Parse()
-
-	var err error
-	binPath, err = os.Executable()
-	if err != nil {
-		pterm.Fatal.Println("Failed to get executable path:", err)
-	}
-
-	if withGui {
-		exec.Command("alacritty", "-e", binPath, "--gui-mode").Start()
-		return
-	}
-
-	progress := mpb.New()
-	aptStatus, flatpakStatus, snapStatus, fwStatus, omzStatus, distroboxStatus, hackerStatus, wallStatus := performUpdates(progress)
-	progress.Wait()
-
-	showSummary(aptStatus, flatpakStatus, snapStatus, fwStatus, omzStatus, distroboxStatus, hackerStatus, wallStatus)
-
-	if guiMode {
-		showGuiMenu()
+	p := tea.NewProgram(New(), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Println("Error:", err)
+		os.Exit(1)
 	}
 }
-
