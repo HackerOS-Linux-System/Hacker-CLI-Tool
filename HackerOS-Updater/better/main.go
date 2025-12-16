@@ -103,7 +103,7 @@ func (m *model) nextStep() tea.Cmd {
 	m.output = []string{}
 	m.viewport.SetContent("")
 	m.lines = make(chan string, 100)
-	m.done = make(chan bool)
+	m.done = make(chan bool, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	m.ctx = ctx
 	m.cancel = cancel
@@ -159,86 +159,86 @@ func tick() tea.Cmd {
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
-		case tea.WindowSizeMsg:
-			m.width = msg.Width
-			m.height = msg.Height
-			m.progress.Width = msg.Width - 4
-			if m.width > 80 {
-				m.viewport.Width = 80
-			} else {
-				m.viewport.Width = m.width - 4
-			}
-			m.viewport.Height = m.height/2 - 5
-		case tea.KeyMsg:
-			if m.running || !m.inMenu {
-				return m, nil
-			}
-			switch strings.ToUpper(msg.String()) {
-				case "Q":
-					return m, tea.Quit
-				case "R":
-					exec.Command("sudo", "reboot").Run()
-				case "S":
-					exec.Command("sudo", "shutdown", "-h", "now").Run()
-				case "L":
-					exec.Command("qdbus", "org.kde.ksmserver", "/KSMServer", "logout", "0", "0", "0").Run()
-				case "T":
-					exec.Command("alacritty").Start()
-				case "A":
-					m.enableAutomaticUpdates()
-			}
-				case spinner.TickMsg:
-					if m.running {
-						var cmd tea.Cmd
-						m.spinner, cmd = m.spinner.Update(msg)
-						cmds = append(cmds, cmd)
-					}
-				case stopwatch.TickMsg:
-					var cmd tea.Cmd
-					m.stopwatch, cmd = m.stopwatch.Update(msg)
-					cmds = append(cmds, cmd)
-				case progress.FrameMsg:
-					var cmd tea.Cmd
-					var tm tea.Model
-					tm, cmd = m.progress.Update(msg)
-					m.progress = tm.(progress.Model)
-					cmds = append(cmds, cmd)
-				case tickMsg:
-					loop := true
-					for loop {
-						select {
-				case line, ok := <-m.lines:
-					if !ok {
-						loop = false
-						break
-					}
-					m.output = append(m.output, line)
-					content := strings.Join(m.output, "\n")
-					m.viewport.SetContent(content)
-					m.viewport.GotoBottom()
-				case success, ok := <-m.done:
-					if !ok {
-						loop = false
-						break
-					}
-					m.running = false
-					status := "FAILED"
-					if success {
-						status = "COMPLETE"
-					}
-					m.statuses[m.current] = status
-					frac := float64(m.current+1) / float64(len(m.steps))
-					pcmd := m.progress.SetPercent(frac)
-					m.current++
-					cmds = append(cmds, pcmd, m.nextStep())
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m.progress.Width = msg.Width - 4
+		if m.width > 80 {
+			m.viewport.Width = 80
+		} else {
+			m.viewport.Width = m.width - 4
+		}
+		m.viewport.Height = m.height/2 - 5
+	case tea.KeyMsg:
+		if m.running || !m.inMenu {
+			return m, nil
+		}
+		switch strings.ToUpper(msg.String()) {
+		case "Q":
+			return m, tea.Quit
+		case "R":
+			exec.Command("sudo", "reboot").Run()
+		case "S":
+			exec.Command("sudo", "shutdown", "-h", "now").Run()
+		case "L":
+			exec.Command("qdbus", "org.kde.ksmserver", "/KSMServer", "logout", "0", "0", "0").Run()
+		case "T":
+			exec.Command("alacritty").Start()
+		case "A":
+			m.enableAutomaticUpdates()
+		}
+	case spinner.TickMsg:
+		if m.running {
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+	case stopwatch.TickMsg:
+		var cmd tea.Cmd
+		m.stopwatch, cmd = m.stopwatch.Update(msg)
+		cmds = append(cmds, cmd)
+	case progress.FrameMsg:
+		var cmd tea.Cmd
+		var updated tea.Model
+		updated, cmd = m.progress.Update(msg)
+		m.progress = updated.(progress.Model)
+		cmds = append(cmds, cmd)
+	case tickMsg:
+		loop := true
+		for loop {
+			select {
+			case line, ok := <-m.lines:
+				if !ok {
 					loop = false
-				default:
+					break
+				}
+				m.output = append(m.output, line)
+				content := strings.Join(m.output, "\n")
+				m.viewport.SetContent(content)
+				m.viewport.GotoBottom()
+			case success, ok := <-m.done:
+				if !ok {
 					loop = false
-						}
-					}
-					if m.running {
-						cmds = append(cmds, tick())
-					}
+					break
+				}
+				m.running = false
+				status := "FAILED"
+				if success {
+					status = "COMPLETE"
+				}
+				m.statuses[m.current] = status
+				frac := float64(m.current+1) / float64(len(m.steps))
+				pcmd := m.progress.SetPercent(frac)
+				m.current++
+				cmds = append(cmds, pcmd, m.nextStep())
+				loop = false
+			default:
+				loop = false
+			}
+		}
+		if m.running {
+			cmds = append(cmds, tick())
+		}
 	}
 	return m, tea.Batch(cmds...)
 }
@@ -293,10 +293,10 @@ func (m *model) enableAutomaticUpdates() {
 	home := os.Getenv("HOME")
 	autoScriptPath := filepath.Join(home, ".hackeros/auto-update.sh")
 	script := fmt.Sprintf(`#!/bin/bash
-	while ! ping -c 1 google.com &> /dev/null; do
-		sleep 5
-		done
-		%s`, binPath)
+while ! ping -c 1 google.com &> /dev/null; do
+	sleep 5
+done
+%s`, binPath)
 	if err := os.WriteFile(autoScriptPath, []byte(script), 0755); err != nil {
 		return
 	}
