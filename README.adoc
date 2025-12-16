@@ -89,3 +89,8 @@ Ten projekt jest licencjonowany na licencji MIT - szczegóły w pliku LICENSE.
 
 === Tworzenie własnych komend
 Twórz pliki {nazwa komendy}.hacker w ~/.config/hackeros/hacker/ przyklad takiego pliku znajdziesz na: https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker
+
+=== HackerOS Update
+image::[hacker update - normal version for hackeros updates.]
+
+==== Better
