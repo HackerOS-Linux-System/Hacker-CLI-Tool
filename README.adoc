@@ -5,7 +5,7 @@
 :sectanchors:
 == O narzędziu
 To narzędzie jest idealne dla użytkowników, którzy chcą szybkiego dostępu do instalacji emulatorów, kontenerów cyberbezpieczeństwa (poprzez Distrobox i BlackArch), launcherów gier (Steam, Lutris itp.) i więcej. Posiada interaktywne TUIs (interfejsy użytkownika tekstowe) do pomocy, dokumentacji i wyboru pakietów.
-image::https://img.shields.io/badge/Version-1.4.0-blue.svg[Wersja]
+image::https://img.shields.io/badge/Version-1.9.0-blue.svg[Wersja]
 image::https://img.shields.io/badge/License-MIT-green.svg[Licencja]
 image::https://img.shields.io/badge/Rust-1.70+-orange.svg[Wersja Rust]
 == Funkcje
