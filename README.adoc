@@ -1,11 +1,10 @@
-image::https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/images/hacker.png[hacker - HackerOS CLI Tool.]
 = Narzędzie CLI Hacker
 :toc: left
 :toclevels: 3
 :sectnums:
 :sectanchors:
-== Wstęp
-*Narzędzie CLI Hacker* to dynamiczne narzędzie wiersza poleceń zaprojektowane do zarządzania narzędziami hakerskimi, narzędziami do gier oraz operacjami systemowymi na https://hackeros.org[HackerOS] (dystrybucja Linux oparta na Debianie, skupiona na grach, cyberbezpieczeństwie i narzędziach hakerskich). Zbudowane głównie w języku Rust, z komponentami wspomagającymi w Go, Python i Crystal, upraszcza instalację pakietów, aktualizacje systemu, a nawet zawiera zabawną tekstową grę przygodową.
+== Zdjęcie
+image::https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/images/hacker.png[hacker - HackerOS CLI Tool.]
 To narzędzie jest idealne dla użytkowników, którzy chcą szybkiego dostępu do instalacji emulatorów, kontenerów cyberbezpieczeństwa (poprzez Distrobox i BlackArch), launcherów gier (Steam, Lutris itp.) i więcej. Posiada interaktywne TUIs (interfejsy użytkownika tekstowe) do pomocy, dokumentacji i wyboru pakietów.
 image::https://img.shields.io/badge/Version-1.4.0-blue.svg[Wersja]
 image::https://img.shields.io/badge/License-MIT-green.svg[Licencja]
