@@ -71,6 +71,9 @@ def handle_unpack(args : Array(String))
   when "security-mode"
     safe_run("git clone https://github.com/HackerOS-Linux-System/Security-Mode.git /tmp/Security-Mode")
     safe_run("hackerc run /tmp/Security-Mode/unpack.hacker")
+  when "winboat"
+    safe_run("wget https://github.com/TibixDev/winboat/releases/download/v0.9.0/winboat-0.9.0-amd64.deb -O /tmp/winboat-0.9.0-amd64.deb")
+    safe_run("sudo apt install -y /tmp/winboat-0.9.0-amd64.deb")
   else
     puts "#{Colors::RED}Unknown unpack subcommand: #{subcommand}#{Colors::RESET}"
     show_unpack_help
@@ -95,4 +98,5 @@ def show_unpack_help
   puts " #{Colors::GRAY}alacritty-config #{Colors::RESET}- Install Alacritty configuration (copies alacritty.toml to ~/.config/alacritty/)"
   puts " #{Colors::GRAY}hackeros-tv #{Colors::RESET}- Install HackerOS TV"
   puts " #{Colors::GRAY}security-mode #{Colors::RESET}- Install Security Mode"
+  puts " #{Colors::GRAY}winboat #{Colors::RESET}- Install Winboat"
 end
