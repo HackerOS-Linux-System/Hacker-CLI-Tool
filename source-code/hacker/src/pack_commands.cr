@@ -65,6 +65,8 @@ def handle_pack(args : Array(String))
   when "security-mode"
     safe_run("git clone https://github.com/HackerOS-Linux-System/Security-Mode.git /tmp/Security-Mode")
     safe_run("hackerc run /tmp/Security-Mode/remove.hacker")
+  when "winboat"
+    safe_run("sudo apt remove -y winboat")
   else
     puts "#{Colors::RED}Unknown pack subcommand: #{subcommand}#{Colors::RESET}"
     show_pack_help
@@ -88,4 +90,5 @@ def show_pack_help
   puts " #{Colors::GRAY}alacritty-config #{Colors::RESET}- Remove Alacritty configuration"
   puts " #{Colors::GRAY}hackeros-tv #{Colors::RESET}- Remove HackerOS TV"
   puts " #{Colors::GRAY}security-mode #{Colors::RESET}- Remove Security Mode"
+  puts " #{Colors::GRAY}winboat #{Colors::RESET}- Remove Winboat"
 end
