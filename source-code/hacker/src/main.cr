@@ -97,6 +97,13 @@ def main
     puts "An example file for a custom command can be found at: https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker"
   when "index"
     show_hackeros_tools
+  when "--version"
+    puts "#{Colors::GREEN}Latest version of the hacker tool: 2.1#{Colors::RESET}"
+  when "--hackeros"
+    puts "#{Colors::GREEN}Latest version of HackerOS: 4.1#{Colors::RESET}"
+  when "info"
+    puts "#{Colors::GREEN}Latest version of the hacker tool: 2.1#{Colors::RESET}"
+    puts "#{Colors::GREEN}Latest version of HackerOS: 4.1#{Colors::RESET}"
   else
     custom_file = CUSTOM_DIR / "#{command}.hacker"
     if File.exists?(custom_file)
@@ -208,6 +215,7 @@ def show_main_help
   puts " #{Colors::GRAY}disable #{Colors::RESET}- Disable features (use 'hacker disable' for subcommands)"
   puts " #{Colors::GRAY}how-to-create-commands #{Colors::RESET}- Show how to create custom commands"
   puts " #{Colors::GRAY}index #{Colors::RESET}- Show index of all HackerOS tools"
+  puts " #{Colors::GRAY}info #{Colors::RESET}- Show versions of tool and HackerOS"
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Custom commands:#{Colors::RESET}"
   Dir.glob((CUSTOM_DIR / "*.hacker").to_s).sort.each do |f|
     name = File.basename(f, ".hacker")
