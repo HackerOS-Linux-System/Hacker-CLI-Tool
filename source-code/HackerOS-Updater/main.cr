@@ -55,14 +55,40 @@ def perform_updates : {String, String, String, String, String, String, String, S
   snap_success, _ = run_command("sudo snap refresh")
   snap_status = get_status(snap_success)
 
-  # Brew Update (Expanded with cleanup)
-  display_header("Brew Update")
-  brew_success = true
-  ["brew update", "brew upgrade", "brew cleanup"].each do |cmd|
-    success, _ = run_command(cmd)
-    brew_success &&= success
+  # Brew Installation/Check and Update
+  display_header("Brew Installation/Check")
+  brew_installed = Process.run("command -v brew", shell: true).success?
+  install_success = false
+  if !brew_installed
+    install_cmds = [
+      "NONINTERACTIVE=1 /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"",
+      "echo 'eval \"$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"' >> ~/.zshrc",
+      "eval \"$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\""
+    ]
+    install_success = true
+    install_cmds.each do |cmd|
+      success, _ = run_command(cmd)
+      install_success &&= success
+    end
+    if install_success
+      puts "#{GREEN}Brew installed successfully.#{RESET}"
+    else
+      puts "#{RED}Failed to install Brew.#{RESET}"
+    end
+  else
+    puts "#{GREEN}Brew is already installed.#{RESET}"
   end
-  brew_status = get_status(brew_success)
+
+  brew_status = get_status(false) # Default to failed
+  if brew_installed || install_success
+    display_header("Brew Update")
+    brew_success = true
+    ["brew update", "brew upgrade", "brew cleanup"].each do |cmd|
+      success, _ = run_command(cmd)
+      brew_success &&= success
+    end
+    brew_status = get_status(brew_success)
+  end
 
   # Firmware Update
   display_header("Firmware Update")
@@ -149,7 +175,7 @@ def show_gui_menu
     puts "#{GREEN}[L]og out#{RESET} #{CYAN}- Log out from current session#{RESET}"
     puts "#{GREEN}[T]erminal#{RESET} #{CYAN}- Open a new Alacritty terminal#{RESET}"
     puts "#{GREEN}[A]utomatic Updates#{RESET} #{CYAN}- Enable automatic updates on boot#{RESET}"
-    puts "#{GREEN}[D]isable Automatic Updates#{RESET} #{CYAN}- Disable automatic updates on boot#{RESET}"  # Added disable option
+    puts "#{GREEN}[D]isable Automatic Updates#{RESET} #{CYAN}- Disable automatic updates on boot#{RESET}" # Added disable option
     print "#{MAGENTA}Enter your choice: #{RESET}"
     choice = ""
     STDIN.raw do |io|
