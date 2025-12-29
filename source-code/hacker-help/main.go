@@ -84,9 +84,19 @@ var commands = []Command{
 		Details:     "Checks and installs gamescope via apt, checks and installs Steam flatpak, clones the repo to /tmp, and runs unpack.hacker with hackerc.",
 	},
 	{
+		Name:        "hacker pack [subcommands]",
+		Description: "Pack and remove various components",
+		Details:     "Use 'hacker pack' for subcommands to remove installed components like kernels, tools, etc.",
+	},
+	{
 		Name:        "hacker help",
 		Description: "Display this help message",
 		Details:     "Launches this interactive help UI.",
+	},
+	{
+		Name:        "hacker help-ui",
+		Description: "Show help UI",
+		Details:     "Launches the interactive help UI (same as hacker help).",
 	},
 	{
 		Name:        "hacker docs",
@@ -95,17 +105,17 @@ var commands = []Command{
 	},
 	{
 		Name:        "hacker install <package>",
-		Description: "Install package using apt",
-		Details:     "Runs sudo apt install -y <package>.",
+		Description: "Install package using hpm (redirects to hpm install)",
+		Details:     "Redirects to hpm install -y <package>.",
 	},
 	{
 		Name:        "hacker remove <package>",
-		Description: "Remove package using apt",
-		Details:     "Runs sudo apt remove -y <package>.",
+		Description: "Remove package using hpm (redirects to hpm remove)",
+		Details:     "Redirects to hpm remove -y <package>.",
 	},
 	{
 		Name:        "hacker flatpak-install <package>",
-		Description: "Run flatpak install -y flathub <package>",
+		Description: "Run flatpak install -y <package>",
 		Details:     "Installs a Flatpak package from Flathub.",
 	},
 	{
@@ -154,9 +164,9 @@ var commands = []Command{
 		Details:     "Runs the update-hackeros.sh script to update HackerOS.",
 	},
 	{
-		Name:        "hacker update",
+		Name:        "hacker update [--with-gui | --gui-mode | --better]",
 		Description: "Perform system update (apt, flatpak, snap, firmware, omz)",
-		Details:     "Updates APT, Flatpak, Snap, firmware, and Oh-My-Zsh.",
+		Details:     "Updates APT, Flatpak, Snap, firmware, and Oh-My-Zsh. Optional flags for GUI modes or better updater.",
 	},
 	{
 		Name:        "hacker game",
@@ -174,6 +184,11 @@ var commands = []Command{
 		Details:     "Shows the HackerOS ASCII art from the config file.",
 	},
 	{
+		Name:        "hacker shell",
+		Description: "Run hacker shell",
+		Details:     "Launches the custom hacker shell.",
+	},
+	{
 		Name:        "hacker enter <container>",
 		Description: "Enter a distrobox container",
 		Details:     "Runs distrobox enter <container> to access the container shell.",
@@ -184,34 +199,79 @@ var commands = []Command{
 		Details:     "Stops and removes the specified distrobox container after confirmation.",
 	},
 	{
-		Name:        "hacker plugin create <name>",
-		Description: "Create a new plugin template",
-		Details:     "Create new plugin in .yaml.",
+		Name:        "hacker plugin list",
+		Description: "List available and enabled plugins",
+		Details:     "Lists all plugins and their status.",
 	},
 	{
 		Name:        "hacker plugin enable <name>",
 		Description: "Enable a plugin",
-		Details:     "Enable plugins.",
+		Details:     "Enables the specified plugin.",
 	},
 	{
 		Name:        "hacker plugin disable <name>",
 		Description: "Disable a plugin",
-		Details:     "Disable plugins.",
+		Details:     "Disables the specified plugin.",
 	},
 	{
-		Name:        "hacker plugin list",
-		Description: "List available and enabled plugins",
-		Details:     "List for every plugin.",
+		Name:        "hacker plugin create <name>",
+		Description: "Create a new plugin template",
+		Details:     "Creates a new plugin in .yaml (note: may be deprecated or updated).",
 	},
 	{
 		Name:        "hacker plugin apply",
 		Description: "Apply all enabled plugins (run their commands)",
-		Details:     "Runs plugins.",
+		Details:     "Runs all enabled plugins (note: may be deprecated or updated).",
 	},
 	{
 		Name:        "hacker restart <service>",
 		Description: "Restart custom systemctl service",
-		Details:     "Restart services.",
+		Details:     "Restarts the specified service.",
+	},
+	{
+		Name:        "hacker enable motd",
+		Description: "Enable standard MOTD",
+		Details:     "Enables the standard Message of the Day.",
+	},
+	{
+		Name:        "hacker enable special-motd",
+		Description: "Enable special MOTD",
+		Details:     "Enables the special Message of the Day.",
+	},
+	{
+		Name:        "hacker disable motd",
+		Description: "Disable MOTD",
+		Details:     "Disables the Message of the Day.",
+	},
+	{
+		Name:        "hacker disable special-motd",
+		Description: "Disable special MOTD",
+		Details:     "Disables the special Message of the Day.",
+	},
+	{
+		Name:        "hacker how-to-create-commands",
+		Description: "Show how to create custom commands",
+		Details:     "Displays instructions on creating custom .hacker commands.",
+	},
+	{
+		Name:        "hacker index",
+		Description: "Show index of all HackerOS tools",
+		Details:     "Lists all available HackerOS tools and their descriptions.",
+	},
+	{
+		Name:        "hacker --version",
+		Description: "Show version of the hacker tool",
+		Details:     "Displays the latest version of the hacker tool.",
+	},
+	{
+		Name:        "hacker --hackeros",
+		Description: "Show version of HackerOS",
+		Details:     "Displays the latest version of HackerOS.",
+	},
+	{
+		Name:        "hacker info",
+		Description: "Show versions of tool and HackerOS",
+		Details:     "Displays versions of both the hacker tool and HackerOS.",
 	},
 }
 
@@ -238,7 +298,7 @@ func newKeyMap() *keyMap {
 	return &keyMap{
 		quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
-				     key.WithHelp("q", "quit"),
+			key.WithHelp("q", "quit"),
 		),
 	}
 }
@@ -282,38 +342,38 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
-		case tea.WindowSizeMsg:
-			m.list.SetWidth(msg.Width / 2 - 1)
-			m.list.SetHeight(msg.Height - 2)
-			m.viewport.Width = msg.Width / 2 - 4 // account for padding and border
-			m.viewport.Height = msg.Height - 4
-			if !m.ready {
-				m.ready = true
+	case tea.WindowSizeMsg:
+		m.list.SetWidth(msg.Width / 2 - 1)
+		m.list.SetHeight(msg.Height - 2)
+		m.viewport.Width = msg.Width / 2 - 4 // account for padding and border
+		m.viewport.Height = msg.Height - 4
+		if !m.ready {
+			m.ready = true
+		}
+		return m, nil
+	case tea.KeyMsg:
+		if key.Matches(msg, m.keys.quit) {
+			return m, tea.Quit
+		}
+		switch msg.String() {
+		case "enter":
+			if m.mode == listMode {
+				idx := m.list.Index()
+				if idx == 0 {
+					return m, tea.Quit
+				}
+				m.selected = idx - 1
+				m.viewport.SetContent(commands[m.selected].Details)
+				m.viewport.GotoTop()
+				m.mode = detailsMode
+				return m, nil
 			}
-			return m, nil
-		case tea.KeyMsg:
-			if key.Matches(msg, m.keys.quit) {
-				return m, tea.Quit
+		case "esc":
+			if m.mode == detailsMode {
+				m.mode = listMode
+				return m, nil
 			}
-			switch msg.String() {
-				case "enter":
-					if m.mode == listMode {
-						idx := m.list.Index()
-						if idx == 0 {
-							return m, tea.Quit
-						}
-						m.selected = idx - 1
-						m.viewport.SetContent(commands[m.selected].Details)
-						m.viewport.GotoTop()
-						m.mode = detailsMode
-						return m, nil
-					}
-				case "esc":
-					if m.mode == detailsMode {
-						m.mode = listMode
-						return m, nil
-					}
-			}
+		}
 	}
 	if m.mode == listMode {
 		m.list, cmd = m.list.Update(msg)
@@ -328,19 +388,19 @@ func (m model) View() string {
 		return "Initializing..."
 	}
 	left := lipgloss.NewStyle().
-	Width(m.list.Width() + 2).
-	Border(lipgloss.NormalBorder(), false, true, false, false).
-	Render(m.list.View())
+		Width(m.list.Width() + 2).
+		Border(lipgloss.NormalBorder(), false, true, false, false).
+		Render(m.list.View())
 	rightContent := "Select a command from the list to view details.\n\nPress 'enter' to select, 'esc' to go back, 'q' to quit."
 	if m.mode == detailsMode {
 		rightContent = m.viewport.View()
 	}
 	right := lipgloss.NewStyle().
-	Width(m.viewport.Width + 4). // account for padding and border
-	Height(m.list.Height() + 2).
-	Border(lipgloss.NormalBorder(), true).
-	Padding(1).
-	Render(rightContent)
+		Width(m.viewport.Width + 4). // account for padding and border
+		Height(m.list.Height() + 2).
+		Border(lipgloss.NormalBorder(), true).
+		Padding(1).
+		Render(rightContent)
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 }
 
