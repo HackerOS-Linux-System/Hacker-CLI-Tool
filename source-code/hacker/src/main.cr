@@ -101,6 +101,25 @@ def main
     puts "#{Colors::GREEN}Latest version of the hacker tool: 2.1#{Colors::RESET}"
   when "--hackeros"
     puts "#{Colors::GREEN}Latest version of HackerOS: 4.1#{Colors::RESET}"
+  when "--edition"
+    file_path = "/etc/xdg/kcm-about-distrorc"
+    if File.exists?(file_path)
+      content = File.read(file_path)
+      variant = nil
+      content.each_line do |line|
+        if line.starts_with?("Variant=")
+          variant = line.split("=", 2)[1].strip
+          break
+        end
+      end
+      if variant
+        puts "#{Colors::GREEN}#{variant}#{Colors::RESET}"
+      else
+        puts "#{Colors::RED}Variant not found in file.#{Colors::RESET}"
+      end
+    else
+      puts "#{Colors::RED}File not found: #{file_path}#{Colors::RESET}"
+    end
   when "info"
     puts "#{Colors::GREEN}Latest version of the hacker tool: 2.1#{Colors::RESET}"
     puts "#{Colors::GREEN}Latest version of HackerOS: 4.1#{Colors::RESET}"
@@ -362,15 +381,11 @@ def handle_enable(args : Array(String))
   case subcommand
   when "motd"
     safe_run("sudo cp -r /usr/share/HackerOS/Archived/hackeros-motd /usr/libexec/")
-    safe_run("sudo cp /usr/share/HackerOS/Archived/user-motd.sh /etc/profile.d/")
     safe_run("sudo chmod a+x /usr/libexec/hackeros-motd")
-    safe_run("sudo chmod a+x /etc/profile.d/user-motd.sh")
     puts "#{Colors::GREEN}Enabled MOTD.#{Colors::RESET}"
   when "special-motd"
     safe_run("sudo cp -r /usr/share/HackerOS/Archived/hackeros-special-motd /usr/libexec/hackeros-motd")
-    safe_run("sudo cp /usr/share/HackerOS/Archived/user-motd.sh /etc/profile.d/")
     safe_run("sudo chmod a+x /usr/libexec/hackeros-motd")
-    safe_run("sudo chmod a+x /etc/profile.d/user-motd.sh")
     puts "#{Colors::GREEN}Enabled special MOTD.#{Colors::RESET}"
   else
     puts "#{Colors::RED}Unknown enable subcommand: #{subcommand}#{Colors::RESET}"
@@ -392,7 +407,6 @@ def handle_disable(args : Array(String))
   case subcommand
   when "motd", "special-motd"
     safe_run("sudo rm -rf /usr/libexec/hackeros-motd")
-    safe_run("sudo rm -f /etc/profile.d/user-motd.sh")
     puts "#{Colors::GREEN}Disabled MOTD.#{Colors::RESET}"
   else
     puts "#{Colors::RED}Unknown disable subcommand: #{subcommand}#{Colors::RESET}"
