@@ -1,6 +1,7 @@
 // crystal
 // go
 // python3
+// hl
 
 > cd hacker
 > crystal build src/main.cr --release
@@ -19,11 +20,14 @@
 > go build
 > cd ..
 > cd HackerOS-Updater
-> crystal build src/main.cr --release
+> crystal build main.cr --release
 > cd better
-> go get hackeros-updater
+> go get HackerOS-Update-Better
 > go build
-> sudo mv hackeros-updater HackerOS-Update-Better
 > cd hacker-shell
-> python3 -m nuitka --onefile main.py
-> sudo mv main.bin hacker-shell
+> cargo build --release
+> cd ..
+> cd ..
+> cd atomic
+> hl compile main.hacker
+> sudo mv main hacker
