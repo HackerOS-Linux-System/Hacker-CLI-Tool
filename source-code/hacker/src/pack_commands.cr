@@ -42,12 +42,12 @@ def handle_pack(args : Array(String))
     safe_run("flatpak uninstall -y flathub org.vinegarhq.Vinegar")
   when "hacker-mode"
     safe_run("git clone https://github.com/HackerOS-Linux-System/Hacker-Mode.git /tmp/Hacker-Mode")
-    safe_run("hackerc run /tmp/Hacker-Mode/remove.hacker")
+    safe_run("hl run /tmp/Hacker-Mode/remove.hacker")
   when "gamescope-session-steam"
     safe_run("flatpak uninstall -y flathub com.valvesoftware.Steam")
     safe_run("flatpak uninstall -y flathub org.freedesktop.Platform.VulkanLayer.gamescope")
     safe_run("git clone https://github.com/HackerOS-Linux-System/gamescope-session-steam.git /tmp/gamescope-session-steam")
-    safe_run("hackerc run /tmp/gamescope-session-steam/remove.hacker")
+    safe_run("hl run /tmp/gamescope-session-steam/remove.hacker")
   when "xanmod"
     safe_run("/usr/share/HackerOS/Scripts/Bin/remove-xanmod.sh") # Assuming a remove script exists; adjust if needed
   when "liquorix"
@@ -61,10 +61,10 @@ def handle_pack(args : Array(String))
     puts "#{Colors::GREEN}Alacritty configuration has been removed.#{Colors::RESET}"
   when "hackeros-tv"
     safe_run("git clone https://github.com/HackerOS-Linux-System/HackerOS-TV.git /tmp/HackerOS-TV")
-    safe_run("hackerc run /tmp/HackerOS-TV/remove.hacker")
+    safe_run("hl run /tmp/HackerOS-TV/remove.hacker")
   when "security-mode"
     safe_run("git clone https://github.com/HackerOS-Linux-System/Security-Mode.git /tmp/Security-Mode")
-    safe_run("hackerc run /tmp/Security-Mode/remove.hacker")
+    safe_run("hl run /tmp/Security-Mode/remove.hacker")
   when "winboat"
     safe_run("sudo apt remove -y winboat")
   else
