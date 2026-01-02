@@ -1,1 +1,10 @@
+[package]
+name = "apt-fronted"
+version = "2.2.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+indicatif = { version = "0.17.8", features = ["rayon"] }
+colored = "2.1.0"
 
