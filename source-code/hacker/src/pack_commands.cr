@@ -1,10 +1,13 @@
 require "./helpers"
+
 def handle_pack(args : Array(String))
   if args.empty? || args[0] == "help"
     show_pack_help
     exit(0)
   end
+
   subcommand = args[0]
+
   case subcommand
   when "add-ons"
     safe_run("sudo apt remove -y wine winetricks")
@@ -67,12 +70,16 @@ def handle_pack(args : Array(String))
     safe_run("hl run /tmp/Security-Mode/remove.hacker")
   when "winboat"
     safe_run("sudo apt remove -y winboat")
+  when "vira-lang"
+    safe_run("curl -o /tmp/remove.hacker https://raw.githubusercontent.com/vira-language/vira/main/remove.hacker")
+    safe_run("hl run /tmp/remove.hacker")
   else
     puts "#{Colors::RED}Unknown pack subcommand: #{subcommand}#{Colors::RESET}"
     show_pack_help
     exit(1)
   end
 end
+
 def show_pack_help
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Pack subcommands:#{Colors::RESET}"
   puts " #{Colors::GRAY}add-ons #{Colors::RESET}- Remove wine and related tools"
@@ -91,4 +98,5 @@ def show_pack_help
   puts " #{Colors::GRAY}hackeros-tv #{Colors::RESET}- Remove HackerOS TV"
   puts " #{Colors::GRAY}security-mode #{Colors::RESET}- Remove Security Mode"
   puts " #{Colors::GRAY}winboat #{Colors::RESET}- Remove Winboat"
+  puts " #{Colors::GRAY}vira-lang #{Colors::RESET}- Remove Vira language"
 end
