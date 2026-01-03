@@ -1,13 +1,10 @@
 require "./helpers"
-
 def handle_unpack(args : Array(String))
   if args.empty? || args[0] == "help"
     show_unpack_help
     exit(0)
   end
-
   subcommand = args[0]
-
   case subcommand
   when "add-ons"
     safe_run("sudo apt install -y wine winetricks")
@@ -77,16 +74,14 @@ def handle_unpack(args : Array(String))
   when "winboat"
     safe_run("wget https://github.com/TibixDev/winboat/releases/download/v0.9.0/winboat-0.9.0-amd64.deb -O /tmp/winboat-0.9.0-amd64.deb")
     safe_run("sudo apt install -y /tmp/winboat-0.9.0-amd64.deb")
-  when "vira-lang"
-    safe_run("curl -o /tmp/install.hacker https://raw.githubusercontent.com/vira-language/vira/main/install.hacker")
-    safe_run("hl run /tmp/install.hacker")
+  when "nvidia-drivers"
+    safe_run("/usr/share/HackerOS/Scripts/Bin/unpack-nvidia-drivers.sh")
   else
     puts "#{Colors::RED}Unknown unpack subcommand: #{subcommand}#{Colors::RESET}"
     show_unpack_help
     exit(1)
   end
 end
-
 def show_unpack_help
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Unpack subcommands:#{Colors::RESET}"
   puts " #{Colors::GRAY}add-ons #{Colors::RESET}- Install wine and related tools"
@@ -106,5 +101,5 @@ def show_unpack_help
   puts " #{Colors::GRAY}hackeros-tv #{Colors::RESET}- Install HackerOS TV"
   puts " #{Colors::GRAY}security-mode #{Colors::RESET}- Install Security Mode"
   puts " #{Colors::GRAY}winboat #{Colors::RESET}- Install Winboat"
-  puts " #{Colors::GRAY}vira-lang #{Colors::RESET}- Install Vira language"
+  puts " #{Colors::GRAY}nvidia-drivers #{Colors::RESET}- Install NVIDIA drivers"
 end
