@@ -41,12 +41,12 @@ def handle_pack(args : Array(String))
     safe_run("flatpak uninstall -y flathub org.vinegarhq.Sober")
     safe_run("flatpak uninstall -y flathub org.vinegarhq.Vinegar")
   when "hacker-mode"
-    safe_run("git clone https://github.com/HackerOS-Linux-System/Hacker-Mode.git /tmp/Hacker-Mode")
+    safe_run("git clone <https://github.com/HackerOS-Linux-System/Hacker-Mode.git> /tmp/Hacker-Mode")
     safe_run("hl run /tmp/Hacker-Mode/remove.hacker")
   when "gamescope-session-steam"
     safe_run("flatpak uninstall -y flathub com.valvesoftware.Steam")
     safe_run("flatpak uninstall -y flathub org.freedesktop.Platform.VulkanLayer.gamescope")
-    safe_run("git clone https://github.com/HackerOS-Linux-System/gamescope-session-steam.git /tmp/gamescope-session-steam")
+    safe_run("git clone <https://github.com/HackerOS-Linux-System/gamescope-session-steam.git> /tmp/gamescope-session-steam")
     safe_run("hl run /tmp/gamescope-session-steam/remove.hacker")
   when "xanmod"
     safe_run("/usr/share/HackerOS/Scripts/Bin/remove-xanmod.sh") # Assuming a remove script exists; adjust if needed
@@ -60,15 +60,24 @@ def handle_pack(args : Array(String))
     safe_run("rm -f ~/.config/alacritty/alacritty.toml")
     puts "#{Colors::GREEN}Alacritty configuration has been removed.#{Colors::RESET}"
   when "hackeros-tv"
-    safe_run("git clone https://github.com/HackerOS-Linux-System/HackerOS-TV.git /tmp/HackerOS-TV")
+    safe_run("git clone <https://github.com/HackerOS-Linux-System/HackerOS-TV.git> /tmp/HackerOS-TV")
     safe_run("hl run /tmp/HackerOS-TV/remove.hacker")
   when "security-mode"
-    safe_run("git clone https://github.com/HackerOS-Linux-System/Security-Mode.git /tmp/Security-Mode")
+    safe_run("git clone <https://github.com/HackerOS-Linux-System/Security-Mode.git> /tmp/Security-Mode")
     safe_run("hl run /tmp/Security-Mode/remove.hacker")
   when "winboat"
     safe_run("sudo apt remove -y winboat")
   when "nvidia-drivers"
     safe_run("/usr/share/HackerOS/Scripts/Bin/remove-nvidia-drivers.sh") # Assuming a remove script exists; adjust if needed
+  when "hl-utils"
+    safe_run("sudo rm -f /usr/bin/bytes")
+    safe_run("sudo rm -f /usr/bin/hli")
+  when "hackerscript"
+    safe_run("sudo rm -f /usr/bin/virus")
+    safe_run("sudo rm -f /usr/bin/hsc")
+    safe_run("rm -rf /home/HackerScript")
+  when "flox"
+    safe_run("sudo apt remove -y flox")
   else
     puts "#{Colors::RED}Unknown pack subcommand: #{subcommand}#{Colors::RESET}"
     show_pack_help
@@ -94,4 +103,7 @@ def show_pack_help
   puts " #{Colors::GRAY}security-mode #{Colors::RESET}- Remove Security Mode"
   puts " #{Colors::GRAY}winboat #{Colors::RESET}- Remove Winboat"
   puts " #{Colors::GRAY}nvidia-drivers #{Colors::RESET}- Remove NVIDIA drivers"
+  puts " #{Colors::GRAY}hl-utils #{Colors::RESET}- Remove hl-utils binaries"
+  puts " #{Colors::GRAY}hackerscript #{Colors::RESET}- Remove HackerScript"
+  puts " #{Colors::GRAY}flox #{Colors::RESET}- Remove Flox"
 end
