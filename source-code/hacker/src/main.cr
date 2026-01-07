@@ -56,8 +56,7 @@ def main
     play_text_game
   when "hacker-lang"
      puts "#{Colors::YELLOW}To use the hacker programming language for files/scripts with the .hacker extension, #{Colors::RESET}"
-     puts "#{Colors::YELLOW}use the \"hackerc\" command, or for larger projects, \"hli\" and \"bytes\" to download dependencies, to compile or run them.#{Colors::RESET}"
-     puts "#{Colors::YELLOW}Note: This command is intended for advanced users. Make sure the hackerc program is installed separately.#{Colors::RESET}"
+     puts "#{Colors::YELLOW}use the \"hl\" command and \"bytes\" to download dependencies, to compile or run them.#{Colors::RESET}"
   when "ascii"
     safe_run("cat /usr/share/HackerOS/Config-Files/HackerOS-Ascii")
   when "shell"
@@ -92,7 +91,7 @@ def main
   when "how-to-create-commands"
     puts "#{Colors::YELLOW}To create a custom command:#{Colors::RESET}"
     puts "Create a file {command-name}.hacker in ~/.config/hackeros/hacker/custom-commands/"
-    puts "An example file for a custom command can be found at: https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker"
+    puts "An example file for a custom command can be found at: <https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker>"
   when "index"
     show_hackeros_tools
   when "--version"
@@ -192,7 +191,7 @@ def show_hackeros_tools
   puts " * hli - narzedzie dla duzych projektow w hacker lang"
   puts " * hackerc - narzedzie na malych projektow/skrytpow w hacker lang"
   puts " * hacker - glownie narzedzie cli hackeros"
-  puts " * Hacker Kernel - jadro hackeros jezeli chcesz rozwijac skontaktuj sie na: gmail - hackeros068@gmail.com lub https://github.com/orgs/HackerOS-Linux-System/discussions"
+  puts " * Hacker Kernel - jadro hackeros jezeli chcesz rozwijac skontaktuj sie na: gmail - <hackeros068@gmail.com> lub <https://github.com/orgs/HackerOS-Linux-System/discussions>"
   puts " * HackerOS Steam - kontner dla steam"
   puts " * HackerOS Welcome - Aplikacja powitalna hackeros"
   puts " * HackerOS App - interfejs gui dla narzedzia hacker + sklep z programami"
@@ -206,7 +205,7 @@ def show_hackeros_tools
   puts " * HackerOS Games - gui do uruchamiania gier: starblaster, bit-jump"
   puts " * HackerOS Cockpit (archiwum) - centrum sterowania systemem w przegladarce"
   puts " * Hacker Launcher - Uruchamiaj gry windows za pomoca tej aplikacji"
-  puts " * Blue Enviroment (BETA - niestabilne) - jezeli chcesz pomoc w rozwoju srodowiska graficznego hackeros skontaktuj sie na gmail - hackeros068@gmail.com lub https://github.com/orgs/HackerOS-Linux-System/discussions"
+  puts " * Blue Enviroment (BETA - niestabilne) - jezeli chcesz pomoc w rozwoju srodowiska graficznego hackeros skontaktuj sie na gmail - <hackeros068@gmail.com> lub <https://github.com/orgs/HackerOS-Linux-System/discussions>"
 end
 def show_main_help
   puts "#{Colors::BOLD}#{Colors::MAGENTA}HackerOS Tool - Available commands:#{Colors::RESET}"
@@ -262,7 +261,6 @@ def show_main_help
       commands = config["commands"]?.as?(Config)
       next unless commands
       commands.each do |cmd_name, cmd_config|
-        next unless cmd_config.is_a?(String | Config)
         next unless cmd_config.is_a?(Config)
         desc = if description = cmd_config["description"]?
                  if description.is_a?(String)
