@@ -1,4 +1,5 @@
 require "./helpers"
+
 def handle_run(args : Array(String))
   if args.empty?
     show_run_help
@@ -22,12 +23,21 @@ def handle_run(args : Array(String))
     safe_run("/usr/share/HackerOS/Scripts/Bin/update-wallpapers.sh")
   when "remove-debian-kernel"
     safe_run("/usr/share/HackerOS/Scripts/Bin/remove-debian-kernel.sh")
+  when "HackerOS-Store"
+    safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Store")
+  when "HackerOS-Steam"
+    safe_run("HackerOS-Steam run")
+  when "HackerDeck"
+    safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerDeck")
+  when "Hacker-Term"
+    safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker-Term")
   else
     puts "#{Colors::RED}Unknown run subcommand: #{subcommand}#{Colors::RESET}"
     show_run_help
     exit(1)
   end
 end
+
 def show_run_help
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Run subcommands:#{Colors::RESET}"
   puts " #{Colors::GRAY}update-system #{Colors::RESET}- Update system"
@@ -38,4 +48,8 @@ def show_run_help
   puts " #{Colors::GRAY}update-hackeros #{Colors::RESET}- Update HackerOS"
   puts " #{Colors::GRAY}update-wallpapers #{Colors::RESET}- Update wallpapers"
   puts " #{Colors::GRAY}remove-debian-kernel #{Colors::RESET}- Remove Debian kernel"
+  puts " #{Colors::GRAY}HackerOS-Store #{Colors::RESET}- Run HackerOS Store"
+  puts " #{Colors::GRAY}HackerOS-Steam #{Colors::RESET}- Run HackerOS Steam"
+  puts " #{Colors::GRAY}HackerDeck #{Colors::RESET}- Run HackerDeck"
+  puts " #{Colors::GRAY}Hacker-Term #{Colors::RESET}- Run Hacker-Term"
 end
