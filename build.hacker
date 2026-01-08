@@ -6,6 +6,9 @@
 > cd hacker
 > crystal build src/main.cr --release
 > sudo mv main hacker
+> cd apt 
+> cargo build --release
+> cd ..
 > cd ..
 > cd hacker-help
 > go get hacker-help
