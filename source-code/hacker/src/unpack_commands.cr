@@ -1,4 +1,3 @@
-# unpack_commands.cr
 require "./helpers"
 
 def handle_unpack(args : Array(String))
