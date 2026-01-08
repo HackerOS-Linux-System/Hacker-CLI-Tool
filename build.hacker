@@ -1,7 +1,8 @@
 // crystal
-// go
+// golang
 // python3
 // hl
+// cargo
 
 > cd hacker
 > crystal build src/main.cr --release
