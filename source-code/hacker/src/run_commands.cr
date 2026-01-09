@@ -31,6 +31,8 @@ def handle_run(args : Array(String))
     safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerDeck")
   when "Hacker-Term"
     safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker-Term")
+  when "build-hackeros"
+    safe_run("sudo /usr/share/HackerOS/Archived/build-hackeros")
   else
     puts "#{Colors::RED}Unknown run subcommand: #{subcommand}#{Colors::RESET}"
     show_run_help
@@ -52,4 +54,5 @@ def show_run_help
   puts " #{Colors::GRAY}HackerOS-Steam #{Colors::RESET}- Run HackerOS Steam"
   puts " #{Colors::GRAY}HackerDeck #{Colors::RESET}- Run HackerDeck"
   puts " #{Colors::GRAY}Hacker-Term #{Colors::RESET}- Run Hacker-Term"
+  puts " #{Colors::GRAY}build-hackeros #{Colors::RESET}- Build HackerOS"
 end
