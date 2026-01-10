@@ -34,7 +34,11 @@ Poniżej znajduje się lista komend w formie tabeli:
 |`hacker unpack gaming` |Instaluj narzędzia do gier (z Roblox).
 |`hacker unpack noroblox` |Narzędzia do gier bez Roblox.
 |`hacker unpack hacker-mode` |Instaluj gamescope.
-|`hacker unpack gamescope-session-steam` |Ustaw gamescope ze Steam.
+|`hacker unpack gamescope-session-steam` |Pobierz specialna sesje gamescope ze steam.
+|`hacker unpack hackeros-builder` |Pobierz nakładke dla live build.
+|`hacker unpack hackerscript` |Pobierz specialny język programownia HackerScript.
+|`hacker unpack hl-utils` |Pobierz dodatkowe narzedzia dla Hacker Lang.
+|`hacker unpack flox` |Pobierz narzędzie o nazwie flox (wieksze repozytorium pakietów - nix).
 |`hacker help` |Uruchom interaktywny TUI pomocy.
 |`hacker docs` |Uruchom TUI FAQ i dokumentacji.
 |`hacker install <pakiet>` |Instaluj za pomocą APT.
@@ -46,6 +50,8 @@ Poniżej znajduje się lista komend w formie tabeli:
 |`hacker run update-system` |Aktualizuj system.
 |`hacker run check-updates` |Sprawdź aktualizacje.
 |`hacker run steam` |Uruchom Steam.
+|`hacker run Hacker-Term` |Uruchom terminal HackerOS.
+|`hacker run HackerOS-Apps` |Uruchom specialny sklep z aplikacjami od HackerOS.
 |`hacker run hacker-launcher` |Uruchom launcher aplikacji HackerOS.
 |`hacker run hackeros-game-mode` |Uruchom tryb gry.
 |`hacker run update-hackeros` |Aktualizuj HackerOS.
@@ -57,7 +63,7 @@ Poniżej znajduje się lista komend w formie tabeli:
 |`hacker shell` |Wejdź do interaktywnego shella.
 |`hacker enter <kontener>` |Wejdź do kontenera Distrobox.
 |`hacker remove-container <kontener>` |Usuń kontener Distrobox.
-|`hacker unpack atomatic-updates` |Uruchom automatyczne aktualizacje za pomocą hup.
+|`hacker unpack automatic-updates` |Uruchom automatyczne aktualizacje za pomocą hup.
 |===
 
 === Gra Hacker Adventure
