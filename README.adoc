@@ -7,7 +7,6 @@
 To narzędzie jest idealne dla użytkowników, którzy chcą szybkiego dostępu do instalacji emulatorów, kontenerów cyberbezpieczeństwa (poprzez Distrobox i BlackArch), launcherów gier (Steam, Lutris itp.) i więcej. Posiada interaktywne TUIs (interfejsy użytkownika tekstowe) do pomocy, dokumentacji i wyboru pakietów.
 image::https://img.shields.io/badge/Version-2.1.0-blue.svg[Wersja]
 image::https://img.shields.io/badge/License-MIT-green.svg[Licencja]
-image::https://img.shields.io/badge/Rust-1.70+-orange.svg[Wersja Rust]
 == Funkcje
 - **Zarządzanie pakietami**: Instaluj/usuń pakiety za pomocą APT, Flatpak i niestandardowych komend unpack dla zestawów narzędzi.
 - **Wsparcie dla gier**: Instaluj narzędzia takie jak Steam, Lutris, Heroic Games Launcher, Roblox, emulatory (PS4, Switch, DOSBox, PS3).
@@ -25,6 +24,8 @@ Poniżej znajduje się lista komend w formie tabeli:
 |===
 |Komenda |Opis
 
+|`hacker install <pakiet>` |Nakładka dla apt do instalacji pakietów.
+|`hacker remove <pakiet>` |Nakładka dla apt do usuwania pakietów.
 |`hacker unpack add-ons` |Instaluj dodatki takie jak Wine, BoxBuddy itp.
 |`hacker unpack gs` |Instaluj gry + cyberbezpieczeństwo.
 |`hacker unpack devtools` |Instaluj edytor Atom.
