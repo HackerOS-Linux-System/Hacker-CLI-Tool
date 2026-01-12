@@ -1,4 +1,3 @@
-# pack_commands.cr
 require "./helpers"
 
 def handle_pack(args : Array(String))
