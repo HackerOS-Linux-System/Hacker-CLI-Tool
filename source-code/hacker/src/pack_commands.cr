@@ -76,8 +76,7 @@ def handle_pack(args : Array(String))
     safe_run("sudo rm -f /usr/bin/hli")
   when "hackerscript"
     safe_run("sudo rm -f /usr/bin/virus")
-    safe_run("sudo rm -f /usr/bin/hsc")
-    safe_run("rm -rf /home/HackerScript")
+    safe_run("rm -rf ~/.HackerScript/")
   when "flox"
     safe_run("sudo apt remove -y flox")
   when "hackeros-builder"
