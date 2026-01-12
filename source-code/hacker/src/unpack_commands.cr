@@ -86,15 +86,9 @@ def handle_unpack(args : Array(String))
     safe_run("sudo chmod a+x /usr/bin/hli")
   when "hackerscript"
     safe_run("mkdir -p /home/HackerScript/bin")
-    safe_run("wget https://github.com/HackerOS-Linux-System/HackerScript/releases/download/v0.1/HackerScript.tar.gz -O /tmp/HackerScript.tar.gz")
-    safe_run("tar -xzf /tmp/HackerScript.tar.gz -C /tmp")
-    # Assuming the tar.gz extracts to a directory or directly files; adjust if needed
-    # For virus and hsc to /usr/bin
-    safe_run("sudo mv /tmp/virus /usr/bin/virus") # Assume files are extracted to /tmp
-    safe_run("sudo chmod a+x /usr/bin/virus")
-    # For hs1 hs2 hs3 to /home/HackerScript/bin/
-    safe_run("mv /tmp/star /home/HackerScript/bin/star")
-    safe_run("chmod a+x /home/HackerScript/bin/star")
+    safe_run("wget https://github.com/HackerOS-Linux-System/HackerScript/releases/download/v0.2/installer -O /tmp/installer")
+    safe_run("sudo chmod a+x /tmp/installer")
+    safe_run("/tmp/installer")
   when "flox"
     safe_run("wget https://downloads.flox.dev/by-env/stable/deb/flox.x86_64-linux.deb -O /tmp/flox.x86_64-linux.deb")
     safe_run("sudo apt install -y /tmp/flox.x86_64-linux.deb")
