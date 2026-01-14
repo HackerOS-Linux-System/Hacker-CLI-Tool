@@ -120,6 +120,9 @@ def main
   when "info"
     puts "#{Colors::GREEN}Latest version of the hacker tool: 2.1#{Colors::RESET}"
     puts "#{Colors::GREEN}Latest version of HackerOS: 4.1#{Colors::RESET}"
+  when "issue"
+    browser = `which vivaldi`.strip.empty? ? "xdg-open" : "vivaldi"
+    safe_run("#{browser} https://github.com/HackerOS-Linux-System/HackerOS-Website/issues/new")
   else
     custom_file = CUSTOM_DIR / "#{command}.hacker"
     if File.exists?(custom_file)
@@ -234,6 +237,7 @@ def show_main_help
   puts " #{Colors::GRAY}how-to-create-commands #{Colors::RESET}- Show how to create custom commands"
   puts " #{Colors::GRAY}index #{Colors::RESET}- Show index of all HackerOS tools"
   puts " #{Colors::GRAY}info #{Colors::RESET}- Show versions of tool and HackerOS"
+  puts " #{Colors::GRAY}issue #{Colors::RESET}- Open new issue on GitHub in browser (prefers Vivaldi)"
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Custom commands:#{Colors::RESET}"
   Dir.glob((CUSTOM_DIR / "*.hacker").to_s).sort.each do |f|
     name = File.basename(f, ".hacker")
