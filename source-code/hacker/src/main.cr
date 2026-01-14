@@ -3,7 +3,70 @@ require "./unpack_commands"
 require "./pack_commands"
 require "./run_commands"
 require "./game"
+
+module Colors
+  @@red : String = "\e[31m"
+  @@yellow : String = "\e[33m"
+  @@green : String = "\e[32m"
+  @@magenta : String = "\e[35m"
+  @@gray : String = "\e[90m"
+  @@bold : String = "\e[1m"
+  @@reset : String = "\e[0m"
+
+  def self.red; @@red end
+  def self.yellow; @@yellow end
+  def self.green; @@green end
+  def self.magenta; @@magenta end
+  def self.gray; @@gray end
+  def self.bold; @@bold end
+  def self.reset; @@reset end
+
+  def self.set_red(value : String); @@red = value end
+  def self.set_yellow(value : String); @@yellow = value end
+  def self.set_green(value : String); @@green = value end
+  def self.set_magenta(value : String); @@magenta = value end
+  def self.set_gray(value : String); @@gray = value end
+  def self.set_bold(value : String); @@bold = value end
+  def self.set_reset(value : String); @@reset = value end
+end
+
+def load_styles(file : String)
+  content = File.read(file)
+  if match = content.match(/:root\s*\{([^}]*)\}/)
+    css = match[1]
+    css.split(';').each do |decl|
+      decl = decl.strip
+      next if decl.empty?
+      if decl =~ /--([\w-]+):\s*(#[0-9a-fA-F]{6})/
+        var_name = $1.downcase
+        hex = $2
+        r = hex[1..2].to_i(16)
+        g = hex[3..4].to_i(16)
+        b = hex[5..6].to_i(16)
+        ansi = "\e[38;2;#{r};#{g};#{b}m"
+        case var_name
+        when "red"
+          Colors.set_red(ansi)
+        when "yellow"
+          Colors.set_yellow(ansi)
+        when "green"
+          Colors.set_green(ansi)
+        when "magenta"
+          Colors.set_magenta(ansi)
+        when "gray"
+          Colors.set_gray(ansi)
+        end
+      end
+    end
+  end
+end
+
 def main
+  style_file = Path.home / ".config" / "hackeros" / "hacker" / "style.css"
+  if File.exists?(style_file)
+    load_styles(style_file.to_s)
+  end
+
   if ARGV.empty? || ARGV[0] == "help"
     show_main_help
     exit(0)
@@ -20,28 +83,28 @@ def main
     safe_run("~/.hackeros/hacker/hacker-docs")
   when "install"
     if ARGV.size < 2
-      puts "#{Colors::RED}Usage: hacker install <package>#{Colors::RESET}"
+      puts "#{Colors.red}Usage: hacker install <package>#{Colors.reset}"
       exit(1)
     end
     package = ARGV[1..].join(" ")
     safe_run("~/.hackeros/hacker/apt-fronted install #{package}")
   when "remove"
     if ARGV.size < 2
-      puts "#{Colors::RED}Usage: hacker remove <package>#{Colors::RESET}"
+      puts "#{Colors.red}Usage: hacker remove <package>#{Colors.reset}"
       exit(1)
     end
     package = ARGV[1..].join(" ")
     safe_run("~/.hackeros/hacker/apt-fronted remove #{package}")
   when "flatpak-install"
     if ARGV.size < 2
-      puts "#{Colors::RED}Usage: hacker flatpak-install <package>#{Colors::RESET}"
+      puts "#{Colors.red}Usage: hacker flatpak-install <package>#{Colors.reset}"
       exit(1)
     end
     package = ARGV[1..].join(" ")
     safe_run("flatpak install -y #{package}")
   when "flatpak-remove"
     if ARGV.size < 2
-      puts "#{Colors::RED}Usage: hacker flatpak-remove <package>#{Colors::RESET}"
+      puts "#{Colors.red}Usage: hacker flatpak-remove <package>#{Colors.reset}"
       exit(1)
     end
     package = ARGV[1..].join(" ")
@@ -55,29 +118,29 @@ def main
   when "game"
     play_text_game
   when "hacker-lang"
-     puts "#{Colors::YELLOW}To use the hacker programming language for files/scripts with the .hacker extension, #{Colors::RESET}"
-     puts "#{Colors::YELLOW}use the \"hl\" command and \"bytes\" to download dependencies, to compile or run them.#{Colors::RESET}"
+     puts "#{Colors.yellow}To use the hacker programming language for files/scripts with the .hacker extension, #{Colors.reset}"
+     puts "#{Colors.yellow}use the \"hl\" command and \"bytes\" to download dependencies, to compile or run them.#{Colors.reset}"
   when "ascii"
     safe_run("cat /usr/share/HackerOS/Config-Files/HackerOS-Ascii")
   when "shell"
     safe_run("~/.hackeros/hacker/hacker-shell")
   when "enter"
     if ARGV.size < 2
-      puts "#{Colors::RED}Usage: hacker enter <container>#{Colors::RESET}"
+      puts "#{Colors.red}Usage: hacker enter <container>#{Colors.reset}"
       exit(1)
     end
     container = ARGV[1]
     safe_run("distrobox enter #{container}")
   when "remove-container"
     if ARGV.size < 2
-      puts "#{Colors::RED}Usage: hacker remove-container <container>#{Colors::RESET}"
+      puts "#{Colors.red}Usage: hacker remove-container <container>#{Colors.reset}"
       exit(1)
     end
     container = ARGV[1]
     safe_run("distrobox rm #{container}")
   when "restart"
     if ARGV.size < 2
-      puts "#{Colors::RED}Usage: hacker restart <service>#{Colors::RESET}"
+      puts "#{Colors.red}Usage: hacker restart <service>#{Colors.reset}"
       exit(1)
     end
     service = ARGV[1]
@@ -89,15 +152,15 @@ def main
   when "disable"
     handle_disable(ARGV[1..])
   when "how-to-create-commands"
-    puts "#{Colors::YELLOW}To create a custom command:#{Colors::RESET}"
+    puts "#{Colors.yellow}To create a custom command:#{Colors.reset}"
     puts "Create a file {command-name}.hacker in ~/.config/hackeros/hacker/custom-commands/"
     puts "An example file for a custom command can be found at: <https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker>"
   when "index"
     show_hackeros_tools
   when "--version"
-    puts "#{Colors::GREEN}Latest version of the hacker tool: 2.1#{Colors::RESET}"
+    puts "#{Colors.green}Latest version of the hacker tool: 2.1#{Colors.reset}"
   when "--hackeros"
-    puts "#{Colors::GREEN}Latest version of HackerOS: 4.1#{Colors::RESET}"
+    puts "#{Colors.green}Latest version of HackerOS: 4.1#{Colors.reset}"
   when "--edition"
     file_path = "/etc/xdg/kcm-about-distrorc"
     if File.exists?(file_path)
@@ -110,16 +173,16 @@ def main
         end
       end
       if variant
-        puts "#{Colors::GREEN}#{variant}#{Colors::RESET}"
+        puts "#{Colors.green}#{variant}#{Colors.reset}"
       else
-        puts "#{Colors::RED}Variant not found in file.#{Colors::RESET}"
+        puts "#{Colors.red}Variant not found in file.#{Colors.reset}"
       end
     else
-      puts "#{Colors::RED}File not found: #{file_path}#{Colors::RESET}"
+      puts "#{Colors.red}File not found: #{file_path}#{Colors.reset}"
     end
   when "info"
-    puts "#{Colors::GREEN}Latest version of the hacker tool: 2.1#{Colors::RESET}"
-    puts "#{Colors::GREEN}Latest version of HackerOS: 4.1#{Colors::RESET}"
+    puts "#{Colors.green}Latest version of the hacker tool: 2.1#{Colors.reset}"
+    puts "#{Colors.green}Latest version of HackerOS: 4.1#{Colors.reset}"
   when "issue"
     browser = `which vivaldi`.strip.empty? ? "xdg-open" : "vivaldi"
     safe_run("#{browser} https://github.com/HackerOS-Linux-System/HackerOS-Website/issues/new")
@@ -132,11 +195,11 @@ def main
         if exec_cmd
           safe_run("#{exec_cmd} #{ARGV[1..].join(" ")}")
         else
-          puts "#{Colors::RED}No 'exec' defined in custom command file.#{Colors::RESET}"
+          puts "#{Colors.red}No 'exec' defined in custom command file.#{Colors.reset}"
           exit(1)
         end
       rescue ex
-        puts "#{Colors::RED}Error processing custom command: #{ex.message}#{Colors::RESET}"
+        puts "#{Colors.red}Error processing custom command: #{ex.message}#{Colors.reset}"
         exit(1)
       end
     else
@@ -160,7 +223,7 @@ def main
         end
       end
       unless found
-        puts "#{Colors::RED}Unknown command: #{command}#{Colors::RESET}"
+        puts "#{Colors.red}Unknown command: #{command}#{Colors.reset}"
         show_main_help
         exit(1)
       end
@@ -182,14 +245,14 @@ def handle_update(args : Array(String))
     when "--better"
       safe_run(better_updater_path)
     else
-      puts "#{Colors::RED}Unknown flag for update: #{flag}#{Colors::RESET}"
+      puts "#{Colors.red}Unknown flag for update: #{flag}#{Colors.reset}"
       puts "Available flags: --with-gui, --gui-mode, --better"
       exit(1)
     end
   end
 end
 def show_hackeros_tools
-  puts "#{Colors::BOLD}#{Colors::MAGENTA}HackerOS Tools Index:#{Colors::RESET}"
+  puts "#{Colors.bold}#{Colors.magenta}HackerOS Tools Index:#{Colors.reset}"
   puts " * bytes - manager pakietow dla hacker lang"
   puts " * hli - narzedzie dla duzych projektow w hacker lang"
   puts " * hackerc - narzedzie na malych projektow/skrytpow w hacker lang"
@@ -211,34 +274,34 @@ def show_hackeros_tools
   puts " * Blue Enviroment (BETA - niestabilne) - jezeli chcesz pomoc w rozwoju srodowiska graficznego hackeros skontaktuj sie na gmail - <hackeros068@gmail.com> lub <https://github.com/orgs/HackerOS-Linux-System/discussions>"
 end
 def show_main_help
-  puts "#{Colors::BOLD}#{Colors::MAGENTA}HackerOS Tool - Available commands:#{Colors::RESET}"
-  puts " #{Colors::GRAY}unpack #{Colors::RESET}- Unpack and install various components (use 'hacker unpack' for subcommands)"
-  puts " #{Colors::GRAY}pack #{Colors::RESET}- Pack and remove various components (use 'hacker pack' for subcommands)"
-  puts " #{Colors::GRAY}help #{Colors::RESET}- Show this help"
-  puts " #{Colors::GRAY}help-ui #{Colors::RESET}- Show help UI"
-  puts " #{Colors::GRAY}docs #{Colors::RESET}- Show documentation"
-  puts " #{Colors::GRAY}install <pkg> #{Colors::RESET}- Install package using apt-fronted"
-  puts " #{Colors::GRAY}remove <pkg> #{Colors::RESET}- Remove package using apt-fronted"
-  puts " #{Colors::GRAY}flatpak-install <pkg> #{Colors::RESET}- Install Flatpak package"
-  puts " #{Colors::GRAY}flatpak-remove <pkg> #{Colors::RESET}- Remove Flatpak package"
-  puts " #{Colors::GRAY}system #{Colors::RESET}- System-related commands (use 'hacker system' for subcommands)"
-  puts " #{Colors::GRAY}run #{Colors::RESET}- Run scripts and tools (use 'hacker run' for subcommands)"
-  puts " #{Colors::GRAY}update [ --with-gui | --gui-mode | --better ] #{Colors::RESET}- Run HackerOS updater (with optional flags)"
-  puts " #{Colors::GRAY}game #{Colors::RESET}- Play a text-based game"
-  puts " #{Colors::GRAY}hacker-lang #{Colors::RESET}- Info about hacker language"
-  puts " #{Colors::GRAY}ascii #{Colors::RESET}- Display ASCII art"
-  puts " #{Colors::GRAY}shell #{Colors::RESET}- Run hacker shell"
-  puts " #{Colors::GRAY}enter <container> #{Colors::RESET}- Enter Distrobox container"
-  puts " #{Colors::GRAY}remove-container <container> #{Colors::RESET}- Remove Distrobox container"
-  puts " #{Colors::GRAY}restart <service> #{Colors::RESET}- Restart system service"
-  puts " #{Colors::GRAY}plugin #{Colors::RESET}- Manage plugins (use 'hacker plugin' for subcommands)"
-  puts " #{Colors::GRAY}enable #{Colors::RESET}- Enable features (use 'hacker enable' for subcommands)"
-  puts " #{Colors::GRAY}disable #{Colors::RESET}- Disable features (use 'hacker disable' for subcommands)"
-  puts " #{Colors::GRAY}how-to-create-commands #{Colors::RESET}- Show how to create custom commands"
-  puts " #{Colors::GRAY}index #{Colors::RESET}- Show index of all HackerOS tools"
-  puts " #{Colors::GRAY}info #{Colors::RESET}- Show versions of tool and HackerOS"
-  puts " #{Colors::GRAY}issue #{Colors::RESET}- Open new issue on GitHub in browser (prefers Vivaldi)"
-  puts "#{Colors::BOLD}#{Colors::MAGENTA}Custom commands:#{Colors::RESET}"
+  puts "#{Colors.bold}#{Colors.magenta}HackerOS Tool - Available commands:#{Colors.reset}"
+  puts " #{Colors.gray}unpack #{Colors.reset}- Unpack and install various components (use 'hacker unpack' for subcommands)"
+  puts " #{Colors.gray}pack #{Colors.reset}- Pack and remove various components (use 'hacker pack' for subcommands)"
+  puts " #{Colors.gray}help #{Colors.reset}- Show this help"
+  puts " #{Colors.gray}help-ui #{Colors.reset}- Show help UI"
+  puts " #{Colors.gray}docs #{Colors.reset}- Show documentation"
+  puts " #{Colors.gray}install <pkg> #{Colors.reset}- Install package using apt-fronted"
+  puts " #{Colors.gray}remove <pkg> #{Colors.reset}- Remove package using apt-fronted"
+  puts " #{Colors.gray}flatpak-install <pkg> #{Colors.reset}- Install Flatpak package"
+  puts " #{Colors.gray}flatpak-remove <pkg> #{Colors.reset}- Remove Flatpak package"
+  puts " #{Colors.gray}system #{Colors.reset}- System-related commands (use 'hacker system' for subcommands)"
+  puts " #{Colors.gray}run #{Colors.reset}- Run scripts and tools (use 'hacker run' for subcommands)"
+  puts " #{Colors.gray}update [ --with-gui | --gui-mode | --better ] #{Colors.reset}- Run HackerOS updater (with optional flags)"
+  puts " #{Colors.gray}game #{Colors.reset}- Play a text-based game"
+  puts " #{Colors.gray}hacker-lang #{Colors.reset}- Info about hacker language"
+  puts " #{Colors.gray}ascii #{Colors.reset}- Display ASCII art"
+  puts " #{Colors.gray}shell #{Colors.reset}- Run hacker shell"
+  puts " #{Colors.gray}enter <container> #{Colors.reset}- Enter Distrobox container"
+  puts " #{Colors.gray}remove-container <container> #{Colors.reset}- Remove Distrobox container"
+  puts " #{Colors.gray}restart <service> #{Colors.reset}- Restart system service"
+  puts " #{Colors.gray}plugin #{Colors.reset}- Manage plugins (use 'hacker plugin' for subcommands)"
+  puts " #{Colors.gray}enable #{Colors.reset}- Enable features (use 'hacker enable' for subcommands)"
+  puts " #{Colors.gray}disable #{Colors.reset}- Disable features (use 'hacker disable' for subcommands)"
+  puts " #{Colors.gray}how-to-create-commands #{Colors.reset}- Show how to create custom commands"
+  puts " #{Colors.gray}index #{Colors.reset}- Show index of all HackerOS tools"
+  puts " #{Colors.gray}info #{Colors.reset}- Show versions of tool and HackerOS"
+  puts " #{Colors.gray}issue #{Colors.reset}- Open new issue on GitHub in browser (prefers Vivaldi)"
+  puts "#{Colors.bold}#{Colors.magenta}Custom commands:#{Colors.reset}"
   Dir.glob((CUSTOM_DIR / "*.hacker").to_s).sort.each do |f|
     name = File.basename(f, ".hacker")
     begin
@@ -252,12 +315,12 @@ def show_main_help
              else
                "No description"
              end
-      puts " #{Colors::GRAY}#{name} #{Colors::RESET}- #{desc}"
+      puts " #{Colors.gray}#{name} #{Colors.reset}- #{desc}"
     rescue
-      puts " #{Colors::GRAY}#{name} #{Colors::RESET}- Invalid config"
+      puts " #{Colors.gray}#{name} #{Colors.reset}- Invalid config"
     end
   end
-  puts "#{Colors::BOLD}#{Colors::MAGENTA}Plugin commands:#{Colors::RESET}"
+  puts "#{Colors.bold}#{Colors.magenta}Plugin commands:#{Colors.reset}"
   Dir.glob((PLUGIN_DIR / "*.hacker").to_s).sort.each do |f|
     begin
       config = parse_hacker_file(f)
@@ -275,7 +338,7 @@ def show_main_help
                else
                  "No description"
                end
-        puts " #{Colors::GRAY}#{cmd_name} #{Colors::RESET}- #{desc}"
+        puts " #{Colors.gray}#{cmd_name} #{Colors.reset}- #{desc}"
       end
     rescue
       # Skip
@@ -284,8 +347,8 @@ def show_main_help
 end
 def handle_system(args : Array(String))
   if args.empty?
-    puts "#{Colors::BOLD}#{Colors::MAGENTA}System subcommands:#{Colors::RESET}"
-    puts " #{Colors::GRAY}logs #{Colors::RESET}- Display system logs"
+    puts "#{Colors.bold}#{Colors.magenta}System subcommands:#{Colors.reset}"
+    puts " #{Colors.gray}logs #{Colors.reset}- Display system logs"
     exit(0)
   end
   subcommand = args[0]
@@ -293,7 +356,7 @@ def handle_system(args : Array(String))
   when "logs"
     safe_run("journalctl -xe")
   else
-    puts "#{Colors::RED}Unknown system subcommand: #{subcommand}#{Colors::RESET}"
+    puts "#{Colors.red}Unknown system subcommand: #{subcommand}#{Colors.reset}"
     exit(1)
   end
 end
@@ -305,7 +368,7 @@ def handle_plugin(args : Array(String))
   subcommand = args[0]
   case subcommand
   when "list"
-    puts "#{Colors::BOLD}#{Colors::MAGENTA}Plugins:#{Colors::RESET}"
+    puts "#{Colors.bold}#{Colors.magenta}Plugins:#{Colors.reset}"
     Dir.glob((PLUGIN_DIR / "*.hacker").to_s).each do |f|
       begin
         config = parse_hacker_file(f)
@@ -319,14 +382,14 @@ def handle_plugin(args : Array(String))
                  File.basename(f, ".hacker")
                end
         enabled = config["enabled"]? == "true"
-        puts " #{name} - #{enabled ? "#{Colors::GREEN}enabled#{Colors::RESET}" : "#{Colors::RED}disabled#{Colors::RESET}"}"
+        puts " #{name} - #{enabled ? "#{Colors.green}enabled#{Colors.reset}" : "#{Colors.red}disabled#{Colors.reset}"}"
       rescue
-        puts " #{File.basename(f, ".hacker")} - #{Colors::RED}invalid#{Colors::RESET}"
+        puts " #{File.basename(f, ".hacker")} - #{Colors.red}invalid#{Colors.reset}"
       end
     end
   when "enable"
     if args.size < 2
-      puts "#{Colors::RED}Usage: hacker plugin enable <plugin-name>#{Colors::RESET}"
+      puts "#{Colors.red}Usage: hacker plugin enable <plugin-name>#{Colors.reset}"
       exit(1)
     end
     name = args[1]
@@ -336,16 +399,16 @@ def handle_plugin(args : Array(String))
         config = parse_hacker_file(file.to_s)
         config["enabled"] = "true"
         write_hacker_file(file.to_s, config)
-        puts "#{Colors::GREEN}Enabled plugin '#{name}'.#{Colors::RESET}"
+        puts "#{Colors.green}Enabled plugin '#{name}'.#{Colors.reset}"
       rescue ex
-        puts "#{Colors::RED}Error enabling plugin: #{ex.message}#{Colors::RESET}"
+        puts "#{Colors.red}Error enabling plugin: #{ex.message}#{Colors.reset}"
       end
     else
-      puts "#{Colors::RED}Plugin '#{name}' not found.#{Colors::RESET}"
+      puts "#{Colors.red}Plugin '#{name}' not found.#{Colors.reset}"
     end
   when "disable"
     if args.size < 2
-      puts "#{Colors::RED}Usage: hacker plugin disable <plugin-name>#{Colors::RESET}"
+      puts "#{Colors.red}Usage: hacker plugin disable <plugin-name>#{Colors.reset}"
       exit(1)
     end
     name = args[1]
@@ -355,24 +418,24 @@ def handle_plugin(args : Array(String))
         config = parse_hacker_file(file.to_s)
         config["enabled"] = "false"
         write_hacker_file(file.to_s, config)
-        puts "#{Colors::GREEN}Disabled plugin '#{name}'.#{Colors::RESET}"
+        puts "#{Colors.green}Disabled plugin '#{name}'.#{Colors.reset}"
       rescue ex
-        puts "#{Colors::RED}Error disabling plugin: #{ex.message}#{Colors::RESET}"
+        puts "#{Colors.red}Error disabling plugin: #{ex.message}#{Colors.reset}"
       end
     else
-      puts "#{Colors::RED}Plugin '#{name}' not found.#{Colors::RESET}"
+      puts "#{Colors.red}Plugin '#{name}' not found.#{Colors.reset}"
     end
   else
-    puts "#{Colors::RED}Unknown plugin subcommand: #{subcommand}#{Colors::RESET}"
+    puts "#{Colors.red}Unknown plugin subcommand: #{subcommand}#{Colors.reset}"
     show_plugin_help
     exit(1)
   end
 end
 def show_plugin_help
-  puts "#{Colors::BOLD}#{Colors::MAGENTA}Plugin subcommands:#{Colors::RESET}"
-  puts " #{Colors::GRAY}list #{Colors::RESET}- List all plugins and their status"
-  puts " #{Colors::GRAY}enable <name> #{Colors::RESET}- Enable a plugin"
-  puts " #{Colors::GRAY}disable <name> #{Colors::RESET}- Disable a plugin"
+  puts "#{Colors.bold}#{Colors.magenta}Plugin subcommands:#{Colors.reset}"
+  puts " #{Colors.gray}list #{Colors.reset}- List all plugins and their status"
+  puts " #{Colors.gray}enable <name> #{Colors.reset}- Enable a plugin"
+  puts " #{Colors.gray}disable <name> #{Colors.reset}- Disable a plugin"
 end
 def handle_enable(args : Array(String))
   if args.empty?
@@ -384,21 +447,21 @@ def handle_enable(args : Array(String))
   when "motd"
     safe_run("sudo cp -r /usr/share/HackerOS/Archived/hackeros-motd /usr/libexec/")
     safe_run("sudo chmod a+x /usr/libexec/hackeros-motd")
-    puts "#{Colors::GREEN}Enabled MOTD.#{Colors::RESET}"
+    puts "#{Colors.green}Enabled MOTD.#{Colors.reset}"
   when "special-motd"
     safe_run("sudo cp -r /usr/share/HackerOS/Archived/hackeros-special-motd /usr/libexec/hackeros-motd")
     safe_run("sudo chmod a+x /usr/libexec/hackeros-motd")
-    puts "#{Colors::GREEN}Enabled special MOTD.#{Colors::RESET}"
+    puts "#{Colors.green}Enabled special MOTD.#{Colors.reset}"
   else
-    puts "#{Colors::RED}Unknown enable subcommand: #{subcommand}#{Colors::RESET}"
+    puts "#{Colors.red}Unknown enable subcommand: #{subcommand}#{Colors.reset}"
     show_enable_help
     exit(1)
   end
 end
 def show_enable_help
-  puts "#{Colors::BOLD}#{Colors::MAGENTA}Enable subcommands:#{Colors::RESET}"
-  puts " #{Colors::GRAY}motd #{Colors::RESET}- Enable standard MOTD"
-  puts " #{Colors::GRAY}special-motd #{Colors::RESET}- Enable special MOTD"
+  puts "#{Colors.bold}#{Colors.magenta}Enable subcommands:#{Colors.reset}"
+  puts " #{Colors.gray}motd #{Colors.reset}- Enable standard MOTD"
+  puts " #{Colors.gray}special-motd #{Colors.reset}- Enable special MOTD"
 end
 def handle_disable(args : Array(String))
   if args.empty?
@@ -409,16 +472,16 @@ def handle_disable(args : Array(String))
   case subcommand
   when "motd", "special-motd"
     safe_run("sudo rm -rf /usr/libexec/hackeros-motd")
-    puts "#{Colors::GREEN}Disabled MOTD.#{Colors::RESET}"
+    puts "#{Colors.green}Disabled MOTD.#{Colors.reset}"
   else
-    puts "#{Colors::RED}Unknown disable subcommand: #{subcommand}#{Colors::RESET}"
+    puts "#{Colors.red}Unknown disable subcommand: #{subcommand}#{Colors.reset}"
     show_disable_help
     exit(1)
   end
 end
 def show_disable_help
-  puts "#{Colors::BOLD}#{Colors::MAGENTA}Disable subcommands:#{Colors::RESET}"
-  puts " #{Colors::GRAY}motd #{Colors::RESET}- Disable MOTD"
-  puts " #{Colors::GRAY}special-motd #{Colors::RESET}- Disable special MOTD"
+  puts "#{Colors.bold}#{Colors.magenta}Disable subcommands:#{Colors.reset}"
+  puts " #{Colors.gray}motd #{Colors.reset}- Disable MOTD"
+  puts " #{Colors.gray}special-motd #{Colors.reset}- Disable special MOTD"
 end
 main
