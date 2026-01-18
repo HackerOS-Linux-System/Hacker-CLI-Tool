@@ -1,5 +1,4 @@
 require "./helpers"
-
 def handle_pack(args : Array(String))
   if args.empty? || args[0] == "help"
     show_pack_help
@@ -80,13 +79,14 @@ def handle_pack(args : Array(String))
     safe_run("sudo apt remove -y flox")
   when "hackeros-builder"
     safe_run("sudo rm -f /usr/bin/hackeros-builder")
+  when "isolator"
+    safe_run("sudo rm -f /usr/bin/isolator")
   else
     puts "#{Colors::RED}Unknown pack subcommand: #{subcommand}#{Colors::RESET}"
     show_pack_help
     exit(1)
   end
 end
-
 def show_pack_help
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Pack subcommands:#{Colors::RESET}"
   puts " #{Colors::GRAY}add-ons #{Colors::RESET}- Remove wine and related tools"
@@ -110,4 +110,5 @@ def show_pack_help
   puts " #{Colors::GRAY}hackerscript #{Colors::RESET}- Remove HackerScript"
   puts " #{Colors::GRAY}flox #{Colors::RESET}- Remove Flox"
   puts " #{Colors::GRAY}hackeros-builder #{Colors::RESET}- Remove HackerOS Builder"
+  puts " #{Colors::GRAY}isolator #{Colors::RESET}- Remove isolator"
 end
