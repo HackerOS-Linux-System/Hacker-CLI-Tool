@@ -158,9 +158,9 @@ def main
   when "index"
     show_hackeros_tools
   when "--version"
-    puts "#{Colors.green}Latest version of the hacker tool: 2.1#{Colors.reset}"
+    puts "#{Colors.green}Latest version of the hacker tool: 2.2#{Colors.reset}"
   when "--hackeros"
-    puts "#{Colors.green}Latest version of HackerOS: 4.1#{Colors.reset}"
+    puts "#{Colors.green}Latest version of HackerOS: 4.3#{Colors.reset}"
   when "--edition"
     file_path = "/etc/xdg/kcm-about-distrorc"
     if File.exists?(file_path)
