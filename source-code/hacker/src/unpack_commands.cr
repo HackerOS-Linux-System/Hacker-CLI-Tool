@@ -1,5 +1,4 @@
 require "./helpers"
-
 def handle_unpack(args : Array(String))
   if args.empty? || args[0] == "help"
     show_unpack_help
@@ -95,13 +94,15 @@ def handle_unpack(args : Array(String))
   when "hackeros-builder"
     safe_run("wget https://raw.githubusercontent.com/HackerOS-Linux-System/HackerOS-Builder/main/install.hacker -O /tmp/install.hacker")
     safe_run("hl run /tmp/install.hacker")
+  when "isolator"
+    safe_run("wget https://raw.githubusercontent.com/HackerOS-Linux-System/Isolator/main/install.hacker -O /tmp/install.hacker")
+    safe_run("hl run /tmp/install.hacker")
   else
     puts "#{Colors::RED}Unknown unpack subcommand: #{subcommand}#{Colors::RESET}"
     show_unpack_help
     exit(1)
   end
 end
-
 def show_unpack_help
   puts "#{Colors::BOLD}#{Colors::MAGENTA}Unpack subcommands:#{Colors::RESET}"
   puts " #{Colors::GRAY}add-ons #{Colors::RESET}- Install wine and related tools"
@@ -126,4 +127,5 @@ def show_unpack_help
   puts " #{Colors::GRAY}hackerscript #{Colors::RESET}- Install HackerScript"
   puts " #{Colors::GRAY}flox #{Colors::RESET}- Install Flox"
   puts " #{Colors::GRAY}hackeros-builder #{Colors::RESET}- Install HackerOS Builder"
+  puts " #{Colors::GRAY}isolator #{Colors::RESET}- Install isolator"
 end
