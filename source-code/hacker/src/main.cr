@@ -186,6 +186,8 @@ def main
   when "issue"
     browser = `which vivaldi`.strip.empty? ? "xdg-open" : "vivaldi"
     safe_run("#{browser} https://github.com/HackerOS-Linux-System/HackerOS-Website/issues/new")
+  when "repair"
+    safe_run("#{Path.home}/.hackeros/hacker/hacker-repair")
   else
     custom_file = CUSTOM_DIR / "#{command}.hacker"
     if File.exists?(custom_file)
@@ -253,25 +255,29 @@ def handle_update(args : Array(String))
 end
 def show_hackeros_tools
   puts "#{Colors.bold}#{Colors.magenta}HackerOS Tools Index:#{Colors.reset}"
-  puts " * bytes - manager pakietow dla hacker lang"
-  puts " * hli - narzedzie dla duzych projektow w hacker lang"
-  puts " * hackerc - narzedzie na malych projektow/skrytpow w hacker lang"
+  puts " * bytes - manager pakietów dla hacker lang"
+  puts " * hl - uruchamiaj kompiluj programy napisane w .hacker lub .hl lub .hk"
+  puts " * hli - interaktywna wersja dla narzędzia hl"
   puts " * hacker - glownie narzedzie cli hackeros"
   puts " * Hacker Kernel - jadro hackeros jezeli chcesz rozwijac skontaktuj sie na: gmail - <hackeros068@gmail.com> lub <https://github.com/orgs/HackerOS-Linux-System/discussions>"
   puts " * HackerOS Steam - kontner dla steam"
   puts " * HackerOS Welcome - Aplikacja powitalna hackeros"
-  puts " * HackerOS App - interfejs gui dla narzedzia hacker + sklep z programami"
+  puts " * HackerOS App - aplikacja dla androida (wersje HackerOS oraz możesz pobrać tapety)"
+  puts " * HackerOS Store - sklep dla launcherów do gier, narzędzi do testów penetracyjnych oraz apliakcji"
   puts " * Security Mode - tryb do testow penetracyjnych"
   puts " * Hacker Mode - tryb gry"
-  puts " * isolator - narzedzie cli do instalacji pakietow w izolowanych srodowiskach podman"
-  puts " * hpm - fronted dla apt + graficzna instalacja pakietow flatpak, apt, snap"
+  puts " * isolator - narzedzie cli do instalacji pakietów z specjalnego repo w kontnerach distrobox"
+  puts " * hpm - specialne repozytorium pakietów dla HackerOS (kazdy pakiet jest s izolowanym środowiski)"
   puts " * HackerOS Game Mode - tryb gry inspirowany asus armoury crate"
   puts " * hup - system automatycznych aktualizacji"
-  puts " * hroot - system do atomowego systemu instacji pakietow/aktualizacji"
+  puts " * hammer - system z atomowym podejściem do systemu (snapshoty btrfs)"
   puts " * HackerOS Games - gui do uruchamiania gier: starblaster, bit-jump"
   puts " * HackerOS Cockpit (archiwum) - centrum sterowania systemem w przegladarce"
   puts " * Hacker Launcher - Uruchamiaj gry windows za pomoca tej aplikacji"
-  puts " * Blue Enviroment (BETA - niestabilne) - jezeli chcesz pomoc w rozwoju srodowiska graficznego hackeros skontaktuj sie na gmail - <hackeros068@gmail.com> lub <https://github.com/orgs/HackerOS-Linux-System/discussions>"
+  puts " * virus - narzędzie cli inspirowane cargo dla języka programowania HackerScript"
+  puts " * hcs - głowne narzędzie cli dla języka programowania HackerScript"
+  puts " * HackerOS Builder - specjalna nakładka dla live build"
+  puts " * Blue Enviroment (BETA - niestabilne) - jezeli chcesz pomoc w rozwoju srodowiska graficznego HackerOS skontaktuj sie na gmail - <hackeros068@gmail.com> lub <https://github.com/orgs/HackerOS-Linux-System/discussions>"
 end
 def show_main_help
   puts "#{Colors.bold}#{Colors.magenta}HackerOS Tool - Available commands:#{Colors.reset}"
@@ -301,6 +307,7 @@ def show_main_help
   puts " #{Colors.gray}index #{Colors.reset}- Show index of all HackerOS tools"
   puts " #{Colors.gray}info #{Colors.reset}- Show versions of tool and HackerOS"
   puts " #{Colors.gray}issue #{Colors.reset}- Open new issue on GitHub in browser (prefers Vivaldi)"
+  puts " #{Colors.gray}repair #{Colors.reset}- Run hacker repair tool"
   puts "#{Colors.bold}#{Colors.magenta}Custom commands:#{Colors.reset}"
   Dir.glob((CUSTOM_DIR / "*.hacker").to_s).sort.each do |f|
     name = File.basename(f, ".hacker")
