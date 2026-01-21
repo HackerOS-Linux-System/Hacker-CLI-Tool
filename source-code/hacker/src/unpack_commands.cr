@@ -47,12 +47,12 @@ def handle_unpack(args : Array(String))
     end
   when "hacker-mode"
     safe_run("git clone https://github.com/HackerOS-Linux-System/Hacker-Mode.git /tmp/Hacker-Mode")
-    safe_run("hl run /tmp/Hacker-Mode/unpack.hacker")
+    safe_run("hl run /tmp/Hacker-Mode/unpack.hl")
   when "gamescope-session-steam"
     safe_run("flatpak install -y flathub com.valvesoftware.Steam")
     install_gamescope
     safe_run("git clone https://github.com/HackerOS-Linux-System/gamescope-session-steam.git /tmp/gamescope-session-steam")
-    safe_run("hl run /tmp/gamescope-session-steam/unpack.hacker")
+    safe_run("hl run /tmp/gamescope-session-steam/unpack.hl")
   when "xanmod"
     safe_run("/usr/share/HackerOS/Scripts/Bin/unpack-xanmod.sh")
   when "liquorix"
@@ -67,10 +67,10 @@ def handle_unpack(args : Array(String))
     puts "#{Colors::GREEN}Alacritty configuration has been successfully installed to ~/.config/alacritty/alacritty.toml#{Colors::RESET}"
   when "hackeros-tv"
     safe_run("git clone https://github.com/HackerOS-Linux-System/HackerOS-TV.git /tmp/HackerOS-TV")
-    safe_run("hl run /tmp/HackerOS-TV/unpack.hacker")
+    safe_run("hl run /tmp/HackerOS-TV/unpack.hl")
   when "security-mode"
     safe_run("git clone https://github.com/HackerOS-Linux-System/Security-Mode.git /tmp/Security-Mode")
-    safe_run("hl run /tmp/Security-Mode/unpack.hacker")
+    safe_run("hl run /tmp/Security-Mode/unpack.hl")
   when "winboat"
     safe_run("wget https://github.com/TibixDev/winboat/releases/download/v0.9.0/winboat-0.9.0-amd64.deb -O /tmp/winboat-0.9.0-amd64.deb")
     safe_run("sudo apt install -y /tmp/winboat-0.9.0-amd64.deb")
@@ -92,11 +92,11 @@ def handle_unpack(args : Array(String))
     safe_run("wget https://downloads.flox.dev/by-env/stable/deb/flox.x86_64-linux.deb -O /tmp/flox.x86_64-linux.deb")
     safe_run("sudo apt install -y /tmp/flox.x86_64-linux.deb")
   when "hackeros-builder"
-    safe_run("wget https://raw.githubusercontent.com/HackerOS-Linux-System/HackerOS-Builder/main/install.hacker -O /tmp/install.hacker")
-    safe_run("hl run /tmp/install.hacker")
+    safe_run("wget https://raw.githubusercontent.com/HackerOS-Linux-System/HackerOS-Builder/main/install.hl -O /tmp/install.hacker")
+    safe_run("hl run /tmp/install.hl")
   when "isolator"
-    safe_run("wget https://raw.githubusercontent.com/HackerOS-Linux-System/Isolator/main/install.hacker -O /tmp/install.hacker")
-    safe_run("hl run /tmp/install.hacker")
+    safe_run("wget https://raw.githubusercontent.com/HackerOS-Linux-System/Isolator/main/install.hl -O /tmp/install.hacker")
+    safe_run("hl run /tmp/install.hl")
   else
     puts "#{Colors::RED}Unknown unpack subcommand: #{subcommand}#{Colors::RESET}"
     show_unpack_help
