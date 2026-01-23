@@ -72,9 +72,10 @@ def handle_pack(args : Array(String))
   when "hl-utils"
     safe_run("sudo rm -f /usr/bin/bytes")
     safe_run("sudo rm -f /usr/bin/hli")
-  when "hackerscript"
+  when "h-sharp"
     safe_run("sudo rm -f /usr/bin/virus")
-    safe_run("rm -rf ~/.HackerScript/")
+    safe_run("rm -rf ~/.H#/")
+    safe_run("rm -rf /usr/bin/hcs")
   when "flox"
     safe_run("sudo apt remove -y flox")
   when "hackeros-builder"
