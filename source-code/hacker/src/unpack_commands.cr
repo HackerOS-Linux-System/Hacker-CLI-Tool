@@ -83,9 +83,9 @@ def handle_unpack(args : Array(String))
     safe_run("wget https://github.com/HackerOS-Linux-System/Hacker-Lang/releases/download/v1.5/hli -O /tmp/hli")
     safe_run("sudo mv /tmp/hli /usr/bin/hli")
     safe_run("sudo chmod a+x /usr/bin/hli")
-  when "hackerscript"
-    safe_run("mkdir -p /home/HackerScript/bin")
-    safe_run("wget https://github.com/HackerOS-Linux-System/HackerScript/releases/download/v0.2/installer -O /tmp/installer")
+  when "h-sharp"
+    safe_run("mkdir -p ~/.H#")
+    safe_run("wget https://github.com/HackerOS-Linux-System/H-Sharp/releases/download/v0.4/installer -O /tmp/installer")
     safe_run("sudo chmod a+x /tmp/installer")
     safe_run("/tmp/installer")
   when "flox"
@@ -124,7 +124,7 @@ def show_unpack_help
   puts " #{Colors::GRAY}winboat #{Colors::RESET}- Install Winboat"
   puts " #{Colors::GRAY}nvidia-drivers #{Colors::RESET}- Install NVIDIA drivers"
   puts " #{Colors::GRAY}hl-utils #{Colors::RESET}- Install hl-utils binaries"
-  puts " #{Colors::GRAY}hackerscript #{Colors::RESET}- Install HackerScript"
+  puts " #{Colors::GRAY}h-sharp #{Colors::RESET}- Install H#"
   puts " #{Colors::GRAY}flox #{Colors::RESET}- Install Flox"
   puts " #{Colors::GRAY}hackeros-builder #{Colors::RESET}- Install HackerOS Builder"
   puts " #{Colors::GRAY}isolator #{Colors::RESET}- Install isolator"
