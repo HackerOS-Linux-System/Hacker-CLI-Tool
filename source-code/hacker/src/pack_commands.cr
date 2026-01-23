@@ -108,7 +108,7 @@ def show_pack_help
   puts " #{Colors::GRAY}winboat #{Colors::RESET}- Remove Winboat"
   puts " #{Colors::GRAY}nvidia-drivers #{Colors::RESET}- Remove NVIDIA drivers"
   puts " #{Colors::GRAY}hl-utils #{Colors::RESET}- Remove hl-utils binaries"
-  puts " #{Colors::GRAY}hackerscript #{Colors::RESET}- Remove HackerScript"
+  puts " #{Colors::GRAY}h-sharp #{Colors::RESET}- Remove H#"
   puts " #{Colors::GRAY}flox #{Colors::RESET}- Remove Flox"
   puts " #{Colors::GRAY}hackeros-builder #{Colors::RESET}- Remove HackerOS Builder"
   puts " #{Colors::GRAY}isolator #{Colors::RESET}- Remove isolator"
