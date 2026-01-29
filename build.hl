@@ -15,6 +15,10 @@
 > go get hacker-help
 > go build
 > cd ..
+> cd hacker-interactive
+> go get hacker-interactive
+> go build
+> cd ..
 > cd hacker-repair
 > go get hacker-repair
 > go build
