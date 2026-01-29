@@ -1,9 +1,14 @@
-module hacker-repair
+[package]
+name = "hacker-repair"
+version = "2.3.0"
+edition = "2021"
 
-go 1.22
-
-require (
-	github.com/charmbracelet/bubbles v0.20.0
-	github.com/charmbracelet/bubbletea v0.26.6
-	github.com/charmbracelet/lipgloss v0.12.1
-)
+[dependencies]
+ratatui = "0.26.0"
+crossterm = "0.27.0"
+anyhow = "1.0.75"
+log = "0.4.20"
+env_logger = "0.10.1"
+signal-hook = "0.3.17"
+regex = "1.10.2"
+libc = "0.2.155"
