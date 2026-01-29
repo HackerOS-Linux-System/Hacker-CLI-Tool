@@ -20,8 +20,7 @@
 > go build
 > cd ..
 > cd hacker-repair
-> go get hacker-repair
-> go build
+> cargo build --release
 > cd ..
 > cd hacker-select
 > go get hacker-select
