@@ -83,11 +83,9 @@ def handle_unpack(args : Array(String))
     safe_run("wget https://github.com/HackerOS-Linux-System/Hacker-Lang/releases/download/v1.5/hli -O /tmp/hli")
     safe_run("sudo mv /tmp/hli /usr/bin/hli")
     safe_run("sudo chmod a+x /usr/bin/hli")
-  when "h-sharp"
-    safe_run("mkdir -p ~/.H#")
-    safe_run("wget https://github.com/HackerOS-Linux-System/H-Sharp/releases/download/v0.4/installer -O /tmp/installer")
-    safe_run("sudo chmod a+x /tmp/installer")
-    safe_run("/tmp/installer")
+  when "hl-advanced"
+    safe_run("curl -L https://raw.githubusercontent.com/HackerOS-Linux-System/Hacker-Lang/main/hacker-packages/install-hla.hl -o /tmp/install-hla.hl")
+    safe_run("hl run /tmp/install-hla.hl")
   when "flox"
     safe_run("wget https://downloads.flox.dev/by-env/stable/deb/flox.x86_64-linux.deb -O /tmp/flox.x86_64-linux.deb")
     safe_run("sudo apt install -y /tmp/flox.x86_64-linux.deb")
@@ -124,7 +122,7 @@ def show_unpack_help
   puts " #{Colors::GRAY}winboat #{Colors::RESET}- Install Winboat"
   puts " #{Colors::GRAY}nvidia-drivers #{Colors::RESET}- Install NVIDIA drivers"
   puts " #{Colors::GRAY}hl-utils #{Colors::RESET}- Install hl-utils binaries"
-  puts " #{Colors::GRAY}h-sharp #{Colors::RESET}- Install H#"
+  puts " #{Colors::GRAY}hl-advanced#{Colors::RESET}- Install the advanced Hacker programming language."
   puts " #{Colors::GRAY}flox #{Colors::RESET}- Install Flox"
   puts " #{Colors::GRAY}hackeros-builder #{Colors::RESET}- Install HackerOS Builder"
   puts " #{Colors::GRAY}isolator #{Colors::RESET}- Install isolator"
