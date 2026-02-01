@@ -158,7 +158,7 @@ def main
   when "index"
     show_hackeros_tools
   when "--version"
-    puts "#{Colors.green}Latest version of the hacker tool: 2.2#{Colors.reset}"
+    puts "#{Colors.green}Latest version of the hacker tool: 2.3#{Colors.reset}"
   when "--hackeros"
     puts "#{Colors.green}Latest version of HackerOS: 4.3#{Colors.reset}"
   when "--edition"
@@ -181,8 +181,8 @@ def main
       puts "#{Colors.red}File not found: #{file_path}#{Colors.reset}"
     end
   when "info"
-    puts "#{Colors.green}Latest version of the hacker tool: 2.1#{Colors.reset}"
-    puts "#{Colors.green}Latest version of HackerOS: 4.1#{Colors.reset}"
+    puts "#{Colors.green}Latest version of the hacker tool: 2.3#{Colors.reset}"
+    puts "#{Colors.green}Latest version of HackerOS: 4.3#{Colors.reset}"
   when "issue"
     browser = `which vivaldi`.strip.empty? ? "xdg-open" : "vivaldi"
     safe_run("#{browser} https://github.com/HackerOS-Linux-System/HackerOS-Website/issues/new")
@@ -271,10 +271,10 @@ def show_hackeros_tools
   puts " * HackerOS Game Mode - tryb gry inspirowany asus armoury crate"
   puts " * hup - system automatycznych aktualizacji"
   puts " * hammer - system z atomowym podejściem do systemu (snapshoty btrfs)"
-  puts " * HackerOS Games - gui do uruchamiania gier: starblaster, bit-jump"
+  puts " * HackerOS Games - gui do uruchamiania gier: starblaster, bit-jump, bark squadron"
   puts " * HackerOS Cockpit (archiwum) - centrum sterowania systemem w przegladarce"
   puts " * Hacker Launcher - Uruchamiaj gry windows za pomoca tej aplikacji"
-  puts " * virus - narzędzie cli inspirowane cargo dla języka programowania H# (dawniej nazywany HackerScript)"
+  puts " * virus - narzędzie cli inspirowane cargo dla języka programowania Hacker Lang Advanced"
   puts " * hcs - głowne narzędzie cli dla języka programowania H# (dawniej nazwyany HackerScript)"
   puts " * HackerOS Builder - specjalna nakładka dla live build"
   puts " * Blue Enviroment (BETA - niestabilne) - jezeli chcesz pomoc w rozwoju srodowiska graficznego HackerOS skontaktuj sie na gmail - <hackeros068@gmail.com> lub <https://github.com/orgs/HackerOS-Linux-System/discussions>"
