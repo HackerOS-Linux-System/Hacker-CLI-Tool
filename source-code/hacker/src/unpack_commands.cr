@@ -137,6 +137,27 @@ def handle_unpack(args : Array(String))
     safe_run("hl run /tmp/install-isolator.hl")
     safe_run("rm -f /tmp/install-isolator.hl")
 
+  when "hydra"
+    puts "#{Colors::YELLOW}Pobieranie unpack.hl z hydra-look-and-feel i uruchamianie...#{Colors::RESET}"
+    safe_run("curl -L https://raw.githubusercontent.com/HackerOS-Linux-System/hydra-look-and-feel/main/unpack.hl -o /tmp/unpack.hl")
+    safe_run("hl run /tmp/unpack.hl")
+    puts "#{Colors::YELLOW}Ostrzeżenie: Nie da się tego usunąć.#{Colors::RESET}"
+    puts "#{Colors::GREEN}Instalacja hydra wykonana za pomocą unpack.hl.#{Colors::RESET}"
+
+  when "hammer"
+    puts "#{Colors::YELLOW}Pobieranie install.hl z hammer i uruchamianie...#{Colors::RESET}"
+    safe_run("curl -L https://raw.githubusercontent.com/HackerOS-Linux-System/hammer/main/install.hl -o /tmp/install.hl")
+    safe_run("hl run /tmp/install.hl")
+    safe_run("rm -f /tmp/install.hl")
+    puts "#{Colors::GREEN}Instalacja hammer wykonana za pomocą install.hl.#{Colors::RESET}"
+
+  when "hackerland"
+    puts "#{Colors::YELLOW}Pobieranie install.hl z HackerLand i uruchamianie...#{Colors::RESET}"
+    safe_run("curl -L https://raw.githubusercontent.com/HackerOS-Linux-System/HackerLand/main/install.hl -o /tmp/install.hl")
+    safe_run("hl run /tmp/install.hl")
+    safe_run("rm -f /tmp/install.hl")
+    puts "#{Colors::GREEN}Instalacja hackerland wykonana za pomocą install.hl.#{Colors::RESET}"
+
   else
     puts "#{Colors::RED}Nieznane polecenie unpack: #{subcommand}#{Colors::RESET}"
     show_unpack_help
@@ -170,4 +191,7 @@ def show_unpack_help
   puts " #{Colors::GRAY}flox                  #{Colors::RESET}- Zainstaluj Flox"
   puts " #{Colors::GRAY}hackeros-builder      #{Colors::RESET}- Zainstaluj Builder"
   puts " #{Colors::GRAY}isolator              #{Colors::RESET}- Zainstaluj Isolator"
+  puts " #{Colors::GRAY}hydra                 #{Colors::RESET}- Zainstaluj hydra via unpack.hl (nieusuwalne)"
+  puts " #{Colors::GRAY}hammer                #{Colors::RESET}- Zainstaluj hammer via install.hl"
+  puts " #{Colors::GRAY}hackerland            #{Colors::RESET}- Zainstaluj hackerland via install.hl"
 end
