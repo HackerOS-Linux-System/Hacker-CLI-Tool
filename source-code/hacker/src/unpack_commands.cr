@@ -110,17 +110,12 @@ def handle_unpack(args : Array(String))
     safe_run("/usr/share/HackerOS/Scripts/Bin/unpack-nvidia-drivers.sh")
 
   when "hl-utils"
-    safe_run("wget https://github.com/HackerOS-Linux-System/Hacker-Lang/releases/download/v1.5/bytes -O /tmp/bytes")
+    safe_run("wget https://github.com/Bytes-Repository/Bytes-CLI-Tool/releases/download/v0.5/bytes -O /tmp/bytes")
     safe_run("sudo mv /tmp/bytes /usr/bin/bytes")
     safe_run("sudo chmod +x /usr/bin/bytes")
-    safe_run("wget https://github.com/HackerOS-Linux-System/Hacker-Lang/releases/download/v1.5/hli -O /tmp/hli")
+    safe_run("wget https://github.com/HackerOS-Linux-System/Hacker-Lang/releases/download/v1.6.2/hli -O /tmp/hli")
     safe_run("sudo mv /tmp/hli /usr/bin/hli")
     safe_run("sudo chmod +x /usr/bin/hli")
-
-  when "hl-advanced"
-    safe_run("curl -L https://raw.githubusercontent.com/HackerOS-Linux-System/Hacker-Lang/main/hacker-packages/install-hla.hl -o /tmp/install-hla.hl")
-    safe_run("hl run /tmp/install-hla.hl")
-    safe_run("rm -f /tmp/install-hla.hl")
 
   when "flox"
     safe_run("wget https://downloads.flox.dev/by-env/stable/deb/flox.x86_64-linux.deb -O /tmp/flox.deb")
@@ -187,7 +182,6 @@ def show_unpack_help
   puts " #{Colors::GRAY}winboat               #{Colors::RESET}- Zainstaluj Winboat"
   puts " #{Colors::GRAY}nvidia-drivers        #{Colors::RESET}- Zainstaluj NVIDIA drivers"
   puts " #{Colors::GRAY}hl-utils              #{Colors::RESET}- Zainstaluj bytes & hli"
-  puts " #{Colors::GRAY}hl-advanced           #{Colors::RESET}- Zainstaluj advanced HLA"
   puts " #{Colors::GRAY}flox                  #{Colors::RESET}- Zainstaluj Flox"
   puts " #{Colors::GRAY}hackeros-builder      #{Colors::RESET}- Zainstaluj Builder"
   puts " #{Colors::GRAY}isolator              #{Colors::RESET}- Zainstaluj Isolator"
