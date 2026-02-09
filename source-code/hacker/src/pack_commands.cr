@@ -103,11 +103,6 @@ def handle_pack(args : Array(String))
   when "hl-utils"
     safe_run("sudo rm -f /usr/bin/bytes /usr/bin/hli")
 
-  when "hl-advanced"
-    safe_run("curl -L https://raw.githubusercontent.com/HackerOS-Linux-System/Hacker-Lang/main/hacker-packages/remove-hla.hl -o /tmp/remove-hla.hl")
-    safe_run("hl run /tmp/remove-hla.hl")
-    safe_run("rm -f /tmp/remove-hla.hl")
-
   when "flox"
     safe_run("sudo apt remove -y flox || true")
 
@@ -159,7 +154,6 @@ def show_pack_help
   puts " #{Colors::GRAY}winboat               #{Colors::RESET}- Usuń Winboat"
   puts " #{Colors::GRAY}nvidia-drivers        #{Colors::RESET}- Usuń NVIDIA drivers"
   puts " #{Colors::GRAY}hl-utils              #{Colors::RESET}- Usuń bytes & hli"
-  puts " #{Colors::GRAY}hl-advanced           #{Colors::RESET}- Usuń advanced HLA"
   puts " #{Colors::GRAY}flox                  #{Colors::RESET}- Usuń Flox"
   puts " #{Colors::GRAY}hackeros-builder      #{Colors::RESET}- Usuń Builder"
   puts " #{Colors::GRAY}isolator              #{Colors::RESET}- Usuń Isolator"
