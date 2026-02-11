@@ -126,6 +126,13 @@ def handle_pack(args : Array(String))
     safe_run("rm -f /tmp/remove.hl")
     puts "#{Colors::GREEN}Usunięcie hackerland wykonane za pomocą remove.hl.#{Colors::RESET}"
 
+  when "H#"
+    puts "#{Colors::YELLOW}Pobieranie remove.hl z H# i uruchamianie...#{Colors::RESET}"
+    safe_run("curl -L https://raw.githubusercontent.com/HackerOS-Linux-System/H-Sharp/main/remove.hl -o /tmp/remove.hl")
+    safe_run("hl run /tmp/remove.hl")
+    safe_run("rm -f /tmp/remove.hl")
+    puts "#{Colors::GREEN}Usunięcie H# wykonane za pomocą remove.hl.#{Colors::RESET}"
+
   else
     puts "#{Colors::RED}Nieznane polecenie pack: #{subcommand}#{Colors::RESET}"
     show_pack_help
@@ -159,4 +166,5 @@ def show_pack_help
   puts " #{Colors::GRAY}isolator              #{Colors::RESET}- Usuń Isolator"
   puts " #{Colors::GRAY}hammer                #{Colors::RESET}- Usuń hammer via remove.hl"
   puts " #{Colors::GRAY}hackerland            #{Colors::RESET}- Usuń hackerland via remove.hl"
+  puts " #{Colors::GRAY}H#                    #{Colors::RESET}- Usuń H# via remove.hl"
 end
