@@ -153,6 +153,13 @@ def handle_unpack(args : Array(String))
     safe_run("rm -f /tmp/install.hl")
     puts "#{Colors::GREEN}Instalacja hackerland wykonana za pomocą install.hl.#{Colors::RESET}"
 
+  when "hackerland"
+    puts "#{Colors::YELLOW}Pobieranie install.hl z H# i uruchamianie...#{Colors::RESET}"
+    safe_run("curl -L https://raw.githubusercontent.com/HackerOS-Linux-System/H-Sharp/main/install.hl -o /tmp/install.hl")
+    safe_run("hl run /tmp/install.hl")
+    safe_run("rm -f /tmp/install.hl")
+    puts "#{Colors::GREEN}Instalacja H# wykonana za pomocą install.hl.#{Colors::RESET}"
+
   else
     puts "#{Colors::RED}Nieznane polecenie unpack: #{subcommand}#{Colors::RESET}"
     show_unpack_help
@@ -188,4 +195,5 @@ def show_unpack_help
   puts " #{Colors::GRAY}hydra                 #{Colors::RESET}- Zainstaluj hydra via unpack.hl (nieusuwalne)"
   puts " #{Colors::GRAY}hammer                #{Colors::RESET}- Zainstaluj hammer via install.hl"
   puts " #{Colors::GRAY}hackerland            #{Colors::RESET}- Zainstaluj hackerland via install.hl"
+  puts " #{Colors::GRAY}H#                    #{Colors::RESET}- Zainstaluj H# via install.hl"
 end
