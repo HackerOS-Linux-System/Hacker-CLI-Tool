@@ -10,6 +10,7 @@ module Colors
   BOLD = "\e[1m"
   RESET = "\e[0m"
 end
+
 def safe_run(cmd : String)
   status = Process.run(cmd, shell: true, input: Process::Redirect::Inherit, output: Process::Redirect::Inherit, error: Process::Redirect::Inherit)
   if !status.success?
@@ -17,12 +18,15 @@ def safe_run(cmd : String)
   end
   status.success?
 end
+
 def install_gamescope
   # Assuming gamescope is installed via flatpak; adjust if needed
   safe_run("flatpak install -y flathub org.freedesktop.Platform.VulkanLayer.gamescope") # Example; replace with actual if different
 end
+
 CUSTOM_DIR = Path.home / ".config" / "hackeros" / "hacker" / "custom-commands"
 PLUGIN_DIR = Path.home / ".config" / "hackeros" / "hacker" / "plugins"
+
 class Config
   @data : Hash(String, String | Config)
   def initialize
@@ -41,6 +45,7 @@ class Config
     @data.each { |k, v| yield k, v }
   end
 end
+
 def parse_hacker_file(path : String) : Config
   content = File.read(path).strip
   raise "Invalid .hacker file format: must start with '[' and end with ']'." unless content.starts_with?('[') && content.ends_with?(']')
@@ -72,9 +77,11 @@ def parse_hacker_file(path : String) : Config
   end
   root
 end
+
 def write_hacker_file(path : String, config : Config)
   File.write(path, "[\n#{write_config(config, 0)}\n]")
 end
+
 def write_config(config : Config, level : Int32) : String
   lines = [] of String
   config.each do |key, value|
