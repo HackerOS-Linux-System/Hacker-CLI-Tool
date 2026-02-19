@@ -1,20 +1,13 @@
-name: HackerOS-Updater
-version: 2.3
+[package]
+name = "HackerOS-Updater"
+version = "2.3.1"
+edition = "2021"
 
-authors:
-  - HackerOS Team <hackeros068@gmail.com>
-
-description: |
-  Updater tool for HackerOS
-
-crystal: ">= 1.0.0"
-
-license: MIT
-
-targets:
-  HackerOS-Updater:
-    main: src/main.cr
-
-dependencies:
-  # No external dependencies needed as all used modules are in Crystal stdlib
-
+[dependencies]
+ratatui = "0.26"
+crossterm = "0.27"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1.0"
+tui-textarea = "0.4"
+futures = "0.3"
+console = "0.15"
