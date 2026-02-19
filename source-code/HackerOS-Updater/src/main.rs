@@ -1,233 +1,620 @@
-require "option_parser"
-require "process"
-require "file_utils"
-require "colorize"
+use anyhow::Result;
+use crossterm::{
+	event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
+	execute,
+	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::{
+	backend::CrosstermBackend,
+	layout::{Alignment, Constraint, Direction, Layout, Rect},
+	style::{Color, Modifier, Style, Stylize},
+	text::{Line, Span},
+	widgets::{Block, BorderType, Borders, Clear, Gauge, List, ListItem, Paragraph, Wrap},
+	Frame, Terminal,
+};
+use std::{
+	io::{self, BufRead, BufReader},
+	process::{Command, Stdio},
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		Arc,
+	},
+	time::Duration,
+};
+use tokio::sync::mpsc;
 
-# ANSI color codes
-RED = "\e[31m"
-GREEN = "\e[32m"
-BLUE = "\e[34m"
-YELLOW = "\e[33m"
-CYAN = "\e[36m"
-MAGENTA = "\e[35m"
-RESET = "\e[0m"
+// --- CONFIGURATION ---
+const HACKEROS_UPDATE_SCRIPT: &str = "/usr/share/HackerOS/Scripts/Bin/update-hackeros.sh";
+const WALLPAPERS_UPDATE_SCRIPT: &str = "/usr/share/HackerOS/Scripts/Bin/update-wallpapers.sh";
 
-# Paths
-HACKEROS_UPDATE_SCRIPT = "/usr/share/HackerOS/Scripts/Bin/update-hackeros.sh"
-WALLPAPERS_UPDATE_SCRIPT = "/usr/share/HackerOS/Scripts/Bin/update-wallpapers.sh"
-BIN_PATH = Process.executable_path.not_nil!
-AUTO_SCRIPT_PATH = "#{ENV["HOME"]}/.hackeros/auto-update.sh" # Script to wait for internet
+// --- THEME ---
+// Paleta kolorów "Cyberpunk / Modern Purple"
+const COLOR_BG: Color = Color::Reset;
+const COLOR_ACCENT: Color = Color::Magenta; // Fioletowy akcent
+const COLOR_TEXT_MAIN: Color = Color::White;
+const COLOR_TEXT_DIM: Color = Color::DarkGray;
+const COLOR_SUCCESS: Color = Color::Green;
+const COLOR_ERROR: Color = Color::Red;
+const COLOR_WARNING: Color = Color::Yellow;
 
-def display_header(title : String)
-  puts "<--------[ #{title} ]-------->".colorize(:yellow)
-end
+// --- DATA STRUCTURES ---
 
-def run_command(cmd : String) : {Bool, String}
-  status = Process.run(cmd, shell: true, input: Process::Redirect::Inherit, output: Process::Redirect::Inherit, error: Process::Redirect::Inherit)
-  {status.success?, ""}
-end
+#[derive(Clone, Debug, PartialEq)]
+enum TaskStatus {
+	Pending,
+	Running,
+	Success,
+	Failed,
+}
 
-def get_status(success : Bool) : String
-  if success
-    "#{BLUE}COMPLETE#{RESET}"
-  else
-    "#{RED}FAILED#{RESET}"
-  end
-end
+#[derive(Clone, Debug)]
+struct Task {
+	name: String,
+	command: String,
+	is_sudo: bool,
+	status: TaskStatus,
+}
 
-def perform_updates : {String, String, String, String, String, String, String, String, String}
-  # APT Update
-  display_header("System Update")
-  apt_success = true
-  ["sudo apt update", "sudo apt upgrade -y", "sudo apt autoclean"].each do |cmd|
-    success, _ = run_command(cmd)
-    apt_success &&= success
-  end
-  apt_status = get_status(apt_success)
+enum AppState {
+	Login,
+	Processing,
+	Finished,
+}
 
-  # Flatpak Update
-  display_header("Flatpak Update")
-  flatpak_success, _ = run_command("flatpak update -y")
-  flatpak_status = get_status(flatpak_success)
+enum AppEvent {
+	LogLine(String),
+	TaskStatusChange(usize, TaskStatus),
+	AllTasksFinished,
+	Error(String),
+}
 
-  # Snap Update
-  display_header("Snap Update")
-  snap_success, _ = run_command("sudo snap refresh")
-  snap_status = get_status(snap_success)
+struct App {
+	state: AppState,
+	password_input: String,
+	password_error: Option<String>,
+	tasks: Vec<Task>,
+	current_task_idx: usize,
 
-  # Brew Installation/Check and Update
-  display_header("Brew Installation/Check")
-  brew_installed = Process.run("command -v brew", shell: true).success?
-  install_success = false
-  if !brew_installed
-    install_cmds = [
-      "NONINTERACTIVE=1 /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"",
-      "echo 'eval \"$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"' >> ~/.zshrc",
-      "eval \"$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\""
-    ]
-    install_success = true
-    install_cmds.each do |cmd|
-      success, _ = run_command(cmd)
-      install_success &&= success
-    end
-    if install_success
-      puts "#{GREEN}Brew installed successfully.#{RESET}"
-    else
-      puts "#{RED}Failed to install Brew.#{RESET}"
-    end
-  else
-    puts "#{GREEN}Brew is already installed.#{RESET}"
-  end
+	// Logi i przewijanie
+	logs: Vec<String>,
+	log_scroll_offset: u16,
+	auto_scroll: bool,
 
-  brew_status = get_status(false) # Default to failed
-  if brew_installed || install_success
-    display_header("Brew Update")
-    brew_success = true
-    ["brew update", "brew upgrade", "brew cleanup"].each do |cmd|
-      success, _ = run_command(cmd)
-      brew_success &&= success
-    end
-    brew_status = get_status(brew_success)
-  end
+	rx: mpsc::Receiver<AppEvent>,
+	is_working: Arc<AtomicBool>,
+}
 
-  # Firmware Update
-  display_header("Firmware Update")
-  fw_success, _ = run_command("sudo fwupdmgr update")
-  fw_status = get_status(fw_success)
+// --- MAIN ---
 
-  # Oh My Zsh Update
-  display_header("Oh My Zsh Update")
-  omz_success, _ = run_command("omz update")
-  omz_status = get_status(omz_success)
+#[tokio::main]
+async fn main() -> Result<()> {
+	// Setup Terminal
+	enable_raw_mode()?;
+	let mut stdout = io::stdout();
+	execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+	let backend = CrosstermBackend::new(stdout);
+	let mut terminal = Terminal::new(backend)?;
 
-  # Distrobox Update
-  display_header("Distrobox Update")
-  distrobox_success, _ = run_command("distrobox-upgrade --all")
-  distrobox_status = get_status(distrobox_success)
+	// Create Channel for async communication
+	let (tx, rx) = mpsc::channel(100);
 
-  # HackerOS Update
-  display_header("HackerOS Update")
-  hacker_success, _ = run_command(HACKEROS_UPDATE_SCRIPT)
-  hacker_status = get_status(hacker_success)
+	// Initial App State
+	let mut app = App::new(rx);
 
-  # Wallpapers Update
-  display_header("Wallpaper Updates")
-  wall_success, _ = run_command(WALLPAPERS_UPDATE_SCRIPT)
-  wall_status = get_status(wall_success)
+	// Run App Loop
+	let res = run_app(&mut terminal, &mut app, tx).await;
 
-  {apt_status, flatpak_status, snap_status, brew_status, fw_status, omz_status, distrobox_status, hacker_status, wall_status}
-end
+	// Restore Terminal
+	disable_raw_mode()?;
+	execute!(
+		terminal.backend_mut(),
+			 LeaveAlternateScreen,
+			 DisableMouseCapture
+	)?;
+	terminal.show_cursor()?;
 
-def show_summary(apt_status, flatpak_status, snap_status, brew_status, fw_status, omz_status, distrobox_status, hacker_status, wall_status)
-  puts "\nSystem Updates - #{apt_status}"
-  puts "Flatpak Updates - #{flatpak_status}"
-  puts "Snap Updates - #{snap_status}"
-  puts "Brew Updates - #{brew_status}"
-  puts "Firmware Updates - #{fw_status}"
-  puts "Oh My Zsh Updates - #{omz_status}"
-  puts "Distrobox Updates - #{distrobox_status}"
-  puts "HackerOS Updates - #{hacker_status}"
-  puts "Wallpaper Updates - #{wall_status}"
-end
+	if let Err(err) = res {
+		println!("Application Error: {:?}", err);
+	}
 
-def enable_automatic_updates
-  # Create a script that waits for internet and runs the updater
-  auto_script = <<-SCRIPT
-  #!/bin/bash
-  while ! ping -c 1 google.com &> /dev/null; do
-    sleep 5
-  done
-  #{BIN_PATH}
-  SCRIPT
-  File.write(AUTO_SCRIPT_PATH, auto_script)
-  File.chmod(AUTO_SCRIPT_PATH, 0o755)
+	Ok(())
+}
 
-  # Add to crontab
-  current_crontab = `crontab -l`
-  unless current_crontab.includes?("@reboot #{AUTO_SCRIPT_PATH}")
-    new_crontab = current_crontab + "\n@reboot #{AUTO_SCRIPT_PATH}\n"
-    File.write("/tmp/crontab.txt", new_crontab)
-    run_command("crontab /tmp/crontab.txt")
-    File.delete("/tmp/crontab.txt")
-  end
-  puts "#{GREEN}Automatic updates enabled.#{RESET}"
-end
+impl App {
+	fn new(rx: mpsc::Receiver<AppEvent>) -> Self {
+		Self {
+			state: AppState::Login,
+			password_input: String::new(),
+			password_error: None,
+			tasks: vec![
+				Task {
+					name: "System Update (APT)".to_string(),
+					// Zaktualizowana komenda z autoremove
+					command: "apt update && apt upgrade -y && apt autoremove -y".to_string(),
+					is_sudo: true,
+					status: TaskStatus::Pending,
+				},
+				Task {
+					name: "Flatpak Update".to_string(),
+					command: "flatpak update -y".to_string(),
+					is_sudo: false,
+					status: TaskStatus::Pending,
+				},
+				Task {
+					name: "Snap Updates".to_string(),
+					command: "snap refresh".to_string(),
+					is_sudo: true,
+					status: TaskStatus::Pending,
+				},
+				Task {
+					name: "Firmware Update".to_string(),
+					command: "fwupdmgr update".to_string(),
+					is_sudo: true,
+					status: TaskStatus::Pending,
+				},
+				Task {
+					name: "Zsh Update".to_string(),
+					command: "omz update".to_string(),
+					is_sudo: false,
+					status: TaskStatus::Pending,
+				},
+				Task {
+					name: "Distrobox".to_string(),
+					command: "distrobox-upgrade --all".to_string(),
+					is_sudo: false,
+					status: TaskStatus::Pending,
+				},
+				Task {
+					name: "HackerOS Update".to_string(),
+					command: HACKEROS_UPDATE_SCRIPT.to_string(),
+					is_sudo: false,
+					status: TaskStatus::Pending,
+				},
+				Task {
+					name: "Wallpapers Updates".to_string(),
+					command: WALLPAPERS_UPDATE_SCRIPT.to_string(),
+					is_sudo: false,
+					status: TaskStatus::Pending,
+				},
+			],
+			current_task_idx: 0,
+			logs: Vec::new(),
+			log_scroll_offset: 0,
+			auto_scroll: true,
+			rx,
+			is_working: Arc::new(AtomicBool::new(false)),
+		}
+	}
 
-def disable_automatic_updates
-  # Remove from crontab
-  current_crontab = `crontab -l`
-  new_crontab = current_crontab.lines.reject { |line| line.includes?("@reboot #{AUTO_SCRIPT_PATH}") }.join("\n")
-  File.write("/tmp/crontab.txt", new_crontab)
-  run_command("crontab /tmp/crontab.txt")
-  File.delete("/tmp/crontab.txt")
+	fn try_login(&mut self, tx: mpsc::Sender<AppEvent>) {
+		let password = self.password_input.clone();
 
-  # Remove script if exists
-  File.delete(AUTO_SCRIPT_PATH) if File.exists?(AUTO_SCRIPT_PATH)
-  puts "#{GREEN}Automatic updates disabled.#{RESET}"
-end
+		let output = Command::new("sudo")
+		.arg("-S")
+		.arg("-v")
+		.stdin(Stdio::piped())
+		.stderr(Stdio::piped())
+		.stdout(Stdio::null())
+		.spawn();
 
-def show_gui_menu
-  loop do
-    puts "\n#{YELLOW}=== HackerOS Updater Menu ===#{RESET}"
-    puts "#{GREEN}[Q]uit#{RESET} #{CYAN}- Close this terminal#{RESET}"
-    puts "#{GREEN}[R]eboot#{RESET} #{CYAN}- Reboot the system#{RESET}"
-    puts "#{GREEN}[S]hutdown#{RESET} #{CYAN}- Shutdown the system#{RESET}"
-    puts "#{GREEN}[L]og out#{RESET} #{CYAN}- Log out from current session#{RESET}"
-    puts "#{GREEN}[T]erminal#{RESET} #{CYAN}- Open a new Alacritty terminal#{RESET}"
-    puts "#{GREEN}[A]utomatic Updates#{RESET} #{CYAN}- Enable automatic updates on boot#{RESET}"
-    puts "#{GREEN}[D]isable Automatic Updates#{RESET} #{CYAN}- Disable automatic updates on boot#{RESET}" # Added disable option
-    print "#{MAGENTA}Enter your choice: #{RESET}"
-    choice = ""
-    STDIN.raw do |io|
-      byte = io.read_byte
-      if byte
-        choice = byte.chr.to_s.upcase
-        puts choice # Echo the choice
-      end
-    end
-    case choice
-    when "Q"
-      exit(0)
-    when "R"
-      run_command("sudo reboot")
-    when "S"
-      run_command("sudo shutdown -h now")
-    when "L"
-      # For KDE
-      run_command("qdbus org.kde.ksmserver /KSMServer logout 0 0 0")
-    when "T"
-      Process.new("alacritty", input: Process::Redirect::Close, output: Process::Redirect::Close, error: Process::Redirect::Close)
-    when "A"
-      enable_automatic_updates
-    when "D"
-      disable_automatic_updates
-    else
-      puts "#{RED}Invalid choice. Try again.#{RESET}"
-    end
-  end
-end
+		match output {
+			Ok(mut child) => {
+				if let Some(mut stdin) = child.stdin.take() {
+					use std::io::Write;
+					let _ = stdin.write_all(format!("{}\n", password).as_bytes());
+				}
+				match child.wait() {
+					Ok(status) if status.success() => {
+						self.state = AppState::Processing;
+						self.password_error = None;
+						self.start_updates(tx, password);
+					}
+					_ => {
+						self.password_input.clear();
+						self.password_error = Some("Incorrect password.".to_string());
+					}
+				}
+			}
+			Err(e) => {
+				self.password_error = Some(format!("System error: {}", e));
+			}
+		}
+	}
 
-def main
-  with_gui = false
-  gui_mode = false
-  OptionParser.parse do |parser|
-    parser.banner = "Usage: HackerOS-Updater [options]"
-    parser.on("--with-gui", "Run in GUI mode with Alacritty") { with_gui = true }
-    parser.on("--gui-mode", "Internal GUI mode") { gui_mode = true }
-  end
+	fn start_updates(&mut self, tx: mpsc::Sender<AppEvent>, password: String) {
+		let tasks = self.tasks.clone();
+		self.is_working.store(true, Ordering::SeqCst);
 
-  if with_gui
-    # Launch in Alacritty with gui-mode
-    Process.new("alacritty", args: ["-e", BIN_PATH, "--gui-mode"], input: Process::Redirect::Close, output: Process::Redirect::Close, error: Process::Redirect::Close)
-    return
-  end
+		tokio::spawn(async move {
+			for (idx, task) in tasks.iter().enumerate() {
+				let _ = tx.send(AppEvent::TaskStatusChange(idx, TaskStatus::Running)).await;
+				let _ = tx.send(AppEvent::LogLine(format!(">>> STARTED: {}", task.name))).await;
 
-  apt_status, flatpak_status, snap_status, brew_status, fw_status, omz_status, distrobox_status, hacker_status, wall_status = perform_updates
-  show_summary(apt_status, flatpak_status, snap_status, brew_status, fw_status, omz_status, distrobox_status, hacker_status, wall_status)
+				let mut cmd_builder = if task.is_sudo {
+					let mut c = Command::new("sudo");
+					c.arg("-S");
+					c.arg("bash").arg("-c").arg(&task.command);
+					c
+				} else {
+					let mut c = Command::new("bash");
+					c.arg("-c").arg(&task.command);
+					c
+				};
 
-  if gui_mode
-    show_gui_menu
-  end
-end
+				cmd_builder.stdout(Stdio::piped());
+				cmd_builder.stderr(Stdio::piped());
+				cmd_builder.stdin(Stdio::piped());
 
-main
+				match cmd_builder.spawn() {
+					Ok(mut child) => {
+						if task.is_sudo {
+							if let Some(mut stdin) = child.stdin.take() {
+								use std::io::Write;
+								let _ = stdin.write_all(format!("{}\n", password).as_bytes());
+							}
+						}
+
+						let stdout = child.stdout.take().expect("Failed to open stdout");
+						let stderr = child.stderr.take().expect("Failed to open stderr");
+						let tx_clone = tx.clone();
+						let tx_clone_err = tx.clone();
+
+						let h1 = tokio::task::spawn_blocking(move || {
+							let reader = BufReader::new(stdout);
+							for line in reader.lines() {
+								if let Ok(l) = line {
+									let _ = tx_clone.blocking_send(AppEvent::LogLine(l));
+								}
+							}
+						});
+
+						let h2 = tokio::task::spawn_blocking(move || {
+							let reader = BufReader::new(stderr);
+							for line in reader.lines() {
+								if let Ok(l) = line {
+									if !l.contains("[sudo] password") {
+										let _ = tx_clone_err.blocking_send(AppEvent::LogLine(format!("STDERR: {}", l)));
+									}
+								}
+							}
+						});
+
+						let status = child.wait();
+						let _ = h1.await;
+						let _ = h2.await;
+
+						match status {
+							Ok(s) if s.success() => {
+								let _ = tx.send(AppEvent::TaskStatusChange(idx, TaskStatus::Success)).await;
+							}
+							_ => {
+								let _ = tx.send(AppEvent::TaskStatusChange(idx, TaskStatus::Failed)).await;
+							}
+						}
+					}
+					Err(e) => {
+						let _ = tx.send(AppEvent::LogLine(format!("EXEC ERROR: {}", e))).await;
+						let _ = tx.send(AppEvent::TaskStatusChange(idx, TaskStatus::Failed)).await;
+					}
+				}
+				let _ = tx.send(AppEvent::LogLine(format!(">>> FINISHED: {}\n", task.name))).await;
+			}
+			let _ = tx.send(AppEvent::AllTasksFinished).await;
+		});
+	}
+}
+
+async fn run_app<B: ratatui::backend::Backend>(
+	terminal: &mut Terminal<B>,
+	app: &mut App,
+	tx: mpsc::Sender<AppEvent>,
+) -> Result<()> {
+	loop {
+		terminal.draw(|f| ui(f, app))?;
+
+		// 1. Async Events
+		while let Ok(event) = app.rx.try_recv() {
+			match event {
+				AppEvent::LogLine(line) => {
+					app.logs.push(line);
+					if app.auto_scroll {
+						app.log_scroll_offset = 0;
+					}
+				}
+				AppEvent::TaskStatusChange(idx, status) => {
+					if idx < app.tasks.len() {
+						app.tasks[idx].status = status;
+						app.current_task_idx = idx;
+					}
+				}
+				AppEvent::AllTasksFinished => {
+					app.state = AppState::Finished;
+					app.is_working.store(false, Ordering::SeqCst);
+					app.logs.push("----------------------------------------".to_string());
+					app.logs.push(" All tasks completed successfully.".to_string());
+					app.logs.push("----------------------------------------".to_string());
+				}
+				AppEvent::Error(e) => {
+					app.logs.push(format!("APP ERROR: {}", e));
+				}
+			}
+		}
+
+		// 2. Input
+		if crossterm::event::poll(Duration::from_millis(50))? {
+			if let Event::Key(key) = event::read()? {
+				if key.kind != KeyEventKind::Press {
+					continue;
+				}
+				if key.code == KeyCode::F(10) { return Ok(()); }
+
+				match app.state {
+					AppState::Login => match key.code {
+						KeyCode::Esc => return Ok(()),
+						KeyCode::Enter => {
+							if !app.password_input.is_empty() {
+								app.try_login(tx.clone());
+							}
+						}
+						KeyCode::Backspace => { app.password_input.pop(); }
+						KeyCode::Char(c) => { app.password_input.push(c); }
+						_ => {}
+					},
+					AppState::Processing | AppState::Finished => {
+						match key.code {
+							KeyCode::Up => {
+								app.auto_scroll = false;
+								app.log_scroll_offset = app.log_scroll_offset.saturating_add(1);
+							}
+							KeyCode::Down => {
+								app.log_scroll_offset = app.log_scroll_offset.saturating_sub(1);
+								if app.log_scroll_offset == 0 { app.auto_scroll = true; }
+							}
+							KeyCode::Home => {
+								app.auto_scroll = false;
+								app.log_scroll_offset = u16::MAX;
+							}
+							KeyCode::End => {
+								app.auto_scroll = true;
+								app.log_scroll_offset = 0;
+							}
+							KeyCode::Esc | KeyCode::Char('q') => {
+								if let AppState::Finished = app.state { return Ok(()); }
+								return Ok(());
+							}
+							KeyCode::Char('r') if matches!(app.state, AppState::Finished) => {
+								let _ = Command::new("sudo").args(["-S", "reboot"]).spawn();
+								return Ok(());
+							}
+							KeyCode::Char('s') if matches!(app.state, AppState::Finished) => {
+								let _ = Command::new("sudo").args(["-S", "shutdown", "-h", "now"]).spawn();
+								return Ok(());
+							}
+							_ => {}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// --- UI RENDERING ---
+
+fn ui(f: &mut Frame, app: &App) {
+	let size = f.size();
+
+	let bg_block = Block::default().style(Style::default().bg(COLOR_BG));
+	f.render_widget(bg_block, size);
+
+	let vertical = Layout::default()
+	.direction(Direction::Vertical)
+	.constraints([
+		Constraint::Length(3),
+				 Constraint::Min(10),
+				 Constraint::Length(3),
+	])
+	.margin(1)
+	.split(size);
+
+	render_header(f, vertical[0]);
+	render_footer(f, vertical[2], app);
+
+	match app.state {
+		AppState::Login => render_login(f, vertical[1], app),
+		AppState::Processing | AppState::Finished => render_dashboard(f, vertical[1], app),
+	}
+}
+
+fn render_header(f: &mut Frame, area: Rect) {
+	let title = Paragraph::new("HACKER OS UPDATER")
+	.style(Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD))
+	.alignment(Alignment::Center)
+	.block(
+		Block::default()
+		.borders(Borders::BOTTOM)
+		.border_style(Style::default().fg(COLOR_TEXT_DIM))
+	);
+	f.render_widget(title, area);
+}
+
+fn render_login(f: &mut Frame, area: Rect, app: &App) {
+	let popup_area = centered_rect(50, 30, area);
+
+	// Czyszczenie tła pod popupem
+	f.render_widget(Clear, popup_area);
+
+	let block = Block::default()
+	.borders(Borders::ALL)
+	.border_type(BorderType::Thick) // Grubsza ramka dla elegancji
+	.title(" 🔒 Security Verification ")
+	.title_alignment(Alignment::Center)
+	.style(Style::default().fg(COLOR_ACCENT));
+
+	f.render_widget(block, popup_area);
+
+	let inner_layout = Layout::default()
+	.direction(Direction::Vertical)
+	.constraints([
+		Constraint::Length(4), // Text
+				 Constraint::Length(3), // Input
+				 Constraint::Min(1),    // Error
+	])
+	.margin(2)
+	.split(popup_area);
+
+	let text = Paragraph::new("Root privileges are required to perform system updates.\nPlease enter your sudo password below.")
+	.style(Style::default().fg(COLOR_TEXT_MAIN))
+	.alignment(Alignment::Center)
+	.wrap(Wrap { trim: true });
+
+	f.render_widget(text, inner_layout[0]);
+
+	let masked_pass: String = app.password_input.chars().map(|_| '•').collect();
+	let input = Paragraph::new(masked_pass)
+	.style(Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD))
+	.block(
+		Block::default()
+		.borders(Borders::ALL)
+		.border_type(BorderType::Rounded)
+		.border_style(Style::default().fg(if app.password_error.is_some() { COLOR_ERROR } else { COLOR_TEXT_DIM }))
+	)
+	.alignment(Alignment::Center);
+
+	f.render_widget(input, inner_layout[1]);
+
+	if let Some(err) = &app.password_error {
+		let err_text = Paragraph::new(format!("⚠ {}", err))
+		.style(Style::default().fg(COLOR_ERROR))
+		.alignment(Alignment::Center);
+		f.render_widget(err_text, inner_layout[2]);
+	}
+}
+
+fn render_dashboard(f: &mut Frame, area: Rect, app: &App) {
+	let layout = Layout::default()
+	.direction(Direction::Vertical)
+	.constraints([
+		Constraint::Length(3), // Progress
+				 Constraint::Min(10),   // Content
+	])
+	.split(area);
+
+	// 1. Progress Gauge
+	let completed_count = app.tasks.iter().filter(|t| t.status == TaskStatus::Success).count();
+	let total_count = app.tasks.len();
+	let percent = if total_count > 0 {
+		((completed_count as f64 / total_count as f64) * 100.0) as u16
+	} else {
+		0
+	};
+
+	let gauge = Gauge::default()
+	.block(Block::default()
+	.borders(Borders::ALL)
+	.border_type(BorderType::Rounded)
+	.title(" Total Progress ")
+	.border_style(Style::default().fg(COLOR_TEXT_DIM)))
+	.gauge_style(Style::default().fg(COLOR_ACCENT).bg(Color::Black))
+	.percent(percent);
+	f.render_widget(gauge, layout[0]);
+
+	// 2. Content
+	let content_split = Layout::default()
+	.direction(Direction::Horizontal)
+	.constraints([
+		Constraint::Percentage(40), // Task List
+				 Constraint::Percentage(60), // Logs
+	])
+	.split(layout[1]);
+
+	// Left: Tasks
+	let tasks: Vec<ListItem> = app.tasks.iter().map(|t| {
+		// Ikony i style
+		let (icon, color, style) = match t.status {
+			TaskStatus::Pending => ("○", COLOR_TEXT_DIM, Style::default()),
+													TaskStatus::Running => ("▶", COLOR_ACCENT, Style::default().add_modifier(Modifier::BOLD)),
+													TaskStatus::Success => ("✅", COLOR_SUCCESS, Style::default()), // Nowa ikona
+													TaskStatus::Failed => ("✖", COLOR_ERROR, Style::default()),
+		};
+
+		// Formatowanie tekstu
+		ListItem::new(Line::from(vec![
+			Span::styled(format!(" {} ", icon), Style::default().fg(color)),
+								 Span::styled(t.name.clone(), style.fg(COLOR_TEXT_MAIN)),
+		]))
+	}).collect();
+
+	let task_list = List::new(tasks)
+	.block(
+		Block::default()
+		.borders(Borders::ALL)
+		.border_type(BorderType::Rounded)
+		.title(" Update Tasks ")
+		.border_style(Style::default().fg(COLOR_ACCENT))
+	);
+	f.render_widget(task_list, content_split[0]);
+
+	// Right: Logs
+	let log_height = content_split[1].height.saturating_sub(2);
+	let total_logs = app.logs.len() as u16;
+
+	let scroll_pos = if app.auto_scroll {
+		if total_logs > log_height { total_logs - log_height } else { 0 }
+	} else {
+		if total_logs > log_height {
+			let max_scroll = total_logs - log_height;
+			max_scroll.saturating_sub(app.log_scroll_offset)
+		} else {
+			0
+		}
+	};
+
+	let log_text = app.logs.join("\n");
+	let logs_widget = Paragraph::new(log_text)
+	.wrap(Wrap { trim: false })
+	.style(Style::default().fg(COLOR_TEXT_MAIN))
+	.scroll((scroll_pos, 0))
+	.block(
+		Block::default()
+		.borders(Borders::ALL)
+		.border_type(BorderType::Rounded)
+		.title(" Execution Log ")
+		.border_style(Style::default().fg(COLOR_TEXT_DIM))
+	);
+	f.render_widget(logs_widget, content_split[1]);
+}
+
+fn render_footer(f: &mut Frame, area: Rect, app: &App) {
+	let msg = match app.state {
+		AppState::Login => "Enter: Login • Esc: Quit",
+		AppState::Processing => "Processing... • Up/Down: Scroll Logs",
+		AppState::Finished => "Done • R: Reboot • S: Shutdown • Q: Quit",
+	};
+
+	let footer = Paragraph::new(msg)
+	.style(Style::default().fg(COLOR_TEXT_DIM))
+	.alignment(Alignment::Center);
+	f.render_widget(footer, area);
+}
+
+// Utility
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+	let popup_layout = Layout::default()
+	.direction(Direction::Vertical)
+	.constraints([
+		Constraint::Percentage((100 - percent_y) / 2),
+				 Constraint::Percentage(percent_y),
+				 Constraint::Percentage((100 - percent_y) / 2),
+	])
+	.split(r);
+
+	Layout::default()
+	.direction(Direction::Horizontal)
+	.constraints([
+		Constraint::Percentage((100 - percent_x) / 2),
+				 Constraint::Percentage(percent_x),
+				 Constraint::Percentage((100 - percent_x) / 2),
+	])
+	.split(popup_layout[1])[1]
+}
