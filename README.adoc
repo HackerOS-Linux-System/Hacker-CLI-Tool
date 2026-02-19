@@ -5,7 +5,7 @@
 :sectanchors:
 == O narzędziu
 To narzędzie jest idealne dla użytkowników, którzy chcą szybkiego dostępu do instalacji emulatorów, kontenerów cyberbezpieczeństwa (poprzez Distrobox i BlackArch), launcherów gier (Steam, Lutris itp.) i więcej. Posiada interaktywne TUIs (interfejsy użytkownika tekstowe) do pomocy, dokumentacji i wyboru pakietów.
-image::https://img.shields.io/badge/Version-2.1.0-blue.svg[Wersja]
+image::https://img.shields.io/badge/Version-2.3.0-blue.svg[Wersja]
 image::https://img.shields.io/badge/License-MIT-green.svg[Licencja]
 == Funkcje
 - **Zarządzanie pakietami**: Instaluj/usuń pakiety za pomocą APT, Flatpak i niestandardowych komend unpack dla zestawów narzędzi.
