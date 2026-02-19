@@ -129,7 +129,6 @@ impl App {
 			tasks: vec![
 				Task {
 					name: "System Update (APT)".to_string(),
-					// Zaktualizowana komenda z autoremove
 					command: "apt update && apt upgrade -y && apt autoremove -y".to_string(),
 					is_sudo: true,
 					status: TaskStatus::Pending,
@@ -144,6 +143,22 @@ impl App {
 					name: "Snap Updates".to_string(),
 					command: "snap refresh".to_string(),
 					is_sudo: true,
+					status: TaskStatus::Pending,
+				},
+				Task {
+					name: "Brew Updates".to_string(),
+					// Skrypt sprawdzający obecność brew, instalujący go w razie potrzeby i aktualizujący
+					command: r#"
+					if ! command -v brew &> /dev/null; then
+						echo "Brew not found. Installing...";
+					NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)";
+					(echo; echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"') >> ~/.zshrc;
+					eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)";
+					else
+						echo "Brew detected.";
+					fi && brew update && brew upgrade && brew cleanup
+					"#.to_string(),
+					is_sudo: false, // Brew nie powinien być uruchamiany jako root
 					status: TaskStatus::Pending,
 				},
 				Task {
@@ -446,8 +461,8 @@ fn render_login(f: &mut Frame, area: Rect, app: &App) {
 
 	let block = Block::default()
 	.borders(Borders::ALL)
-	.border_type(BorderType::Thick) // Grubsza ramka dla elegancji
-	.title(" 🔒 Security Verification ")
+	.border_type(BorderType::Thick)
+	.title(" [ Security Verification ] ") // Brak emotki
 	.title_alignment(Alignment::Center)
 	.style(Style::default().fg(COLOR_ACCENT));
 
@@ -470,7 +485,7 @@ fn render_login(f: &mut Frame, area: Rect, app: &App) {
 
 	f.render_widget(text, inner_layout[0]);
 
-	let masked_pass: String = app.password_input.chars().map(|_| '•').collect();
+	let masked_pass: String = app.password_input.chars().map(|_| '*').collect();
 	let input = Paragraph::new(masked_pass)
 	.style(Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD))
 	.block(
@@ -484,7 +499,8 @@ fn render_login(f: &mut Frame, area: Rect, app: &App) {
 	f.render_widget(input, inner_layout[1]);
 
 	if let Some(err) = &app.password_error {
-		let err_text = Paragraph::new(format!("⚠ {}", err))
+		// Brak emotki ostrzegawczej
+		let err_text = Paragraph::new(format!("Error: {}", err))
 		.style(Style::default().fg(COLOR_ERROR))
 		.alignment(Alignment::Center);
 		f.render_widget(err_text, inner_layout[2]);
@@ -530,15 +546,14 @@ fn render_dashboard(f: &mut Frame, area: Rect, app: &App) {
 
 	// Left: Tasks
 	let tasks: Vec<ListItem> = app.tasks.iter().map(|t| {
-		// Ikony i style
+		// Zastąpiono emotki tekstem
 		let (icon, color, style) = match t.status {
-			TaskStatus::Pending => ("○", COLOR_TEXT_DIM, Style::default()),
-													TaskStatus::Running => ("▶", COLOR_ACCENT, Style::default().add_modifier(Modifier::BOLD)),
-													TaskStatus::Success => ("✅", COLOR_SUCCESS, Style::default()), // Nowa ikona
-													TaskStatus::Failed => ("✖", COLOR_ERROR, Style::default()),
+			TaskStatus::Pending => (" [..] ", COLOR_TEXT_DIM, Style::default()),
+													TaskStatus::Running => (" [>>] ", COLOR_ACCENT, Style::default().add_modifier(Modifier::BOLD)),
+													TaskStatus::Success => (" [OK] ", COLOR_SUCCESS, Style::default()),
+													TaskStatus::Failed => (" [!!] ", COLOR_ERROR, Style::default()),
 		};
 
-		// Formatowanie tekstu
 		ListItem::new(Line::from(vec![
 			Span::styled(format!(" {} ", icon), Style::default().fg(color)),
 								 Span::styled(t.name.clone(), style.fg(COLOR_TEXT_MAIN)),
@@ -587,9 +602,9 @@ fn render_dashboard(f: &mut Frame, area: Rect, app: &App) {
 
 fn render_footer(f: &mut Frame, area: Rect, app: &App) {
 	let msg = match app.state {
-		AppState::Login => "Enter: Login • Esc: Quit",
-		AppState::Processing => "Processing... • Up/Down: Scroll Logs",
-		AppState::Finished => "Done • R: Reboot • S: Shutdown • Q: Quit",
+		AppState::Login => "Enter: Login / Esc: Quit",
+		AppState::Processing => "Processing... / Up-Down: Scroll Logs",
+		AppState::Finished => "Done / R: Reboot / S: Shutdown / Q: Quit",
 	};
 
 	let footer = Paragraph::new(msg)
