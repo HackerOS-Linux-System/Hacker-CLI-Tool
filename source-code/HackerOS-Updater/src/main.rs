@@ -13,6 +13,7 @@ use ratatui::{
 	Frame, Terminal,
 };
 use std::{
+	env,
 	io::{self, BufRead, BufReader},
 	process::{Command, Stdio},
 	sync::{
@@ -31,11 +32,11 @@ const WALLPAPERS_UPDATE_SCRIPT: &str = "/usr/share/HackerOS/Scripts/Bin/update-w
 // Paleta kolorów "Cyberpunk / Modern Purple"
 const COLOR_BG: Color = Color::Reset;
 const COLOR_ACCENT: Color = Color::Magenta; // Fioletowy akcent
+const COLOR_FOCUS: Color = Color::Yellow;   // Kolor aktywnego pola (input)
 const COLOR_TEXT_MAIN: Color = Color::White;
 const COLOR_TEXT_DIM: Color = Color::DarkGray;
 const COLOR_SUCCESS: Color = Color::Green;
 const COLOR_ERROR: Color = Color::Red;
-const COLOR_WARNING: Color = Color::Yellow;
 
 // --- DATA STRUCTURES ---
 
@@ -88,7 +89,23 @@ struct App {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-	// Setup Terminal
+	// 1. Argument Parsing: Check for --with-gui
+	let args: Vec<String> = env::args().collect();
+	if args.contains(&"--with-gui".to_string()) {
+		// Get absolute path to the current executable
+		if let Ok(current_exe) = env::current_exe() {
+			// Spawn Alacritty running this binary (without the flag to avoid loop)
+			Command::new("alacritty")
+			.arg("-e")
+			.arg(current_exe)
+			.spawn()
+			.expect("Failed to launch alacritty");
+			// Exit the parent process immediately
+			return Ok(());
+		}
+	}
+
+	// 2. Standard TUI Startup
 	enable_raw_mode()?;
 	let mut stdout = io::stdout();
 	execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -147,7 +164,6 @@ impl App {
 				},
 				Task {
 					name: "Brew Updates".to_string(),
-					// Skrypt sprawdzający obecność brew, instalujący go w razie potrzeby i aktualizujący
 					command: r#"
 					if ! command -v brew &> /dev/null; then
 						echo "Brew not found. Installing...";
@@ -158,7 +174,7 @@ impl App {
 						echo "Brew detected.";
 					fi && brew update && brew upgrade && brew cleanup
 					"#.to_string(),
-					is_sudo: false, // Brew nie powinien być uruchamiany jako root
+					is_sudo: false,
 					status: TaskStatus::Pending,
 				},
 				Task {
@@ -327,7 +343,6 @@ async fn run_app<B: ratatui::backend::Backend>(
 	loop {
 		terminal.draw(|f| ui(f, app))?;
 
-		// 1. Async Events
 		while let Ok(event) = app.rx.try_recv() {
 			match event {
 				AppEvent::LogLine(line) => {
@@ -355,7 +370,6 @@ async fn run_app<B: ratatui::backend::Backend>(
 			}
 		}
 
-		// 2. Input
 		if crossterm::event::poll(Duration::from_millis(50))? {
 			if let Event::Key(key) = event::read()? {
 				if key.kind != KeyEventKind::Press {
@@ -442,7 +456,7 @@ fn ui(f: &mut Frame, app: &App) {
 }
 
 fn render_header(f: &mut Frame, area: Rect) {
-	let title = Paragraph::new("HACKER OS UPDATER")
+	let title = Paragraph::new("HackerOS Updater")
 	.style(Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD))
 	.alignment(Alignment::Center)
 	.block(
@@ -454,15 +468,16 @@ fn render_header(f: &mut Frame, area: Rect) {
 }
 
 fn render_login(f: &mut Frame, area: Rect, app: &App) {
-	let popup_area = centered_rect(50, 30, area);
-
-	// Czyszczenie tła pod popupem
+	// FIX: Zwiększono obszar popupu, aby upewnić się, że elementy inputu
+	// są widoczne nawet na mniejszych terminalach. (45% wysokości)
+	let popup_area = centered_rect(60, 45, area);
 	f.render_widget(Clear, popup_area);
 
+	// Główna ramka
 	let block = Block::default()
 	.borders(Borders::ALL)
 	.border_type(BorderType::Thick)
-	.title(" [ Security Verification ] ") // Brak emotki
+	.title(" [ Security Verification ] ")
 	.title_alignment(Alignment::Center)
 	.style(Style::default().fg(COLOR_ACCENT));
 
@@ -472,34 +487,38 @@ fn render_login(f: &mut Frame, area: Rect, app: &App) {
 	.direction(Direction::Vertical)
 	.constraints([
 		Constraint::Length(4), // Text
-				 Constraint::Length(3), // Input
-				 Constraint::Min(1),    // Error
+				 Constraint::Length(3), // Input box
+				 Constraint::Min(1),    // Error space
 	])
 	.margin(2)
 	.split(popup_area);
 
+	// Opis
 	let text = Paragraph::new("Root privileges are required to perform system updates.\nPlease enter your sudo password below.")
 	.style(Style::default().fg(COLOR_TEXT_MAIN))
 	.alignment(Alignment::Center)
 	.wrap(Wrap { trim: true });
-
 	f.render_widget(text, inner_layout[0]);
 
-	let masked_pass: String = app.password_input.chars().map(|_| '*').collect();
-	let input = Paragraph::new(masked_pass)
-	.style(Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD))
-	.block(
-		Block::default()
-		.borders(Borders::ALL)
-		.border_type(BorderType::Rounded)
-		.border_style(Style::default().fg(if app.password_error.is_some() { COLOR_ERROR } else { COLOR_TEXT_DIM }))
-	)
-	.alignment(Alignment::Center);
+	// Input Box (Poprawa widoczności)
+	// Generowanie gwiazdek
+	let mut stars: String = app.password_input.chars().map(|_| '*').collect();
+	// Dodanie "kursora" aby użytkownik widział aktywność
+	stars.push('█');
+
+	// Używamy koloru FOCUS (żółty) dla ramki inputu, aby się wyróżniała
+	let input_block = Block::default()
+	.borders(Borders::ALL)
+	.border_type(BorderType::Rounded)
+	.border_style(Style::default().fg(COLOR_FOCUS));
+
+	let input = Paragraph::new(Span::styled(stars, Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)))
+	.alignment(Alignment::Center)
+	.block(input_block);
 
 	f.render_widget(input, inner_layout[1]);
 
 	if let Some(err) = &app.password_error {
-		// Brak emotki ostrzegawczej
 		let err_text = Paragraph::new(format!("Error: {}", err))
 		.style(Style::default().fg(COLOR_ERROR))
 		.alignment(Alignment::Center);
@@ -516,14 +535,20 @@ fn render_dashboard(f: &mut Frame, area: Rect, app: &App) {
 	])
 	.split(area);
 
-	// 1. Progress Gauge
-	let completed_count = app.tasks.iter().filter(|t| t.status == TaskStatus::Success).count();
+	// 1. Progress Gauge (Naprawa obliczeń + Etykieta)
+	// Zadanie zakończone to sukces LUB porażka (bo program idzie dalej)
+	let completed_count = app.tasks.iter().filter(|t|
+	t.status == TaskStatus::Success || t.status == TaskStatus::Failed
+	).count();
 	let total_count = app.tasks.len();
+
 	let percent = if total_count > 0 {
 		((completed_count as f64 / total_count as f64) * 100.0) as u16
 	} else {
 		0
 	};
+
+	let label = format!(" Progress: {}/{} ({}%) ", completed_count, total_count, percent);
 
 	let gauge = Gauge::default()
 	.block(Block::default()
@@ -532,7 +557,9 @@ fn render_dashboard(f: &mut Frame, area: Rect, app: &App) {
 	.title(" Total Progress ")
 	.border_style(Style::default().fg(COLOR_TEXT_DIM)))
 	.gauge_style(Style::default().fg(COLOR_ACCENT).bg(Color::Black))
-	.percent(percent);
+	.percent(percent)
+	.label(label);
+
 	f.render_widget(gauge, layout[0]);
 
 	// 2. Content
@@ -546,7 +573,6 @@ fn render_dashboard(f: &mut Frame, area: Rect, app: &App) {
 
 	// Left: Tasks
 	let tasks: Vec<ListItem> = app.tasks.iter().map(|t| {
-		// Zastąpiono emotki tekstem
 		let (icon, color, style) = match t.status {
 			TaskStatus::Pending => (" [..] ", COLOR_TEXT_DIM, Style::default()),
 													TaskStatus::Running => (" [>>] ", COLOR_ACCENT, Style::default().add_modifier(Modifier::BOLD)),
