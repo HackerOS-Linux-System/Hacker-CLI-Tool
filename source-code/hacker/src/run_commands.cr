@@ -14,7 +14,7 @@ def handle_run(args : Array(String))
   when "steam"
     safe_run("/usr/share/HackerOS/Scripts/Steam/HackerOS-Steam.sh")
   when "hacker-launcher"
-    safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker_Launcher")
+    safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker_Launcher.AppImage")
   when "hackeros-game-mode"
     safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Game-Mode.AppImage")
   when "update-hackeros"
@@ -30,7 +30,7 @@ def handle_run(args : Array(String))
   when "HackerDeck"
     safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerDeck")
   when "Hacker-Term"
-    safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker-Term")
+    safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker-Term.AppImage")
   when "build-hackeros"
     safe_run("sudo /usr/share/HackerOS/Archived/build-hackeros")
   else
