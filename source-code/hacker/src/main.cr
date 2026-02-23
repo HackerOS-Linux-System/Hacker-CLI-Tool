@@ -5,17 +5,14 @@ require "./run_commands"
 require "./game"
 require "json"
 require "path"
-
 module HackerPaths
   def self.custom_dir
     Path.home / ".config" / "hackeros" / "hacker" / "custom-commands"
   end
-
   def self.plugin_dir
     Path.home / ".config" / "hackeros" / "hacker" / "plugins"
   end
 end
-
 module Colors
   @@red = "\e[31m"
   @@yellow = "\e[33m"
@@ -48,7 +45,6 @@ module Colors
   def self.white; @@white; end
   def self.white=(value : String); @@white = value; end
 end
-
 def load_styles(file : String)
   if File.exists?(file)
     content = File.read(file)
@@ -76,7 +72,6 @@ def load_styles(file : String)
     end
   end
 end
-
 def load_lang : String
   config_dir = Path.home / ".config" / "hackeros" / "hacker"
   language_file = config_dir / "language.json"
@@ -91,12 +86,10 @@ def load_lang : String
     "pl"
   end
 end
-
 def save_language(file : String, lang : String)
   data = {"language" => lang}
   File.write(file, data.to_json)
 end
-
 def load_language(file : String) : String?
   if File.exists?(file)
     content = File.read(file)
@@ -106,7 +99,6 @@ def load_language(file : String) : String?
     nil
   end
 end
-
 def main
   lang = load_lang
   translations = get_translations_main
@@ -114,11 +106,9 @@ def main
   if !translations.has_key?(lang)
     lang = "pl"
   end
-
   trans = translations[lang]
   style_file = Path.home / ".config" / "hackeros" / "hacker" / "style.css"
   load_styles(style_file.to_s)
-
   if ARGV.empty? || ARGV[0] == "help"
     show_main_help(lang)
     exit(0)
@@ -286,7 +276,6 @@ def main
     end
   end
 end
-
 def get_translations_main : Hash(String, Hash(String, String))
   {
     "pl" => {
@@ -346,7 +335,7 @@ def get_translations_main : Hash(String, Hash(String, String))
       "logs_desc" => "Wyświetl logi systemowe",
       "unknown_system" => "Nieznana subkomenda system:",
       "unknown_update_flag" => "Nieznana flaga dla update:",
-      "available_flags" => "Dostępne flagi: --with-gui, --gui-mode, --better",
+      "available_flags" => "Dostępne flagi: --with-gui",
       "tools_index" => "Indeks narzędzi HackerOS:",
       "plugin_subcommands" => "Subkomendy plugin:",
       "list_desc" => "Lista wszystkich pluginów i ich statusu",
@@ -438,7 +427,7 @@ def get_translations_main : Hash(String, Hash(String, String))
       "logs_desc" => "Display system logs",
       "unknown_system" => "Unknown system subcommand:",
       "unknown_update_flag" => "Unknown flag for update:",
-      "available_flags" => "Available flags: --with-gui, --gui-mode, --better",
+      "available_flags" => "Available flags: --with-gui",
       "tools_index" => "HackerOS Tools Index:",
       "plugin_subcommands" => "Plugin subcommands:",
       "list_desc" => "List all plugins and their status",
@@ -530,7 +519,7 @@ def get_translations_main : Hash(String, Hash(String, String))
       "logs_desc" => "Systemprotokolle anzeigen",
       "unknown_system" => "Unbekannter System-Unterbefehl:",
       "unknown_update_flag" => "Unbekannte Flagge für Update:",
-      "available_flags" => "Verfügbare Flaggen: --with-gui, --gui-mode, --better",
+      "available_flags" => "Verfügbare Flaggen: --with-gui",
       "tools_index" => "HackerOS Tools Index:",
       "plugin_subcommands" => "Plugin-Unterbefehle:",
       "list_desc" => "Alle Plugins und ihren Status auflisten",
@@ -567,7 +556,6 @@ def get_translations_main : Hash(String, Hash(String, String))
     },
   }
 end
-
 def show_main_help(lang : String)
   trans = get_translations_main[lang]
   puts "#{Colors.bold}#{Colors.magenta}#{trans["tool_title"]}#{Colors.reset}"
@@ -582,7 +570,7 @@ def show_main_help(lang : String)
   puts " #{Colors.gray}flatpak-remove <pkg> #{Colors.reset}- #{trans["desc_flatpak_remove"]}"
   puts " #{Colors.gray}system #{Colors.reset}- #{trans["desc_system"]}"
   puts " #{Colors.gray}run #{Colors.reset}- #{trans["desc_run"]}"
-  puts " #{Colors.gray}update [ --with-gui | --gui-mode | --better ] #{Colors.reset}- #{trans["desc_update"]}"
+  puts " #{Colors.gray}update [ --with-gui ] #{Colors.reset}- #{trans["desc_update"]}"
   puts " #{Colors.gray}game #{Colors.reset}- #{trans["desc_game"]}"
   puts " #{Colors.gray}hacker-lang #{Colors.reset}- #{trans["desc_hacker_lang"]}"
   puts " #{Colors.gray}ascii #{Colors.reset}- #{trans["desc_ascii"]}"
@@ -599,7 +587,6 @@ def show_main_help(lang : String)
   puts " #{Colors.gray}issue #{Colors.reset}- #{trans["desc_issue"]}"
   puts " #{Colors.gray}repair #{Colors.reset}- #{trans["desc_repair"]}"
   puts " #{Colors.gray}settings #{Colors.reset}- #{trans["desc_settings"]}"
-
   # Custom commands section
   puts "#{Colors.bold}#{Colors.magenta}#{trans["custom_commands"]}#{Colors.reset}"
   Dir.glob((HackerPaths.custom_dir / "*.hacker").to_s).sort.each do |f|
@@ -612,7 +599,6 @@ def show_main_help(lang : String)
       puts " #{Colors.gray}#{name} #{Colors.reset}- #{trans["invalid_config"]}"
     end
   end
-
   # Plugin commands section
   puts "#{Colors.bold}#{Colors.magenta}#{trans["plugins_title"]}#{Colors.reset}"
   Dir.glob((HackerPaths.plugin_dir / "*.hacker").to_s).sort.each do |f|
@@ -631,7 +617,6 @@ def show_main_help(lang : String)
     end
   end
 end
-
 def handle_system(args : Array(String), lang : String)
   trans = get_translations_main[lang]
   if args.empty?
@@ -648,22 +633,17 @@ def handle_system(args : Array(String), lang : String)
     exit(1)
   end
 end
-
 def handle_update(args : Array(String), lang : String)
   trans = get_translations_main[lang]
   updater_path = "~/.hackeros/hacker/HackerOS-Updater"
-  better_updater_path = "~/.hackeros/hacker/HackerOS-Update-Better"
+  gui_updater_path = "~/.hackeros/hacker/update-system"
   if args.empty?
     safe_run(updater_path)
   else
     flag = args[0]
     case flag
     when "--with-gui"
-      safe_run("#{updater_path} --with-gui")
-    when "--gui-mode"
-      safe_run("#{updater_path} --gui-mode")
-    when "--better"
-      safe_run(better_updater_path)
+      safe_run(gui_updater_path)
     else
       puts "#{Colors.red}#{trans["unknown_update_flag"]} #{flag}#{Colors.reset}"
       puts trans["available_flags"]
@@ -671,7 +651,6 @@ def handle_update(args : Array(String), lang : String)
     end
   end
 end
-
 def show_hackeros_tools(lang : String)
   trans = get_translations_main[lang]
   puts "#{Colors.bold}#{Colors.magenta}#{trans["tools_index"]}#{Colors.reset}"
@@ -698,7 +677,6 @@ def show_hackeros_tools(lang : String)
   puts " * HackerOS Builder - specjalna nakładka dla live build"
   puts " * Blue Enviroment (BETA - niestabilne) - jezeli chcesz pomoc w rozwoju srodowiska graficznego HackerOS skontaktuj sie na gmail - <hackeros068@gmail.com> lub <https://github.com/orgs/HackerOS-Linux-System/discussions>"
 end
-
 def handle_plugin(args : Array(String), lang : String)
   trans = get_translations_main[lang]
   if args.empty?
@@ -763,7 +741,6 @@ def handle_plugin(args : Array(String), lang : String)
     exit(1)
   end
 end
-
 def show_plugin_help(lang : String)
   trans = get_translations_main[lang]
   puts "#{Colors.bold}#{Colors.magenta}#{trans["plugin_subcommands"]}#{Colors.reset}"
@@ -771,7 +748,6 @@ def show_plugin_help(lang : String)
   puts " #{Colors.gray}enable <name> #{Colors.reset}- #{trans["enable_desc"]}"
   puts " #{Colors.gray}disable <name> #{Colors.reset}- #{trans["disable_desc"]}"
 end
-
 def handle_enable(args : Array(String), lang : String)
   trans = get_translations_main[lang]
   if args.empty?
@@ -794,14 +770,12 @@ def handle_enable(args : Array(String), lang : String)
     exit(1)
   end
 end
-
 def show_enable_help(lang : String)
   trans = get_translations_main[lang]
   puts "#{Colors.bold}#{Colors.magenta}#{trans["enable_subcommands"]}#{Colors.reset}"
   puts " #{Colors.gray}motd #{Colors.reset}- #{trans["motd_desc"]}"
   puts " #{Colors.gray}special-motd #{Colors.reset}- #{trans["special_motd_desc"]}"
 end
-
 def handle_disable(args : Array(String), lang : String)
   trans = get_translations_main[lang]
   if args.empty?
@@ -819,14 +793,12 @@ def handle_disable(args : Array(String), lang : String)
     exit(1)
   end
 end
-
 def show_disable_help(lang : String)
   trans = get_translations_main[lang]
   puts "#{Colors.bold}#{Colors.magenta}#{trans["disable_subcommands"]}#{Colors.reset}"
   puts " #{Colors.gray}motd #{Colors.reset}- #{trans["motd_desc"]}"
   puts " #{Colors.gray}special-motd #{Colors.reset}- #{trans["special_motd_desc"]}"
 end
-
 def handle_settings(args : Array(String), lang : String)
   trans = get_translations_main[lang]
   config_dir = Path.home / ".config" / "hackeros" / "hacker"
@@ -859,11 +831,9 @@ def handle_settings(args : Array(String), lang : String)
     exit(1)
   end
 end
-
 def show_settings_help(supported_languages : Array(String), lang : String)
   trans = get_translations_main[lang]
   puts "#{Colors.bold}#{Colors.magenta}#{trans["settings_subcommands"]}#{Colors.reset}"
   puts " #{Colors.gray}language [ <lang> ] #{Colors.reset}- #{trans["language_desc"]}"
 end
-
 main
