@@ -1,440 +1,514 @@
-require "./helpers"
-require "json"
-require "random"
+package hackeros
 
-def load_lang : String
-  config_dir = Path.home / ".config" / "hackeros" / "hacker"
-  language_file = config_dir / "language.json"
-  if File.exists?(language_file)
-    begin
-      json = JSON.parse(File.read(language_file))
-      json["language"]?.try(&.as_s?) || "pl"
-    rescue
-      "pl"
-    end
-  else
-    "pl"
-  end
-end
+import "core:fmt"
+import "core:os"
+import "core:strings"
+import "core:math/rand"
+import "core:slice"
 
-def play_text_game
-  lang = load_lang
-  translations = get_translations_game
-  if lang != "pl" && lang != "en" && lang != "de"
-    lang = "en"
-  end
-  trans = translations[lang]
+get_game_translations :: proc(lang: string) -> map[string]string {
+	pl := make(map[string]string)
+	pl["welcome"] = "Witaj w HackerOS Text Adventure!"
+	pl["description"] = "Jesteś elitarnym hakerem w cyfrowej fortecy. Twoja misja: włam się do głównego komputera i wyodrębnij poufne dane."
+	pl["choose_mode"] = "Wybierz tryb gry:"
+	pl["easy_mode"] = "Easy Mode - Więcej podpowiedzi, mniej przeszkód."
+	pl["normal_mode"] = "Normal Mode - Zrównoważone wyzwanie."
+	pl["hard_mode"] = "Hard Mode - Ograniczone podpowiedzi, więcej pułapek."
+	pl["enter_mode"] = "Wpisz numer trybu (1-3):"
+	pl["invalid_mode"] = "Nieprawidłowy tryb. Domyślny: Normal."
+	pl["commands"] = "Komendy: north, south, east, west, take <item>, use <item>, inventory, hack, sabotage, help, hint, quit"
+	pl["puzzle"] = "Zagadka"
+	pl["items_here"] = "Przedmioty tutaj"
+	pl["firewall_block"] = "Firewall cię blokuje. Potrzebujesz karty kluczowej."
+	pl["core_locked"] = "Drzwi do rdzenia są zablokowane. Potrzebujesz hasła."
+	pl["trap_triggered"] = "Uruchomiłeś pułapkę! Gra skończona."
+	pl["cant_go"] = "Nie możesz iść w tym kierunku."
+	pl["took_item"] = "Wziąłeś"
+	pl["no_item"] = "Brak takiego przedmiotu tutaj."
+	pl["used_keycard"] = "Użyłeś karty kluczowej. Ścieżka na wschód otwarta."
+	pl["used_decryption"] = "Użyłeś narzędzia deszyfrującego."
+	pl["no_use"] = "Brak użycia dla tego tutaj."
+	pl["cant_use"] = "Nie możesz tego użyć."
+	pl["no_item_inventory"] = "Nie masz tego przedmiotu."
+	pl["inventory"] = "Inwentarz"
+	pl["empty"] = "pusty"
+	pl["hack_success"] = "Pomyślnie zhakowałeś komputer i wyodrębniłeś dane! Wygrywasz!"
+	pl["need_items_hack"] = "Potrzebujesz pendrive USB, hasła i narzędzia deszyfrującego."
+	pl["nothing_hack"] = "Nic do hakowania tutaj."
+	pl["sabotaged"] = "Sabotowałeś generator, wyłączając część ochrony."
+	pl["nothing_sabotage"] = "Nic do sabotowania tutaj."
+	pl["available_commands"] = "Dostępne komendy:"
+	pl["move_desc"] = " north/south/east/west - Przemieść się"
+	pl["take_desc"] = " take <item> - Podnieś przedmiot"
+	pl["use_desc"] = " use <item> - Użyj przedmiotu"
+	pl["inventory_desc"] = " inventory - Pokaż przedmioty"
+	pl["hack_desc"] = " hack - Hakuj terminal lub komputer"
+	pl["sabotage_desc"] = " sabotage - Sabotuj maszynę"
+	pl["hint_desc"] = " hint - Pobierz podpowiedź"
+	pl["quit_desc"] = " quit - Wyjdź z gry"
+	pl["hint"] = "Podpowiedź"
+	pl["hints_used"] = "Użyte podpowiedzi"
+	pl["no_more_hints"] = "Brak więcej podpowiedzi w tym trybie."
+	pl["unknown_command"] = "Nieznana komenda. Wpisz 'help'."
+	pl["hint_entrance"] = "Eksploruj wszystkie kierunki."
+	pl["hint_server_room"] = "Hasło może być w skarbcu danych."
+	pl["hint_firewall"] = "Znajdź kartę kluczową w biurze ochrony."
+	pl["hint_security"] = "Weź kartę kluczową."
+	pl["hint_data_vault"] = "Weź notatkę z hasłem."
+	pl["hint_core"] = "Potrzebujesz trzech przedmiotów."
+	pl["hint_maintenance"] = "Uważaj na pułapki w trybie hard."
+	pl["hint_hidden_lab"] = "Narzędzie deszyfrujące jest kluczowe."
+	pl["hint_backup"] = "Sabotaż tu może pomóc."
+	pl["no_hint"] = "Brak podpowiedzi tutaj."
+	pl["goodbye"] = "Do widzenia, hakerze!"
+	pl["entrance_desc"] = "Jesteś przy głównym wejściu fortecy. Ścieżki prowadzą na północ do serwerowni, wschód do komnaty firewall, zachód do biura ochrony, południe do skarbca danych."
+	pl["server_room_desc"] = "Jesteś w serwerowni. Terminale buczą z aktywnością. Na północ prowadzi do komory rdzenia."
+	pl["firewall_chamber_desc"] = "Jesteś w komnacie firewall. Ogromna cyfrowa ściana blokuje dostęp. Na wschód tunel konserwacyjny."
+	pl["security_office_desc"] = "Jesteś w biurze ochrony. Monitory pokazują strumienie nadzoru. Na biurku karta kluczowa."
+	pl["data_vault_desc"] = "Jesteś w skarbcu danych. Archiwa otaczają cię. Na południe generator zapasowy."
+	pl["core_chamber_desc"] = "Jesteś w komorze rdzenia. Główny komputer jest tu, mocno strzeżony. To twój cel."
+	pl["maintenance_tunnel_desc"] = "Jesteś w wąskim tunelu konserwacyjnym. Ciemno i ciasno. Na wschód ukryte laboratorium."
+	pl["hidden_lab_desc"] = "Jesteś w ukrytym laboratorium. Eksperymentalna technologia. Jest tu narzędzie deszyfrujące."
+	pl["backup_generator_desc"] = "Jesteś w pokoju generatora zapasowego. Na północ skarbiec danych."
+	pl["server_puzzle"] = "Konsola wymaga hasła. Podpowiedź: związane z nazwą firmy."
+	pl["firewall_puzzle"] = "Firewall musi być ominięty kartą kluczową."
+	pl["core_puzzle"] = "Aby zhakować komputer, potrzebujesz pendrive USB, hasła i narzędzia deszyfrującego."
+	pl["maintenance_puzzle"] = "Drzwi pułapki wymagają kodu. W trybie hard jest trudne."
+	pl["generator_puzzle"] = "Generator może być sabotowany dla rozproszenia."
+	en := make(map[string]string)
+	en["welcome"] = "Welcome to HackerOS Text Adventure!"
+	en["description"] = "You are an elite hacker in a high-security digital fortress. Your mission: breach the central mainframe and extract classified data."
+	en["choose_mode"] = "Choose your game mode:"
+	en["easy_mode"] = "Easy Mode - More hints, fewer obstacles."
+	en["normal_mode"] = "Normal Mode - Balanced challenge."
+	en["hard_mode"] = "Hard Mode - Limited hints, more traps and puzzles."
+	en["enter_mode"] = "Enter mode number (1-3):"
+	en["invalid_mode"] = "Invalid mode. Defaulting to Normal."
+	en["commands"] = "Commands: north, south, east, west, take <item>, use <item>, inventory, hack, sabotage, help, hint, quit"
+	en["puzzle"] = "Puzzle"
+	en["items_here"] = "Items here"
+	en["firewall_block"] = "The firewall blocks you. You need a keycard to bypass."
+	en["core_locked"] = "The door to the core is locked. You need the password."
+	en["trap_triggered"] = "You triggered a trap! Game over."
+	en["cant_go"] = "Can't go that way."
+	en["took_item"] = "You took the"
+	en["no_item"] = "No such item here."
+	en["used_keycard"] = "You used the keycard. Path east is open."
+	en["used_decryption"] = "You used the decryption tool."
+	en["no_use"] = "No use for that here."
+	en["cant_use"] = "Can't use that."
+	en["no_item_inventory"] = "You don't have that item."
+	en["inventory"] = "Inventory"
+	en["empty"] = "empty"
+	en["hack_success"] = "You successfully hacked the mainframe and extracted the data! You win!"
+	en["need_items_hack"] = "You need the USB drive, password, and decryption tool to hack here."
+	en["nothing_hack"] = "Nothing to hack here."
+	en["sabotaged"] = "You sabotaged the generator, disabling some security."
+	en["nothing_sabotage"] = "Nothing to sabotage here."
+	en["available_commands"] = "Available commands:"
+	en["move_desc"] = " north/south/east/west - Move in direction"
+	en["take_desc"] = " take <item> - Pick up an item"
+	en["use_desc"] = " use <item> - Use an item"
+	en["inventory_desc"] = " inventory - Show items"
+	en["hack_desc"] = " hack - Attempt to hack"
+	en["sabotage_desc"] = " sabotage - Sabotage machinery"
+	en["hint_desc"] = " hint - Get a hint"
+	en["quit_desc"] = " quit - Exit the game"
+	en["hint"] = "Hint"
+	en["hints_used"] = "Hints used"
+	en["no_more_hints"] = "No more hints available in this mode."
+	en["unknown_command"] = "Unknown command. Type 'help'."
+	en["hint_entrance"] = "Explore all directions to find useful items."
+	en["hint_server_room"] = "The password might be in the data vault."
+	en["hint_firewall"] = "Find a keycard in the security office."
+	en["hint_security"] = "Take the keycard."
+	en["hint_data_vault"] = "Grab the password note."
+	en["hint_core"] = "You need three items to hack successfully."
+	en["hint_maintenance"] = "Watch out for traps in hard mode."
+	en["hint_hidden_lab"] = "The decryption tool is crucial for the final hack."
+	en["hint_backup"] = "Sabotaging here can help distract security."
+	en["no_hint"] = "No hint available here."
+	en["goodbye"] = "Goodbye, hacker!"
+	en["entrance_desc"] = "You are at the main entrance of the digital fortress. Paths lead north to the server room, east to the firewall chamber, west to the security office, south to the data vault."
+	en["server_room_desc"] = "You are in the server room. Terminals hum with activity. North leads to the core chamber."
+	en["firewall_chamber_desc"] = "You are in the firewall chamber. A massive digital wall blocks access. East leads to a maintenance tunnel."
+	en["security_office_desc"] = "You are in the security office. Monitors show surveillance feeds. There's a keycard on the desk."
+	en["data_vault_desc"] = "You are in the data vault. Archives of information surround you. South leads to the backup generator."
+	en["core_chamber_desc"] = "You are in the core chamber. The mainframe is here, heavily guarded. This is your target."
+	en["maintenance_tunnel_desc"] = "You are in a narrow maintenance tunnel. Dark and cramped. East leads to a hidden lab."
+	en["hidden_lab_desc"] = "You are in a hidden lab. Experimental tech lies around. There's a decryption tool here."
+	en["backup_generator_desc"] = "You are in the backup generator room. North leads back to the data vault."
+	en["server_puzzle"] = "The console requires a password. Hint: It's related to the company name."
+	en["firewall_puzzle"] = "The firewall needs to be bypassed with a keycard."
+	en["core_puzzle"] = "To hack the mainframe, you need the USB drive, the password, and the decryption tool."
+	en["maintenance_puzzle"] = "A trap door requires a code. In hard mode, it's tricky."
+	en["generator_puzzle"] = "The generator can be sabotaged to cause a distraction."
+	de := make(map[string]string)
+	de["welcome"] = "Willkommen zu HackerOS Text Adventure!"
+	de["description"] = "Du bist ein Elite-Hacker in einer hochgesicherten digitalen Festung. Deine Mission: Mainframe hacken und Daten extrahieren."
+	de["choose_mode"] = "Wähle deinen Spielmodus:"
+	de["easy_mode"] = "Easy Mode - Mehr Hinweise, weniger Hindernisse."
+	de["normal_mode"] = "Normal Mode - Ausgeglichene Herausforderung."
+	de["hard_mode"] = "Hard Mode - Begrenzte Hinweise, mehr Fallen."
+	de["enter_mode"] = "Modusnummer eingeben (1-3):"
+	de["invalid_mode"] = "Ungültiger Modus. Standard: Normal."
+	de["commands"] = "Befehle: north, south, east, west, take <item>, use <item>, inventory, hack, sabotage, help, hint, quit"
+	de["puzzle"] = "Rätsel"
+	de["items_here"] = "Items hier"
+	de["firewall_block"] = "Die Firewall blockiert dich. Du brauchst eine Keycard."
+	de["core_locked"] = "Die Tür zum Kern ist verschlossen. Du brauchst das Passwort."
+	de["trap_triggered"] = "Du hast eine Falle ausgelöst! Spiel vorbei."
+	de["cant_go"] = "Kann nicht in diese Richtung."
+	de["took_item"] = "Du hast den"
+	de["no_item"] = "Kein solches Item hier."
+	de["used_keycard"] = "Du hast die Keycard verwendet. Pfad nach Osten offen."
+	de["used_decryption"] = "Du hast das Dekryptionswerkzeug verwendet."
+	de["no_use"] = "Keine Verwendung dafür hier."
+	de["cant_use"] = "Kann das nicht verwenden."
+	de["no_item_inventory"] = "Du hast dieses Item nicht."
+	de["inventory"] = "Inventar"
+	de["empty"] = "leer"
+	de["hack_success"] = "Du hast den Mainframe gehackt und die Daten extrahiert! Du gewinnst!"
+	de["need_items_hack"] = "Du brauchst USB-Stick, Passwort und Dekryptionswerkzeug."
+	de["nothing_hack"] = "Nichts zum Hacken hier."
+	de["sabotaged"] = "Du hast den Generator sabotiert und damit etwas Sicherheit deaktiviert."
+	de["nothing_sabotage"] = "Nichts zum Sabotieren hier."
+	de["available_commands"] = "Verfügbare Befehle:"
+	de["move_desc"] = " north/south/east/west - Richtung bewegen"
+	de["take_desc"] = " take <item> - Item aufnehmen"
+	de["use_desc"] = " use <item> - Item verwenden"
+	de["inventory_desc"] = " inventory - Items anzeigen"
+	de["hack_desc"] = " hack - Hack versuchen"
+	de["sabotage_desc"] = " sabotage - Maschine sabotieren"
+	de["hint_desc"] = " hint - Hinweis holen"
+	de["quit_desc"] = " quit - Spiel beenden"
+	de["hint"] = "Hinweis"
+	de["hints_used"] = "Verwendete Hinweise"
+	de["no_more_hints"] = "Keine weiteren Hinweise in diesem Modus."
+	de["unknown_command"] = "Unbekannter Befehl. Tippe 'help'."
+	de["hint_entrance"] = "Erkunde alle Richtungen."
+	de["hint_server_room"] = "Das Passwort könnte im Datentresor sein."
+	de["hint_firewall"] = "Finde eine Keycard im Sicherheitsbüro."
+	de["hint_security"] = "Nimm die Keycard."
+	de["hint_data_vault"] = "Greife die Passwortnotiz."
+	de["hint_core"] = "Du brauchst drei Items."
+	de["hint_maintenance"] = "Achte auf Fallen im Hard-Modus."
+	de["hint_hidden_lab"] = "Das Dekryptionswerkzeug ist entscheidend."
+	de["hint_backup"] = "Sabotage hier kann helfen."
+	de["no_hint"] = "Kein Hinweis hier."
+	de["goodbye"] = "Auf Wiedersehen, Hacker!"
+	de["entrance_desc"] = "Du bist am Haupteingang der digitalen Festung. Pfade führen nördlich zum Serverraum, östlich zur Firewall-Kammer, westlich zum Sicherheitsbüro, südlich zum Datentresor."
+	de["server_room_desc"] = "Du bist im Serverraum. Terminals summen. Nördlich zur Kernkammer."
+	de["firewall_chamber_desc"] = "Du bist in der Firewall-Kammer. Eine digitale Wand blockiert. Östlich ein Wartungstunnel."
+	de["security_office_desc"] = "Du bist im Sicherheitsbüro. Überwachungsmonitore. Auf dem Schreibtisch eine Keycard."
+	de["data_vault_desc"] = "Du bist im Datentresor. Archive umgeben dich. Südlich der Backup-Generator."
+	de["core_chamber_desc"] = "Du bist in der Kernkammer. Der Mainframe ist hier. Das ist dein Ziel."
+	de["maintenance_tunnel_desc"] = "Du bist in einem engen Wartungstunnel. Dunkel und eng. Östlich ein verstecktes Labor."
+	de["hidden_lab_desc"] = "Du bist in einem versteckten Labor. Experimentelle Technologie. Hier ist ein Dekryptionswerkzeug."
+	de["backup_generator_desc"] = "Du bist im Backup-Generator-Raum. Nördlich zurück zum Datentresor."
+	de["server_puzzle"] = "Die Konsole erfordert ein Passwort. Hinweis: Firmenname."
+	de["firewall_puzzle"] = "Die Firewall braucht eine Keycard."
+	de["core_puzzle"] = "Zum Hacken brauchst du USB-Stick, Passwort und Dekryptionswerkzeug."
+	de["maintenance_puzzle"] = "Eine Falltür erfordert einen Code. Im Hard-Modus knifflig."
+	de["generator_puzzle"] = "Der Generator kann sabotiert werden."
+	switch lang {
+		case "de": return de
+		case "en": return en
+		case: return pl
+	}
+}
 
-  puts "#{Colors.bold}#{Colors.green}#{trans["welcome"]}#{Colors.reset}"
-  puts "#{Colors.white}#{trans["description"]}#{Colors.reset}"
-  puts "#{Colors.white}#{trans["choose_mode"]}#{Colors.reset}"
-  puts " #{Colors.cyan}1. #{trans["easy_mode"]}#{Colors.reset}"
-  puts " #{Colors.cyan}2. #{trans["normal_mode"]}#{Colors.reset}"
-  puts " #{Colors.cyan}3. #{trans["hard_mode"]}#{Colors.reset}"
-  puts "#{Colors.yellow}#{trans["enter_mode"]}#{Colors.reset}"
-  mode_input = gets.not_nil!.strip
-  mode = case mode_input
-         when "1" then :easy
-         when "2" then :normal
-         when "3" then :hard
-         else
-           puts "#{Colors.red}#{trans["invalid_mode"]}#{Colors.reset}"
-           :normal
-         end
-  locations = {
-    "entrance" => {
-      "description" => trans["entrance_desc"],
-      "north" => "server_room",
-      "east" => "firewall_chamber",
-      "west" => "security_office",
-      "south" => "data_vault",
-      "items" => [] of String,
-      "puzzle" => nil
-    },
-    "server_room" => {
-      "description" => trans["server_room_desc"],
-      "south" => "entrance",
-      "north" => "core_chamber",
-      "items" => ["usb_drive"],
-      "puzzle" => trans["server_puzzle"]
-    },
-    "firewall_chamber" => {
-      "description" => trans["firewall_chamber_desc"],
-      "west" => "entrance",
-      "east" => "maintenance_tunnel",
-      "items" => [] of String,
-      "puzzle" => trans["firewall_puzzle"]
-    },
-    "security_office" => {
-      "description" => trans["security_office_desc"],
-      "east" => "entrance",
-      "items" => ["keycard"],
-      "puzzle" => nil
-    },
-    "data_vault" => {
-      "description" => trans["data_vault_desc"],
-      "north" => "entrance",
-      "south" => "backup_generator",
-      "items" => ["password_note"],
-      "puzzle" => nil
-    },
-    "core_chamber" => {
-      "description" => trans["core_chamber_desc"],
-      "south" => "server_room",
-      "items" => [] of String,
-      "puzzle" => trans["core_puzzle"]
-    },
-    "maintenance_tunnel" => {
-      "description" => trans["maintenance_tunnel_desc"],
-      "west" => "firewall_chamber",
-      "east" => "hidden_lab",
-      "items" => [] of String,
-      "puzzle" => trans["maintenance_puzzle"]
-    },
-    "hidden_lab" => {
-      "description" => trans["hidden_lab_desc"],
-      "west" => "maintenance_tunnel",
-      "items" => ["decryption_tool"],
-      "puzzle" => nil
-    },
-    "backup_generator" => {
-      "description" => trans["backup_generator_desc"],
-      "north" => "data_vault",
-      "items" => [] of String,
-      "puzzle" => trans["generator_puzzle"]
-    }
-  }
-  current_location = "entrance"
-  inventory = [] of String
-  hints_used = 0
-  max_hints = case mode
-              when :easy then 5
-              when :normal then 3
-              when :hard then 1
-              else 3
-              end
-  trapped = false
-  puts "#{Colors.yellow}#{trans["commands"]}#{Colors.reset}"
-  loop do
-    location_data = locations[current_location]
-    puts "#{Colors.magenta}#{location_data["description"]}#{Colors.reset}"
-    if location_data["puzzle"]
-      puts "#{Colors.yellow}#{trans["puzzle"]}: #{location_data["puzzle"]}#{Colors.reset}" if mode == :easy || (mode == :normal && Random.rand < 0.5)
-    end
-    if !(location_data["items"].as(Array(String))).empty?
-      puts "#{Colors.green}#{trans["items_here"]}: #{(location_data["items"].as(Array(String))).join(", ")}#{Colors.reset}"
-    end
-    input = gets.not_nil!.strip.downcase
-    inputs = input.split(" ")
-    command = inputs[0]?
-    arg = inputs[1]? if inputs.size > 1
-    case command
-    when "north", "south", "east", "west"
-      direction = command.not_nil!
-      next_location = location_data[direction]?
-      if next_location
-        if current_location == "firewall_chamber" && direction == "east" && !inventory.includes?("keycard")
-          puts "#{Colors.red}#{trans["firewall_block"]}#{Colors.reset}"
-        elsif current_location == "server_room" && direction == "north" && !inventory.includes?("password_note")
-          puts "#{Colors.red}#{trans["core_locked"]}#{Colors.reset}"
-        elsif current_location == "maintenance_tunnel" && mode == :hard && Random.rand < 0.3
-          puts "#{Colors.red}#{trans["trap_triggered"]}#{Colors.reset}"
-          exit(0)
-        else
-          current_location = next_location
-        end
-      else
-        puts "#{Colors.red}#{trans["cant_go"]}#{Colors.reset}"
-      end
-    when "take"
-      if arg && (location_data["items"].as(Array(String))).includes?(arg)
-        inventory << arg
-        (location_data["items"].as(Array(String))).delete(arg)
-        puts "#{Colors.green}#{trans["took_item"]} #{arg}.#{Colors.reset}"
-      else
-        puts "#{Colors.red}#{trans["no_item"]}#{Colors.reset}"
-      end
-    when "use"
-      if arg && inventory.includes?(arg)
-        case arg
-        when "keycard"
-          if current_location == "firewall_chamber"
-            puts "#{Colors.green}#{trans["used_keycard"]}#{Colors.reset}"
-          else
-            puts "#{Colors.red}#{trans["no_use"]}#{Colors.reset}"
-          end
-        when "decryption_tool"
-          if current_location == "core_chamber"
-            puts "#{Colors.green}#{trans["used_decryption"]}#{Colors.reset}"
-          else
-            puts "#{Colors.red}#{trans["no_use"]}#{Colors.reset}"
-          end
-        else
-          puts "#{Colors.red}#{trans["cant_use"]}#{Colors.reset}"
-        end
-      else
-        puts "#{Colors.red}#{trans["no_item_inventory"]}#{Colors.reset}"
-      end
-    when "inventory"
-      puts "#{Colors.green}#{trans["inventory"]}: #{inventory.join(", ") || trans["empty"]}#{Colors.reset}"
-    when "hack"
-      if current_location == "core_chamber" && inventory.includes?("usb_drive") && inventory.includes?("password_note") && inventory.includes?("decryption_tool")
-        puts "#{Colors.green}#{trans["hack_success"]}#{Colors.reset}"
-        exit(0)
-      elsif current_location == "core_chamber"
-        puts "#{Colors.red}#{trans["need_items_hack"]}#{Colors.reset}"
-      else
-        puts "#{Colors.red}#{trans["nothing_hack"]}#{Colors.reset}"
-      end
-    when "sabotage"
-      if current_location == "backup_generator"
-        puts "#{Colors.green}#{trans["sabotaged"]}#{Colors.reset}"
-      else
-        puts "#{Colors.red}#{trans["nothing_sabotage"]}#{Colors.reset}"
-      end
-    when "help"
-      puts "#{Colors.yellow}#{trans["available_commands"]}#{Colors.reset}"
-      puts trans["move_desc"]
-      puts trans["take_desc"]
-      puts trans["use_desc"]
-      puts trans["inventory_desc"]
-      puts trans["hack_desc"]
-      puts trans["sabotage_desc"]
-      puts trans["hint_desc"]
-      puts trans["quit_desc"]
-    when "hint"
-      if hints_used < max_hints
-        hints_used += 1
-        hint = case current_location
-               when "entrance" then trans["hint_entrance"]
-               when "server_room" then trans["hint_server_room"]
-               when "firewall_chamber" then trans["hint_firewall"]
-               when "security_office" then trans["hint_security"]
-               when "data_vault" then trans["hint_data_vault"]
-               when "core_chamber" then trans["hint_core"]
-               when "maintenance_tunnel" then trans["hint_maintenance"]
-               when "hidden_lab" then trans["hint_hidden_lab"]
-               when "backup_generator" then trans["hint_backup"]
-               else trans["no_hint"]
-               end
-        puts "#{Colors.blue}#{trans["hint"]}: #{hint} (#{trans["hints_used"]}: #{hints_used}/#{max_hints})#{Colors.reset}"
-      else
-        puts "#{Colors.red}#{trans["no_more_hints"]}#{Colors.reset}"
-      end
-    when "quit"
-      puts "#{Colors.yellow}#{trans["goodbye"]}#{Colors.reset}"
-      exit(0)
-    else
-      puts "#{Colors.red}#{trans["unknown_command"]}#{Colors.reset}"
-    end
-  end
-end
+GameMode :: enum { Easy, Normal, Hard }
 
-def get_translations_game : Hash(String, Hash(String, String))
-  {
-    "pl" => {
-      "welcome" => "Witaj w HackerOS Text Adventure!",
-      "description" => "Jesteś elitarnym hakerem w cyfrowej fortecy o wysokim poziomie bezpieczeństwa. Twoja misja: włam się do głównego komputera i wyodrębnij poufne dane.",
-      "choose_mode" => "Wybierz tryb gry:",
-      "easy_mode" => "Easy Mode - Więcej podpowiedzi, mniej przeszkód.",
-      "normal_mode" => "Normal Mode - Zrównoważone wyzwanie.",
-      "hard_mode" => "Hard Mode - Ograniczona liczba podpowiedzi, więcej pułapek i zagadek.",
-      "enter_mode" => "Wpisz numer trybu (1-3):",
-      "invalid_mode" => "Nieprawidłowy tryb. Domyślny: Normal.",
-      "entrance_desc" => "Jesteś przy głównym wejściu cyfrowej fortecy. Ścieżki prowadzą na północ do serwerowni, na wschód do komnaty firewall, na zachód do biura ochrony i na południe do skarbca danych.",
-      "server_room_desc" => "Jesteś w serwerowni. Terminale buczą z aktywnością. Jest tu zablokowana konsola. Na północ prowadzi do komory rdzenia.",
-      "server_puzzle" => "Konsola wymaga hasła. Podpowiedź: Jest związane z nazwą firmy.",
-      "firewall_chamber_desc" => "Jesteś w komnacie firewall. Ogromna cyfrowa ściana blokuje dalszy dostęp. Na wschód prowadzi tunel konserwacyjny.",
-      "firewall_puzzle" => "Firewall musi być ominięty za pomocą karty kluczowej.",
-      "security_office_desc" => "Jesteś w biurze ochrony. Monitory pokazują strumienie nadzoru. Na biurku jest karta kluczowa.",
-      "data_vault_desc" => "Jesteś w skarbcu danych. Otaczają cię archiwa informacji. Na południe prowadzi do generatora zapasowego.",
-      "core_chamber_desc" => "Jesteś w komorze rdzenia. Główny komputer jest tu, mocno strzeżony. To twój cel.",
-      "core_puzzle" => "Aby zhakować główny komputer, potrzebujesz pendrive'a USB i hasła.",
-      "maintenance_tunnel_desc" => "Jesteś w wąskim tunelu konserwacyjnym. Jest ciemno i ciasno. Na zachód z powrotem do firewall, na wschód do ukrytego laboratorium.",
-      "maintenance_puzzle" => "Drzwi pułapki wymagają kodu. W trybie hard jest trudne.",
-      "hidden_lab_desc" => "Jesteś w ukrytym laboratorium. Wokół leży eksperymentalna technologia. Jest tu narzędzie deszyfrujące.",
-      "backup_generator_desc" => "Jesteś w pokoju generatora zapasowego. Czasami występują skoki mocy. Na północ z powrotem do skarbca danych.",
-      "generator_puzzle" => "Generator może być sabotowany, aby spowodować rozproszenie.",
-      "commands" => "Komendy: north, south, east, west, take <item>, use <item>, inventory, hack, sabotage, help, hint, quit",
-      "puzzle" => "Zagadka",
-      "items_here" => "Przedmioty tutaj",
-      "firewall_block" => "Firewall cię blokuje. Potrzebujesz karty kluczowej do ominięcia.",
-      "core_locked" => "Drzwi do rdzenia są zablokowane. Potrzebujesz hasła.",
-      "trap_triggered" => "Uruchomiłeś pułapkę! Gra skończona.",
-      "cant_go" => "Nie możesz iść w tym kierunku.",
-      "took_item" => "Wziąłeś",
-      "no_item" => "Brak takiego przedmiotu tutaj.",
-      "used_keycard" => "Użyłeś karty kluczowej do ominięcia firewall. Ścieżka na wschód jest otwarta.",
-      "no_use" => "Brak użycia dla tego tutaj.",
-      "cant_use" => "Nie możesz tego użyć.",
-      "no_item_inventory" => "Nie masz tego przedmiotu.",
-      "inventory" => "Inwentarz",
-      "empty" => "pusty",
-      "hack_success" => "Pomyślnie zhakowałeś główny komputer i wyodrębniłeś dane! Wygrywasz!",
-      "need_items_hack" => "Potrzebujesz pendrive'a USB, hasła i narzędzia deszyfrującego do hakowania tutaj.",
-      "nothing_hack" => "Nic do hakowania tutaj.",
-      "sabotaged" => "Sabotowałeś generator, powodując wahania mocy, które wyłączają część ochrony.",
-      "nothing_sabotage" => "Nic do sabotowania tutaj.",
-      "available_commands" => "Dostępne komendy:",
-      "move_desc" => " north, south, east, west - Przesuń się w tym kierunku",
-      "take_desc" => " take <item> - Podnieś przedmiot",
-      "use_desc" => " use <item> - Użyj przedmiotu z inwentarza",
-      "inventory_desc" => " inventory - Pokaż swoje przedmioty",
-      "hack_desc" => " hack - Próba hakowania terminala lub głównego komputera",
-      "sabotage_desc" => " sabotage - Sabotaż maszynerii (w określonych miejscach)",
-      "hint_desc" => " hint - Pobierz podpowiedź (ograniczona przez tryb)",
-      "quit_desc" => " quit - Wyjdź z gry",
-      "hint" => "Podpowiedź",
-      "hints_used" => "Użyte podpowiedzi",
-      "no_more_hints" => "Brak więcej podpowiedzi dostępnych w tym trybie.",
-      "unknown_command" => "Nieznana komenda. Wpisz 'help' po komendy.",
-      "hint_entrance" => "Eksploruj wszystkie kierunki, aby znaleźć przydatne przedmioty.",
-      "hint_server_room" => "Hasło może być w skarbcu danych.",
-      "hint_firewall" => "Znajdź kartę kluczową w biurze ochrony.",
-      "hint_security" => "Weź kartę kluczową.",
-      "hint_data_vault" => "Weź notatkę z hasłem.",
-      "hint_core" => "Potrzebujesz trzech przedmiotów do sukcesu hakowania.",
-      "hint_maintenance" => "Uważaj na pułapki w trybie hard.",
-      "hint_hidden_lab" => "Narzędzie deszyfrujące jest kluczowe dla ostatecznego hakowania.",
-      "hint_backup" => "Sabotaż tutaj może pomóc w rozproszeniu ochrony.",
-      "no_hint" => "Brak podpowiedzi tutaj.",
-      "goodbye" => "Do widzenia, hakerze!"
-    },
-    "en" => {
-      "welcome" => "Welcome to HackerOS Text Adventure!",
-      "description" => "You are an elite hacker in a high-security digital fortress. Your mission: breach the central mainframe and extract classified data.",
-      "choose_mode" => "Choose your game mode:",
-      "easy_mode" => "Easy Mode - More hints, fewer obstacles.",
-      "normal_mode" => "Normal Mode - Balanced challenge.",
-      "hard_mode" => "Hard Mode - Limited hints, more traps and puzzles.",
-      "enter_mode" => "Enter mode number (1-3):",
-      "invalid_mode" => "Invalid mode. Defaulting to Normal.",
-      "entrance_desc" => "You are at the main entrance of the digital fortress. Pathways lead north to the server room, east to the firewall chamber, west to the security office, and south to the data vault.",
-      "server_room_desc" => "You are in the server room. Terminals hum with activity. There's a locked console here. North leads to the core chamber.",
-      "server_puzzle" => "The console requires a password. Hint: It's related to the company name.",
-      "firewall_chamber_desc" => "You are in the firewall chamber. A massive digital wall blocks further access. East leads to a maintenance tunnel.",
-      "firewall_puzzle" => "The firewall needs to be bypassed with a keycard.",
-      "security_office_desc" => "You are in the security office. Monitors show surveillance feeds. There's a keycard on the desk.",
-      "data_vault_desc" => "You are in the data vault. Archives of information surround you. South leads to the backup generator.",
-      "core_chamber_desc" => "You are in the core chamber. The mainframe is here, heavily guarded. This is your target.",
-      "core_puzzle" => "To hack the mainframe, you need the USB drive and the password.",
-      "maintenance_tunnel_desc" => "You are in a narrow maintenance tunnel. It's dark and cramped. West back to firewall, east to a hidden lab.",
-      "maintenance_puzzle" => "A trap door requires a code. In hard mode, it's tricky.",
-      "hidden_lab_desc" => "You are in a hidden lab. Experimental tech lies around. There's a decryption tool here.",
-      "backup_generator_desc" => "You are in the backup generator room. Power surges occasionally. North back to data vault.",
-      "generator_puzzle" => "The generator can be sabotaged to cause a distraction.",
-      "commands" => "Commands: north, south, east, west, take <item>, use <item>, inventory, hack, sabotage, help, hint, quit",
-      "puzzle" => "Puzzle",
-      "items_here" => "Items here",
-      "firewall_block" => "The firewall blocks you. You need a keycard to bypass.",
-      "core_locked" => "The door to the core is locked. You need the password.",
-      "trap_triggered" => "You triggered a trap! Game over.",
-      "cant_go" => "Can't go that way.",
-      "took_item" => "You took the",
-      "no_item" => "No such item here.",
-      "used_keycard" => "You used the keycard to bypass the firewall. Path east is open.",
-      "no_use" => "No use for that here.",
-      "cant_use" => "Can't use that.",
-      "no_item_inventory" => "You don't have that item.",
-      "inventory" => "Inventory",
-      "empty" => "empty",
-      "hack_success" => "You successfully hacked the mainframe and extracted the data! You win!",
-      "need_items_hack" => "You need the USB drive, password, and decryption tool to hack here.",
-      "nothing_hack" => "Nothing to hack here.",
-      "sabotaged" => "You sabotaged the generator, causing a power fluctuation that disables some security.",
-      "nothing_sabotage" => "Nothing to sabotage here.",
-      "available_commands" => "Available commands:",
-      "move_desc" => " north, south, east, west - Move in that direction",
-      "take_desc" => " take <item> - Pick up an item",
-      "use_desc" => " use <item> - Use an item from inventory",
-      "inventory_desc" => " inventory - Show your items",
-      "hack_desc" => " hack - Attempt to hack a terminal or mainframe",
-      "sabotage_desc" => " sabotage - Sabotage machinery (in specific locations)",
-      "hint_desc" => " hint - Get a hint (limited by mode)",
-      "quit_desc" => " quit - Exit the game",
-      "hint" => "Hint",
-      "hints_used" => "Hints used",
-      "no_more_hints" => "No more hints available in this mode.",
-      "unknown_command" => "Unknown command. Type 'help' for commands.",
-      "hint_entrance" => "Explore all directions to find useful items.",
-      "hint_server_room" => "The password might be in the data vault.",
-      "hint_firewall" => "Find a keycard in the security office.",
-      "hint_security" => "Take the keycard.",
-      "hint_data_vault" => "Grab the password note.",
-      "hint_core" => "You need three items to hack successfully.",
-      "hint_maintenance" => "Watch out for traps in hard mode.",
-      "hint_hidden_lab" => "The decryption tool is crucial for the final hack.",
-      "hint_backup" => "Sabotaging here can help distract security.",
-      "no_hint" => "No hint available here.",
-      "goodbye" => "Goodbye, hacker!"
-    },
-    "de" => {
-      "welcome" => "Willkommen zu HackerOS Text Adventure!",
-      "description" => "Du bist ein Elite-Hacker in einer hochgesicherten digitalen Festung. Deine Mission: Breche in den zentralen Mainframe ein und extrahiere klassifizierte Daten.",
-      "choose_mode" => "Wähle deinen Spielmodus:",
-      "easy_mode" => "Easy Mode - Mehr Hinweise, weniger Hindernisse.",
-      "normal_mode" => "Normal Mode - Ausgeglichene Herausforderung.",
-      "hard_mode" => "Hard Mode - Begrenzte Hinweise, mehr Fallen und Rätsel.",
-      "enter_mode" => "Modusnummer eingeben (1-3):",
-      "invalid_mode" => "Ungültiger Modus. Standard: Normal.",
-      "entrance_desc" => "Du bist am Haupteingang der digitalen Festung. Pfade führen nordwärts zum Serverraum, ostwärts zur Firewall-Kammer, westwärts zum Sicherheitsbüro und südwärts zum Datentresor.",
-      "server_room_desc" => "Du bist im Serverraum. Terminals summen vor Aktivität. Hier ist eine verschlossene Konsole. Nordwärts führt zur Kernkammer.",
-      "server_puzzle" => "Die Konsole erfordert ein Passwort. Hinweis: Es ist mit dem Firmennamen verbunden.",
-      "firewall_chamber_desc" => "Du bist in der Firewall-Kammer. Eine massive digitale Wand blockiert weiteren Zugang. Ostwärts führt zu einem Wartungstunnel.",
-      "firewall_puzzle" => "Die Firewall muss mit einer Keycard umgangen werden.",
-      "security_office_desc" => "Du bist im Sicherheitsbüro. Monitore zeigen Überwachungsfeeds. Auf dem Schreibtisch liegt eine Keycard.",
-      "data_vault_desc" => "Du bist im Datentresor. Archive von Informationen umgeben dich. Südwärts führt zum Backup-Generator.",
-      "core_chamber_desc" => "Du bist in der Kernkammer. Der Mainframe ist hier, stark bewacht. Das ist dein Ziel.",
-      "core_puzzle" => "Um den Mainframe zu hacken, brauchst du den USB-Stick und das Passwort.",
-      "maintenance_tunnel_desc" => "Du bist in einem engen Wartungstunnel. Es ist dunkel und eng. Westwärts zurück zur Firewall, ostwärts zu einem versteckten Labor.",
-      "maintenance_puzzle" => "Eine Falltür erfordert einen Code. Im Hard-Modus ist es knifflig.",
-      "hidden_lab_desc" => "Du bist in einem versteckten Labor. Experimentelle Tech liegt herum. Hier ist ein Dekryptionswerkzeug.",
-      "backup_generator_desc" => "Du bist im Raum des Backup-Generators. Stromstöße treten gelegentlich auf. Nordwärts zurück zum Datentresor.",
-      "generator_puzzle" => "Der Generator kann sabotiert werden, um eine Ablenkung zu verursachen.",
-      "commands" => "Befehle: north, south, east, west, take <item>, use <item>, inventory, hack, sabotage, help, hint, quit",
-      "puzzle" => "Rätsel",
-      "items_here" => "Items hier",
-      "firewall_block" => "Die Firewall blockiert dich. Du brauchst eine Keycard zum Umgehen.",
-      "core_locked" => "Die Tür zum Kern ist verschlossen. Du brauchst das Passwort.",
-      "trap_triggered" => "Du hast eine Falle ausgelöst! Spiel vorbei.",
-      "cant_go" => "Kann nicht in diese Richtung gehen.",
-      "took_item" => "Du hast den",
-      "no_item" => "Kein solcher Item hier.",
-      "used_keycard" => "Du hast die Keycard verwendet, um die Firewall zu umgehen. Pfad ostwärts ist offen.",
-      "no_use" => "Keine Verwendung dafür hier.",
-      "cant_use" => "Kann das nicht verwenden.",
-      "no_item_inventory" => "Du hast diesen Item nicht.",
-      "inventory" => "Inventar",
-      "empty" => "leer",
-      "hack_success" => "Du hast den Mainframe erfolgreich gehackt und die Daten extrahiert! Du gewinnst!",
-      "need_items_hack" => "Du brauchst den USB-Stick, Passwort und Dekryptionswerkzeug zum Hacken hier.",
-      "nothing_hack" => "Nichts zum Hacken hier.",
-      "sabotaged" => "Du hast den Generator sabotiert, was eine Stromschwankung verursacht, die einige Sicherheiten deaktiviert.",
-      "nothing_sabotage" => "Nichts zum Sabotieren hier.",
-      "available_commands" => "Verfügbare Befehle:",
-      "move_desc" => " north, south, east, west - Bewege dich in diese Richtung",
-      "take_desc" => " take <item> - Nimm einen Item auf",
-      "use_desc" => " use <item> - Verwende einen Item aus dem Inventar",
-      "inventory_desc" => " inventory - Zeige deine Items",
-      "hack_desc" => " hack - Versuch, einen Terminal oder Mainframe zu hacken",
-      "sabotage_desc" => " sabotage - Sabotiere Maschinerie (in spezifischen Orten)",
-      "hint_desc" => " hint - Hole einen Hinweis (begrenzt durch Modus)",
-      "quit_desc" => " quit - Verlasse das Spiel",
-      "hint" => "Hinweis",
-      "hints_used" => "Verwendete Hinweise",
-      "no_more_hints" => "Keine weiteren Hinweise in diesem Modus verfügbar.",
-      "unknown_command" => "Unbekannter Befehl. Tippe 'help' für Befehle.",
-      "hint_entrance" => "Erkunde alle Richtungen, um nützliche Items zu finden.",
-      "hint_server_room" => "Das Passwort könnte im Datentresor sein.",
-      "hint_firewall" => "Finde eine Keycard im Sicherheitsbüro.",
-      "hint_security" => "Nimm die Keycard.",
-      "hint_data_vault" => "Greife die Passwortnotiz.",
-      "hint_core" => "Du brauchst drei Items für einen erfolgreichen Hack.",
-      "hint_maintenance" => "Achte auf Fallen im Hard-Modus.",
-      "hint_hidden_lab" => "Das Dekryptionswerkzeug ist entscheidend für den finalen Hack.",
-      "hint_backup" => "Sabotage hier kann helfen, die Sicherheit abzulenken.",
-      "no_hint" => "Kein Hinweis hier verfügbar.",
-      "goodbye" => "Auf Wiedersehen, Hacker!"
-    },
-  }
-end
+Location :: struct {
+	desc_key: string,
+	north, south, east, west: string,
+	items: [dynamic]string,
+	puzzle_key: string,
+}
+
+play_text_game :: proc() {
+	lang := load_lang()
+	trans := get_game_translations(lang)
+	defer delete(trans)
+	fmt.printfln("%s%s%s%s", Colors.bold, Colors.green, trans["welcome"], Colors.reset)
+	fmt.printfln("%s%s%s", Colors.white, trans["description"], Colors.reset)
+	fmt.printfln("%s%s%s", Colors.white, trans["choose_mode"], Colors.reset)
+	fmt.printfln(" %s1. %s%s", Colors.cyan, trans["easy_mode"], Colors.reset)
+	fmt.printfln(" %s2. %s%s", Colors.cyan, trans["normal_mode"], Colors.reset)
+	fmt.printfln(" %s3. %s%s", Colors.cyan, trans["hard_mode"], Colors.reset)
+	fmt.printfln("%s%s%s", Colors.yellow, trans["enter_mode"], Colors.reset)
+	mode_line := read_line()
+	mode: GameMode
+	switch strings.trim_space(mode_line) {
+		case "1": mode = .Easy
+		case "3": mode = .Hard
+		case "2": mode = .Normal
+		case:
+			fmt.printfln("%s%s%s", Colors.red, trans["invalid_mode"], Colors.reset)
+			mode = .Normal
+	}
+	max_hints := 3
+	switch mode {
+		case .Easy: max_hints = 5
+		case .Normal: max_hints = 3
+		case .Hard: max_hints = 1
+	}
+	locations := make(map[string]Location)
+	locations["entrance"] = Location{
+		desc_key = "entrance_desc",
+		north = "server_room",
+		east = "firewall_chamber",
+		west = "security_office",
+		south = "data_vault",
+		items = make([dynamic]string),
+		puzzle_key = "",
+	}
+	locations["server_room"] = Location{
+		desc_key = "server_room_desc",
+		south = "entrance",
+		north = "core_chamber",
+		items = make_items("usb_drive"),
+		puzzle_key = "server_puzzle",
+	}
+	locations["firewall_chamber"] = Location{
+		desc_key = "firewall_chamber_desc",
+		west = "entrance",
+		east = "maintenance_tunnel",
+		items = make([dynamic]string),
+		puzzle_key = "firewall_puzzle",
+	}
+	locations["security_office"] = Location{
+		desc_key = "security_office_desc",
+		east = "entrance",
+		items = make_items("keycard"),
+		puzzle_key = "",
+	}
+	locations["data_vault"] = Location{
+		desc_key = "data_vault_desc",
+		north = "entrance",
+		south = "backup_generator",
+		items = make_items("password_note"),
+		puzzle_key = "",
+	}
+	locations["core_chamber"] = Location{
+		desc_key = "core_chamber_desc",
+		south = "server_room",
+		items = make([dynamic]string),
+		puzzle_key = "core_puzzle",
+	}
+	locations["maintenance_tunnel"] = Location{
+		desc_key = "maintenance_tunnel_desc",
+		west = "firewall_chamber",
+		east = "hidden_lab",
+		items = make([dynamic]string),
+		puzzle_key = "maintenance_puzzle",
+	}
+	locations["hidden_lab"] = Location{
+		desc_key = "hidden_lab_desc",
+		west = "maintenance_tunnel",
+		items = make_items("decryption_tool"),
+		puzzle_key = "",
+	}
+	locations["backup_generator"] = Location{
+		desc_key = "backup_generator_desc",
+		north = "data_vault",
+		items = make([dynamic]string),
+		puzzle_key = "generator_puzzle",
+	}
+	defer {
+		for _, loc in locations {
+			delete(loc.items)
+		}
+		delete(locations)
+	}
+	current_location := "entrance"
+	inventory: [dynamic]string
+	defer delete(inventory)
+	hints_used := 0
+	fmt.printfln("%s%s%s", Colors.yellow, trans["commands"], Colors.reset)
+	for {
+		loc := &locations[current_location]
+		fmt.printfln("%s%s%s", Colors.magenta, trans[loc.desc_key], Colors.reset)
+		if loc.puzzle_key != "" {
+			show_puzzle := false
+			switch mode {
+				case .Easy: show_puzzle = true
+				case .Normal: show_puzzle = rand.float32() < 0.5
+				case .Hard: show_puzzle = false
+			}
+			if show_puzzle {
+				fmt.printfln("%s%s: %s%s", Colors.yellow, trans["puzzle"], trans[loc.puzzle_key], Colors.reset)
+			}
+		}
+		if len(loc.items) > 0 {
+			items_str := strings.join(loc.items[:], ", ")
+			fmt.printfln("%s%s: %s%s", Colors.green, trans["items_here"], items_str, Colors.reset)
+		}
+		input := strings.trim_space(strings.to_lower(read_line()))
+		parts := strings.fields(input)
+		if len(parts) == 0 { continue }
+		command := parts[0]
+		arg := "" if len(parts) < 2 else parts[1]
+		switch command {
+			case "north", "south", "east", "west":
+				next := ""
+				switch command {
+					case "north": next = loc.north
+					case "south": next = loc.south
+					case "east": next = loc.east
+					case "west": next = loc.west
+				}
+				if next == "" {
+					fmt.printfln("%s%s%s", Colors.red, trans["cant_go"], Colors.reset)
+					continue
+				}
+				blocked := false
+				if current_location == "firewall_chamber" && command == "east" && !has_item(inventory[:], "keycard") {
+					fmt.printfln("%s%s%s", Colors.red, trans["firewall_block"], Colors.reset)
+					blocked = true
+				}
+				if current_location == "server_room" && command == "north" && !has_item(inventory[:], "password_note") {
+					fmt.printfln("%s%s%s", Colors.red, trans["core_locked"], Colors.reset)
+					blocked = true
+				}
+				if current_location == "maintenance_tunnel" && mode == .Hard && rand.float32() < 0.3 {
+					fmt.printfln("%s%s%s", Colors.red, trans["trap_triggered"], Colors.reset)
+					os.exit(0)
+				}
+				if !blocked {
+					current_location = next
+				}
+					case "take":
+						if arg == "" {
+							fmt.printfln("%s%s%s", Colors.red, trans["no_item"], Colors.reset)
+							continue
+						}
+						idx := find_item(loc.items[:], arg)
+						if idx < 0 {
+							fmt.printfln("%s%s%s", Colors.red, trans["no_item"], Colors.reset)
+						} else {
+							append(&inventory, arg)
+							manual_ordered_remove(&loc.items, idx)
+							fmt.printfln("%s%s %s.%s", Colors.green, trans["took_item"], arg, Colors.reset)
+						}
+					case "use":
+						if !has_item(inventory[:], arg) {
+							fmt.printfln("%s%s%s", Colors.red, trans["no_item_inventory"], Colors.reset)
+							continue
+						}
+						switch arg {
+							case "keycard":
+								if current_location == "firewall_chamber" {
+									fmt.printfln("%s%s%s", Colors.green, trans["used_keycard"], Colors.reset)
+								} else {
+									fmt.printfln("%s%s%s", Colors.red, trans["no_use"], Colors.reset)
+								}
+							case "decryption_tool":
+								if current_location == "core_chamber" {
+									fmt.printfln("%s%s%s", Colors.green, trans["used_decryption"], Colors.reset)
+								} else {
+									fmt.printfln("%s%s%s", Colors.red, trans["no_use"], Colors.reset)
+								}
+							case:
+								fmt.printfln("%s%s%s", Colors.red, trans["cant_use"], Colors.reset)
+						}
+							case "inventory":
+								if len(inventory) == 0 {
+									fmt.printfln("%s%s: %s%s", Colors.green, trans["inventory"], trans["empty"], Colors.reset)
+								} else {
+									fmt.printfln("%s%s: %s%s", Colors.green, trans["inventory"], strings.join(inventory[:], ", "), Colors.reset)
+								}
+							case "hack":
+								if current_location == "core_chamber" {
+									if has_item(inventory[:], "usb_drive") &&
+										has_item(inventory[:], "password_note") &&
+										has_item(inventory[:], "decryption_tool") {
+											fmt.printfln("%s%s%s", Colors.green, trans["hack_success"], Colors.reset)
+											os.exit(0)
+										} else {
+											fmt.printfln("%s%s%s", Colors.red, trans["need_items_hack"], Colors.reset)
+										}
+								} else {
+									fmt.printfln("%s%s%s", Colors.red, trans["nothing_hack"], Colors.reset)
+								}
+							case "sabotage":
+								if current_location == "backup_generator" {
+									fmt.printfln("%s%s%s", Colors.green, trans["sabotaged"], Colors.reset)
+								} else {
+									fmt.printfln("%s%s%s", Colors.red, trans["nothing_sabotage"], Colors.reset)
+								}
+							case "help":
+								fmt.printfln("%s%s%s", Colors.yellow, trans["available_commands"], Colors.reset)
+								help_keys := []string{
+									"move_desc", "take_desc", "use_desc", "inventory_desc",
+									"hack_desc", "sabotage_desc", "hint_desc", "quit_desc",
+								}
+								for key in help_keys {
+									fmt.println(trans[key])
+								}
+							case "hint":
+								if hints_used >= max_hints {
+									fmt.printfln("%s%s%s", Colors.red, trans["no_more_hints"], Colors.reset)
+									continue
+								}
+								hints_used += 1
+								hint_key := fmt.tprintf("hint_%s", current_location)
+								hint, ok := trans[hint_key]
+								if !ok { hint = trans["no_hint"] }
+								fmt.printfln("%s%s: %s (%s: %d/%d)%s",
+											 Colors.blue, trans["hint"], hint,
+					 trans["hints_used"], hints_used, max_hints,
+					 Colors.reset)
+							case "quit":
+								fmt.printfln("%s%s%s", Colors.yellow, trans["goodbye"], Colors.reset)
+								os.exit(0)
+							case:
+								fmt.printfln("%s%s%s", Colors.red, trans["unknown_command"], Colors.reset)
+		}
+	}
+}
+
+make_items :: proc(items: ..string) -> [dynamic]string {
+	d: [dynamic]string
+	for i in items {
+		append(&d, i)
+	}
+	return d
+}
+
+has_item :: proc(inv: []string, item: string) -> bool {
+	for i in inv {
+		if i == item {
+			return true
+		}
+	}
+	return false
+}
+
+find_item :: proc(items: []string, item: string) -> int {
+	for i, idx in items {
+		if i == item {
+			return idx
+		}
+	}
+	return -1
+}
+
+read_line :: proc() -> string {
+	buf: [512]u8
+	n, _ := os.read(os.stdin, buf[:])
+	if n <= 0 {
+		return ""
+	}
+	line := string(buf[:n])
+	return strings.trim_right(line, "\n\r")
+}
+
+manual_ordered_remove :: proc(array: ^[dynamic]$T, index: int) {
+	if array == nil || index < 0 || index >= len(array) {
+		return
+	}
+	copy(array[index:], array[index+1:])
+	resize(array, len(array)-1)
+}
