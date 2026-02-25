@@ -119,6 +119,9 @@ handle_unpack :: proc(args: []string, lang: string) {
 		safe_run("wget https://github.com/HackerOS-Linux-System/Hacker-Lang/releases/download/v1.6.3/hli -O /tmp/hli")
 		safe_run("sudo mv /tmp/hli /usr/bin/hli")
 		safe_run("sudo chmod +x /usr/bin/hli")
+        safe_run("wget https://github.com/HackerOS-Linux-System/Hacker-Lang/releases/download/v1.7.1/virus -O /tmp/virus")
+		safe_run("sudo mv /tmp/virus /usr/bin/virus")
+		safe_run("sudo chmod +x /usr/bin/virus")
 
 	case "flox":
 		safe_run("wget https://downloads.flox.dev/by-env/stable/deb/flox.x86_64-linux.deb -O /tmp/flox.deb")
