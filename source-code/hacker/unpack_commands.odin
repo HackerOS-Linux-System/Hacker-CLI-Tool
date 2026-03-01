@@ -95,13 +95,13 @@ handle_unpack :: proc(args: []string, lang: string) {
 		case "nvidia-drivers":
 			safe_run("/usr/share/HackerOS/Scripts/Bin/unpack-nvidia-drivers.sh")
 		case "hl-utils":
-			safe_run("wget https://github.com/Bytes-Repository/Bytes-CLI-Tool/releases/download/v0.6/bytes -O /tmp/bytes")
+			safe_run("wget https://github.com/Bytes-Repository/Bytes-CLI-Tool/releases/download/v0.7/bytes -O /tmp/bytes")
 			safe_run("sudo mv /tmp/bytes /usr/bin/bytes")
 			safe_run("sudo chmod +x /usr/bin/bytes")
 			safe_run("wget https://github.com/HackerOS-Linux-System/Hacker-Lang/releases/download/v1.6.3/hli -O /tmp/hli")
 			safe_run("sudo mv /tmp/hli /usr/bin/hli")
 			safe_run("sudo chmod +x /usr/bin/hli")
-			safe_run("wget https://github.com/HackerOS-Linux-System/Hacker-Lang/releases/download/v1.7.1/virus -O /tmp/virus")
+			safe_run("wget https://github.com/virus-repo/Virus-CLI-Tool/releases/download/v0.1/virus -O /tmp/virus")
 			safe_run("sudo mv /tmp/virus /usr/bin/virus")
 			safe_run("sudo chmod +x /usr/bin/virus")
 		case "flox":
