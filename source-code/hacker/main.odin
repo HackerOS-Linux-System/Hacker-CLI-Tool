@@ -73,7 +73,7 @@ main :: proc() {
 		case "ascii":
 			safe_run("cat /usr/share/HackerOS/Config-Files/HackerOS-Ascii")
 		case "shell":
-			safe_run("source /usr/lib/HackerOS/venv/bin/activate && ~/.hackeros/hacker/hacker-shell")
+			safe_run("source ~/.hackeros/venv/bin/activate && ~/.hackeros/hacker/hacker-shell")
 		case "enter":
 			if len(rest) == 0 {
 				fmt.printfln("%s%s%s", Colors.red, trans["usage_enter"], Colors.reset)
