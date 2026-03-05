@@ -1,31 +1,27 @@
 package hackeros
-
 import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:path/filepath"
-
+import "core:mem"
 main :: proc() {
 	lang := load_lang()
 	trans := get_translations_main(lang)
 	style_file := get_config_path("style.css")
 	load_styles(style_file)
-
 	args := os.args[1:]
 	if len(args) == 0 || args[0] == "help" {
 		show_main_help(lang)
 		os.exit(0)
 	}
-
 	command := args[0]
 	rest := args[1:]
-
 	switch command {
 		case "unpack":
 			handle_unpack(rest, lang)
 		case "pack":
 			handle_pack(rest, lang)
-		case "env":                    // ← NOWOŚĆ
+		case "env": // ← NOWOŚĆ
 			handle_env(rest, lang)
 		case "help-ui":
 			safe_run("~/.hackeros/hacker/hacker-help")
@@ -73,7 +69,7 @@ main :: proc() {
 		case "ascii":
 			safe_run("cat /usr/share/HackerOS/Config-Files/HackerOS-Ascii")
 		case "shell":
-			safe_run("source ~/.hackeros/venv/bin/activate && ~/.hackeros/hacker/hacker-shell")
+			safe_run("source /usr/lib/HackerOS/venv/bin/activate && ~/.hackeros/hacker/hacker-shell")
 		case "enter":
 			if len(rest) == 0 {
 				fmt.printfln("%s%s%s", Colors.red, trans["usage_enter"], Colors.reset)
@@ -110,8 +106,8 @@ main :: proc() {
 			fmt.printfln("%s%s%s", Colors.green, trans["version_os"], Colors.reset)
 		case "--edition":
 			file_path :: "/etc/xdg/kcm-about-distrorc"
-			data, ok := os.read_entire_file(file_path)
-			if !ok {
+			data, err := os.read_entire_file(file_path, context.allocator)
+			if err != nil {
 				fmt.printfln("%s%s %s%s", Colors.red, trans["file_not_found"], file_path, Colors.reset)
 				os.exit(1)
 			}
@@ -136,7 +132,8 @@ main :: proc() {
 			if path_exists("/usr/bin/vivaldi") { browser = "vivaldi" }
 			safe_run(fmt.tprintf("%s https://github.com/HackerOS-Linux-System/HackerOS-Website/issues/new", browser))
 		case "repair":
-			safe_run(filepath.join([]string{get_home(), ".hackeros/hacker/hacker-repair"}))
+			repair_path, _ := filepath.join([]string{get_home(), ".hackeros/hacker/hacker-repair"}, context.allocator)
+			safe_run(repair_path)
 		case "settings":
 			handle_settings(rest, lang)
 		case:
@@ -163,7 +160,6 @@ main :: proc() {
 			}
 	}
 }
-
 handle_system :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 {
@@ -179,7 +175,6 @@ handle_system :: proc(args: []string, lang: string) {
 			os.exit(1)
 	}
 }
-
 handle_update :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 {
@@ -195,7 +190,6 @@ handle_update :: proc(args: []string, lang: string) {
 		}
 	}
 }
-
 show_hackeros_tools :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["tools_index"], Colors.reset)
@@ -221,7 +215,6 @@ show_hackeros_tools :: proc(lang: string) {
 	fmt.printfln(" * HackerOS Builder - %s", trans["tool_builder"])
 	fmt.printfln(" * Blue Environment (BETA) - %s", trans["tool_blue"])
 }
-
 handle_plugin :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 {
@@ -286,7 +279,6 @@ handle_plugin :: proc(args: []string, lang: string) {
 			os.exit(1)
 	}
 }
-
 show_plugin_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["plugin_subcommands"], Colors.reset)
@@ -294,7 +286,6 @@ show_plugin_help :: proc(lang: string) {
 	fmt.printfln(" %senable %s- %s", Colors.gray, Colors.reset, trans["enable_desc"])
 	fmt.printfln(" %sdisable %s- %s", Colors.gray, Colors.reset, trans["disable_desc"])
 }
-
 handle_enable :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 {
@@ -316,14 +307,12 @@ handle_enable :: proc(args: []string, lang: string) {
 			os.exit(1)
 	}
 }
-
 show_enable_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["enable_subcommands"], Colors.reset)
 	fmt.printfln(" %smotd %s- %s", Colors.gray, Colors.reset, trans["motd_desc"])
 	fmt.printfln(" %sspecial-motd %s- %s", Colors.gray, Colors.reset, trans["special_motd_desc"])
 }
-
 handle_disable :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 {
@@ -340,14 +329,12 @@ handle_disable :: proc(args: []string, lang: string) {
 			os.exit(1)
 	}
 }
-
 show_disable_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["disable_subcommands"], Colors.reset)
 	fmt.printfln(" %smotd %s- %s", Colors.gray, Colors.reset, trans["motd_desc"])
 	fmt.printfln(" %sspecial-motd %s- %s", Colors.gray, Colors.reset, trans["special_motd_desc"])
 }
-
 handle_settings :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	supported_languages := []string{"pl","en","de","fr","es","it","ru","zh","ja","ko","pt","ar","hi"}
@@ -383,34 +370,32 @@ handle_settings :: proc(args: []string, lang: string) {
 			os.exit(1)
 	}
 }
-
 show_settings_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["settings_subcommands"], Colors.reset)
 	fmt.printfln(" %slanguage [ ] %s- %s", Colors.gray, Colors.reset, trans["language_desc"])
 }
-
 show_main_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["tool_title"], Colors.reset)
 	cmds := [][2]string{
 		{"unpack", trans["desc_unpack"]},
-		{"pack",   trans["desc_pack"]},
-		{"env",    trans["desc_env"]},           // ← NOWOŚĆ
-		{"help",   trans["desc_help"]},
+		{"pack", trans["desc_pack"]},
+		{"env", trans["desc_env"]}, // ← NOWOŚĆ
+		{"help", trans["desc_help"]},
 		{"help-ui",trans["desc_help_ui"]},
-		{"docs",   trans["desc_docs"]},
+		{"docs", trans["desc_docs"]},
 		{"install ", trans["desc_install"]},
 		{"remove ", trans["desc_remove"]},
 		{"flatpak-install ", trans["desc_flatpak_install"]},
 		{"flatpak-remove ", trans["desc_flatpak_remove"]},
 		{"system", trans["desc_system"]},
-		{"run",    trans["desc_run"]},
+		{"run", trans["desc_run"]},
 		{"update [ --with-gui ]", trans["desc_update"]},
-		{"game",   trans["desc_game"]},
+		{"game", trans["desc_game"]},
 		{"hacker-lang", trans["desc_hacker_lang"]},
-		{"ascii",  trans["desc_ascii"]},
-		{"shell",  trans["desc_shell"]},
+		{"ascii", trans["desc_ascii"]},
+		{"shell", trans["desc_shell"]},
 		{"enter ", trans["desc_enter"]},
 		{"remove-container ",trans["desc_remove_container"]},
 		{"restart ", trans["desc_restart"]},
@@ -418,16 +403,15 @@ show_main_help :: proc(lang: string) {
 		{"enable", trans["desc_enable"]},
 		{"disable",trans["desc_disable"]},
 		{"how-to-create-commands", trans["desc_how_to"]},
-		{"index",  trans["desc_index"]},
-		{"info",   trans["desc_info"]},
-		{"issue",  trans["desc_issue"]},
+		{"index", trans["desc_index"]},
+		{"info", trans["desc_info"]},
+		{"issue", trans["desc_issue"]},
 		{"repair", trans["desc_repair"]},
 		{"settings", trans["desc_settings"]},
 	}
 	for c in cmds {
 		fmt.printfln(" %s%s %s- %s", Colors.gray, c[0], Colors.reset, c[1])
 	}
-
 	// Custom commands
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["custom_commands"], Colors.reset)
 	for f in glob_dir(get_custom_dir(), ".hacker") {
@@ -441,7 +425,6 @@ show_main_help :: proc(lang: string) {
 			fmt.printfln(" %s%s %s- %s", Colors.gray, name, Colors.reset, trans["invalid_config"])
 		}
 	}
-
 	// Plugin commands
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["plugins_title"], Colors.reset)
 	for f in glob_dir(get_plugin_dir(), ".hacker") {
