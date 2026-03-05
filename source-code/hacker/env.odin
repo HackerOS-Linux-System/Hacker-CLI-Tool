@@ -4,6 +4,7 @@ import "core:os"
 import "core:strings"
 import "core:path/filepath"
 import "core:slice"
+import "base:runtime"
 // =============================================
 // Struktura konfiguracji env
 // =============================================
@@ -93,9 +94,11 @@ env_create :: proc(file_path: string, lang: string) {
     }
     // Sync dotfiles
     for cfg_path in cfg.sync_configs {
-        host, _ := strings.replace(cfg_path, "~", os.get_env("HOME"), 1)
+        home := os.get_env_alloc("HOME", context.allocator)
+        host, _ := strings.replace(cfg_path, "~", home, 1)
+        target, _ := strings.replace(cfg_path, "~", "/root", 1)
         if path_exists(host) {
-            safe_run(fmt.tprintf("podman cp %s %s:%s", host, cfg.name, cfg_path))
+            safe_run(fmt.tprintf("podman cp %s %s:%s", host, cfg.name, target))
         }
     }
     // Sync tools (tymczasowe bind-mounty przy enter – zrobione w env_enter)
@@ -121,8 +124,11 @@ env_enter :: proc(name: string) {
     // Przygotowanie tymczasowych mountów narzędzi
     mount_flags := ""
     // TODO: wczytaj sync_tools z configu (na razie hardcoded przykład)
-    mount_flags = `-v /usr/bin/nvim:/usr/bin/nvim:ro -v ~/.local/share/nvim:/root/.local/share/nvim`
-    enter_cmd := fmt.tprintf("podman start %s 2>/dev/null || true && podman exec -it %s %s", container, mount_flags, "zsh || bash")
+    // Uwaga: podman exec nie wspiera -v; aby dodać mounty, trzeba użyć distrobox lub zmodyfikować kontener
+    // Na razie hardcoded przykład, ale wymaga distrobox enter lub podobnego
+    // mount_flags = `-v /usr/bin/nvim:/usr/bin/nvim:ro -v ~/.local/share/nvim:/root/.local/share/nvim`
+    // Tymczasowo: uzyj podman exec bez mountow
+    enter_cmd := fmt.tprintf("podman start %s 2>/dev/null || true && podman exec -it %s zsh || bash", container, container)
     safe_run(enter_cmd)
 }
 // =============================================
@@ -176,8 +182,8 @@ parse_env_file :: proc(path: string) -> EnvConfig {
     cfg: EnvConfig
     cfg.sync_tools = make(map[string][dynamic]string)
     // fallback – prosty parser stringowy (działa na większości plików)
-    data, ok := os.read_entire_file(path)
-    if !ok { return cfg }
+    data, err := os.read_entire_file(path, context.allocator)
+    if err != nil { return cfg }
     content := string(data)
     lines := strings.split_lines(content)
     section := ""
@@ -211,7 +217,7 @@ parse_env_file :: proc(path: string) -> EnvConfig {
                             for &t in tools {
                                 t = strings.trim(t, " \"'")
                                 if t != "" {
-                                    if tool_type not_in cfg.sync_tools {
+                                    if !(tool_type in cfg.sync_tools) {
                                         cfg.sync_tools[tool_type] = [dynamic]string{}
                                     }
                                     append(&cfg.sync_tools[tool_type], t)
@@ -230,4 +236,3 @@ free_env_config :: proc(cfg: ^EnvConfig) {
     }
     delete(cfg.sync_tools)
 }
-
