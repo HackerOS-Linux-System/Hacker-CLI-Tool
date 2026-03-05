@@ -66,7 +66,7 @@ de_translations :: proc() -> map[string]string {
     trans["logs_desc"] = "Systemprotokolle anzeigen"
     trans["unknown_system"] = "Unbekannter system Unterbefehl:"
     trans["unknown_update_flag"] = "Unbekannte Flagge für update:"
-    trans["available_flags"] = "Verfügbare Flags: --with-gui, --gui-mode, --better"
+    trans["available_flags"] = "Verfügbare Flags: --with-gui"
     trans["tools_index"] = "Index der HackerOS-Tools:"
     trans["tool_bytes"] = "Paketmanager für die Programmiersprache hacker"
     trans["tool_hl"] = "Tool zum Kompilieren oder Ausführen von Dateien/Skripten mit der Erweiterung .hacker"
