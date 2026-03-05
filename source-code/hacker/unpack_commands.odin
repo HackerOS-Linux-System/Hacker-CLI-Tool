@@ -1,9 +1,7 @@
 package hackeros
-
 import "core:fmt"
 import "core:os"
 import "core:strings"
-
 handle_unpack :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 || args[0] == "help" {
@@ -134,25 +132,24 @@ handle_unpack :: proc(args: []string, lang: string) {
 			safe_run("hl run /tmp/install.hl")
 			safe_run("rm -f /tmp/install.hl")
 			fmt.printfln("%s%s%s", Colors.green, trans["unpack_done"], Colors.reset)
-		case "H#":
-			fmt.printfln("%s%s H#...%s", Colors.yellow, trans["unpack_downloading"], Colors.reset)
-			safe_run("curl -L https://raw.githubusercontent.com/HackerOS-Linux-System/H-Sharp/main/install.hl -o /tmp/install.hl")
-			safe_run("hl run /tmp/install.hl")
-			safe_run("rm -f /tmp/install.hl")
-			fmt.printfln("%s%s%s", Colors.green, trans["unpack_done"], Colors.reset)
 		case "hackeros-games-addons":
 			fmt.printfln("%sPobieranie i instalacja hackeros-games-addons...%s", Colors.yellow, trans["unpack_downloading"], Colors.reset)
 			safe_run("curl -L https://github.com/HackerOS-Linux-System/HackerOS-Games/raw/main/addons.hl -o /tmp/addons.hl")
 			safe_run("hl run /tmp/addons.hl")
 			safe_run("rm -f /tmp/addons.hl")
 			fmt.printfln("%sDodatki do gier HackerOS zainstalowane pomyślnie.%s", Colors.green, trans["unpack_done"], Colors.reset)
+		case "lpm":
+			fmt.printfln("%s%s LPM...%s", Colors.yellow, trans["unpack_downloading"], Colors.reset)
+			safe_run("curl -L https://raw.githubusercontent.com/HackerOS-Linux-System/lpm/main/install.hl -o /tmp/install.hl")
+			safe_run("hl run /tmp/install.hl")
+			safe_run("rm -f /tmp/install.hl")
+			fmt.printfln("%s%s%s", Colors.green, trans["unpack_done"], Colors.reset)
 		case:
 			fmt.printfln("%s%s %s%s", Colors.red, trans["unpack_unknown"], sub, Colors.reset)
 			show_unpack_help(lang)
 			os.exit(1)
 	}
 }
-
 show_unpack_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["unpack_title"], Colors.reset)
@@ -183,8 +180,8 @@ show_unpack_help :: proc(lang: string) {
 		{"hydra", trans["unpack_hydra"]},
 		{"hammer", trans["unpack_hammer"]},
 		{"hackerland", trans["unpack_hackerland"]},
-		{"H#", trans["unpack_hsharp"]},
-		{"hackeros-games-addons", "Zainstaluj dodatki do gier HackerOS (addons.hl)"},
+		{"hackeros-games-addons", trans["unpack_hackeros-games"]},
+		{"lpm", trans["unpack_lpm"]},
 	}
 	for c in cmds {
 		fmt.printfln(" %s%-28s %s- %s", Colors.gray, c[0], Colors.reset, c[1])
