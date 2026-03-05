@@ -1,16 +1,14 @@
 package hackeros
-
 import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:path/filepath"
 import "core:encoding/json"
 import "core:sys/posix"
-
+sep_str :: "/"
 ColorCodes :: struct {
 	red, yellow, green, magenta, gray, bold, reset, blue, cyan, white: string,
 }
-
 @(private)
 _colors := ColorCodes{
 	red = "\e[31m",
@@ -24,9 +22,7 @@ _colors := ColorCodes{
 	cyan = "\e[36m",
 	white = "\e[37m",
 }
-
 Colors := _colors
-
 safe_run :: proc(cmd: string) -> bool {
 	pid := posix.fork()
 	if pid < 0 {
@@ -40,14 +36,14 @@ safe_run :: proc(cmd: string) -> bool {
 		sh_cstr := cstring(raw_data(sh_str))
 		c_str := "-c\x00"
 		c_cstr := cstring(raw_data(c_str))
-		cmd_cstr := strings.clone_to_cstring(cmd)
+		cmd_cstr, _ := strings.clone_to_cstring(cmd, context.allocator)
 		args_array: [4]cstring = {sh_cstr, c_cstr, cmd_cstr, nil}
 		args := raw_data(args_array[:])
 		exec_err := posix.execvp(sh_cstr, args)
 		if exec_err == -1 {
 			fmt.printfln("%sExec failed: %v%s", Colors.red, posix.get_errno(), Colors.reset)
 		}
-		delete(cmd_cstr)
+		free(rawptr(cmd_cstr))
 		posix._exit(1)
 	}
 	// parent: wait
@@ -70,55 +66,48 @@ safe_run :: proc(cmd: string) -> bool {
 	}
 	return true
 }
-
 get_home :: proc() -> string {
-	home, ok := os.lookup_env("HOME")
-	if !ok { return "/root" }
+	home, found := os.lookup_env_alloc("HOME", context.allocator)
+	if !found { return "/root" }
 	return home
 }
-
 get_config_path :: proc(file: string) -> string {
-	return filepath.join([]string{get_home(), ".config", "hackeros", "hacker", file})
+	return strings.join([]string{get_home(), ".config", "hackeros", "hacker", file}, sep_str, context.allocator)
 }
-
 get_custom_dir :: proc() -> string {
 	return get_config_path("custom-commands")
 }
-
 get_plugin_dir :: proc() -> string {
 	return get_config_path("plugins")
 }
-
 get_custom_command_path :: proc(name: string) -> string {
-	return fmt.tprintf("%s/%s.hacker", get_custom_dir(), name)
+	suffix := strings.concatenate({name, ".hacker"}, context.allocator)
+	return strings.join([]string{get_custom_dir(), suffix}, sep_str, context.allocator)
 }
-
 path_exists :: proc(p: string) -> bool {
-	_, err := os.stat(p)
-	return err == os.ERROR_NONE
+	_, err := os.stat(p, context.allocator)
+	return err == nil
 }
-
 glob_dir :: proc(dir: string, suffix: string) -> []string {
-	result: [dynamic]string
-	handle, err := os.open(dir)
-	if err != os.ERROR_NONE { return result[:] }
+	result := make([dynamic]string, context.allocator)
+	handle, oerr := os.open(dir)
+	if oerr != nil { return {} }
 	defer os.close(handle)
-	infos, read_err := os.read_dir(handle, -1)
-	if read_err != os.ERROR_NONE { return result[:] }
+	infos, rerr := os.read_directory(handle, -1, context.allocator)
+	if rerr != nil { return {} }
 	for info in infos {
 		if strings.has_suffix(info.name, suffix) {
-			append(&result, filepath.join([]string{dir, info.name}))
+			append(&result, strings.join([]string{dir, info.name}, sep_str, context.allocator))
 		}
 	}
 	return result[:]
 }
-
 load_lang :: proc() -> string {
 	file := get_config_path("language.json")
-	data, ok := os.read_entire_file(file)
-	if !ok { return "pl" }
-	val, err := json.parse(data)
+	data, err := os.read_entire_file_from_path(file, context.allocator)
 	if err != nil { return "pl" }
+	val, jerr := json.parse(data)
+	if jerr != nil { return "pl" }
 	defer json.destroy_value(val)
 	obj, is_obj := val.(json.Object)
 	if !is_obj { return "pl" }
@@ -133,18 +122,16 @@ load_lang :: proc() -> string {
 	}
 	return "en"
 }
-
 save_language :: proc(lang: string) {
 	file := get_config_path("language.json")
-	dir := filepath.dir(file)
-	os.make_directory(dir)
+	dir := filepath.dir(file, context.allocator)
+	_ = os.make_directory_all(dir)
 	content := fmt.tprintf("{\"language\":\"%s\"}", lang)
-	os.write_entire_file(file, transmute([]u8)content)
+	_ = os.write_entire_file_from_string(file, content)
 }
-
 load_styles :: proc(file: string) {
-	data, ok := os.read_entire_file(file)
-	if !ok { return }
+	data, err := os.read_entire_file_from_path(file, context.allocator)
+	if err != nil { return }
 	content := string(data)
 	start := strings.index(content, ":root")
 	if start < 0 { return }
@@ -174,7 +161,6 @@ load_styles :: proc(file: string) {
 		}
 	}
 }
-
 @(private)
 parse_hex2 :: proc(s: string) -> int {
 	val := 0
@@ -188,19 +174,18 @@ parse_hex2 :: proc(s: string) -> int {
 	}
 	return val
 }
-
 HackerConfig :: map[string]string
-
 parse_hacker_file :: proc(path: string) -> (HackerConfig, bool) {
-	data, ok := os.read_entire_file(path)
-	if !ok { return nil, false }
+	data, err := os.read_entire_file_from_path(path, context.allocator)
+	if err != nil { return {}, false }
 	content := strings.trim_space(string(data))
 	if !strings.has_prefix(content, "[") || !strings.has_suffix(content, "]") {
-		return nil, false
+		return {}, false
 	}
 	content = strings.trim_space(content[1:len(content)-1])
-	config := make(HackerConfig)
-	path_stack: [dynamic]string
+	config := make(HackerConfig, context.allocator)
+	path_stack := make([dynamic]string, context.allocator)
+	defer delete(path_stack)
 	for raw_line in strings.split_lines_iterator(&content) {
 		line := strings.trim_space(raw_line)
 		if line == "" { continue }
@@ -221,35 +206,34 @@ parse_hacker_file :: proc(path: string) -> (HackerConfig, bool) {
 		if value == "" {
 			append(&path_stack, key)
 		} else {
-			full_key := strings.join(append_clone(path_stack[:], key), ".")
+			full_key := strings.join(append_clone(path_stack[:], key), ".", context.allocator)
 			config[full_key] = value
 		}
 	}
 	return config, true
 }
-
 @(private)
 append_clone :: proc(s: []string, extra: string) -> []string {
-	result := make([]string, len(s)+1)
+	result := make([]string, len(s)+1, context.allocator)
 	copy(result, s)
 	result[len(s)] = extra
 	return result
 }
-
 write_hacker_file :: proc(path: string, config: HackerConfig) {
-	sb := strings.builder_make()
+	sb, _ := strings.builder_make(context.allocator)
+	defer strings.builder_destroy(&sb)
 	strings.write_string(&sb, "[\n")
 	for k, v in config {
 		strings.write_string(&sb, fmt.tprintf("%s> %s\n", k, v))
 	}
 	strings.write_string(&sb, "]\n")
-	os.write_entire_file(path, transmute([]u8)strings.to_string(sb))
+	_ = os.write_entire_file_from_string(path, strings.to_string(sb))
 }
-
 try_plugin_command :: proc(command: string, args: []string, lang: string) -> bool {
 	for f in glob_dir(get_plugin_dir(), ".hacker") {
 		config, ok := parse_hacker_file(f)
 		if !ok { continue }
+		defer delete(config)
 		if config["enabled"] != "true" { continue }
 		exec_key := fmt.tprintf("commands.%s.exec", command)
 		if exec_cmd, has := config[exec_key]; has {
