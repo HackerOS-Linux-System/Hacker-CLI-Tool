@@ -9,10 +9,10 @@ get_translations_main :: proc(lang: string) -> map[string]string {
             trans = en_translations()
         case "de":
             trans = de_translations()
-            // case "fr":
-            //     trans = fr_translations()
-            // case "es":
-            //     trans = es_translations()
+        case "fr":
+            trans = fr_translations()
+        case "es":
+            trans = es_translations()
             // case "it":
             //     trans = it_translations()
             // case "ru":
