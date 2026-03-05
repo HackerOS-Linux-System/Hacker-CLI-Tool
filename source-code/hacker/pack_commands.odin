@@ -1,8 +1,6 @@
 package hackeros
-
 import "core:fmt"
 import "core:os"
-
 handle_pack :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 || args[0] == "help" {
@@ -104,9 +102,9 @@ handle_pack :: proc(args: []string, lang: string) {
 			safe_run("hl run /tmp/remove.hl")
 			safe_run("rm -f /tmp/remove.hl")
 			fmt.printfln("%s%s%s", Colors.green, trans["pack_done"], Colors.reset)
-		case "H#":
-			fmt.printfln("%s%s H#...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
-			safe_run("curl -L https://raw.githubusercontent.com/HackerOS-Linux-System/H-Sharp/main/remove.hl -o /tmp/remove.hl")
+		case "lpm":
+			fmt.printfln("%s%s lpm...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
+			safe_run("curl -L https://github.com/HackerOS-Linux-System/lpm/blob/main/remove.hl -o /tmp/remove.hl")
 			safe_run("hl run /tmp/remove.hl")
 			safe_run("rm -f /tmp/remove.hl")
 			fmt.printfln("%s%s%s", Colors.green, trans["pack_done"], Colors.reset)
@@ -122,7 +120,6 @@ handle_pack :: proc(args: []string, lang: string) {
 			os.exit(1)
 	}
 }
-
 show_pack_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["pack_title"], Colors.reset)
@@ -151,8 +148,8 @@ show_pack_help :: proc(lang: string) {
 		{"isolator", trans["pack_isolator"]},
 		{"hammer", trans["pack_hammer"]},
 		{"hackerland", trans["pack_hackerland"]},
-		{"H#", trans["pack_hsharp"]},
-		{"hackeros-games-addons", "Usuń dodatki do gier HackerOS (addons-remove.hl)"},
+		{"lpm", trans["pack_lpm"]},
+		{"hackeros-games-addons", trans["pack_hackeros-games"]},
 	}
 	for c in cmds {
 		fmt.printfln(" %s%-28s %s- %s", Colors.gray, c[0], Colors.reset, c[1])
