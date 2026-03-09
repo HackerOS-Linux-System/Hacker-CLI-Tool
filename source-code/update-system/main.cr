@@ -96,7 +96,7 @@ def perform_updates : {String, String, String, String, String, String, String, S
 
   # Oh My Zsh Update
   display_header("Oh My Zsh Update")
-  omz_success, _ = run_command("omz update")
+  omz_success, _ = run_command("zsh -c "source ~/.zshrc && omz update"")
   omz_status = get_status(omz_success)
 
   # Distrobox Update
