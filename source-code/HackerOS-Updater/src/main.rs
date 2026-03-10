@@ -185,7 +185,8 @@ impl App {
 				},
 				Task {
 					name: "Zsh Update".to_string(),
-					command: "omz update".to_string(),
+					command: "zsh -c "source ~/.zshrc && omz update""
+".to_string(),
 					is_sudo: false,
 					status: TaskStatus::Pending,
 				},
