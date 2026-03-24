@@ -34,3 +34,4 @@ get_translations_main :: proc(lang: string) -> map[string]string {
     }
     return trans
 }
+
