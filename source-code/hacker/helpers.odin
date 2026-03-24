@@ -105,29 +105,51 @@ glob_dir :: proc(dir: string, suffix: string) -> []string {
 load_lang :: proc() -> string {
 	file := get_config_path("language.json")
 	data, err := os.read_entire_file_from_path(file, context.allocator)
-	if err != nil { return "pl" }
+	if err != nil {
+		save_language("pl")
+		return "pl"
+	}
 	val, jerr := json.parse(data)
-	if jerr != nil { return "pl" }
+	if jerr != nil {
+		fmt.printfln("%sBłąd parsowania pliku języka, przywracam domyślny (pl).%s", Colors.yellow, Colors.reset)
+		save_language("pl")
+		return "pl"
+	}
 	defer json.destroy_value(val)
 	obj, is_obj := val.(json.Object)
-	if !is_obj { return "pl" }
+	if !is_obj {
+		save_language("pl")
+		return "pl"
+	}
 	lang_val, has := obj["language"]
-	if !has { return "pl" }
+	if !has {
+		save_language("pl")
+		return "pl"
+	}
 	lang_str, is_str := lang_val.(json.String)
-	if !is_str { return "pl" }
+	if !is_str {
+		save_language("pl")
+		return "pl"
+	}
 	l := string(lang_str)
 	valid_langs := []string{"pl","en","de","fr","es","it","ru","zh","ja","ko","pt","ar","hi"}
 	for sl in valid_langs {
 		if l == sl { return l }
 	}
-	return "en"
+	save_language("pl")
+	return "pl"
 }
 save_language :: proc(lang: string) {
 	file := get_config_path("language.json")
 	dir := filepath.dir(file, context.allocator)
-	_ = os.make_directory_all(dir)
+	if err := os.make_directory_all(dir); err != nil {
+		fmt.printfln("%sNie można utworzyć katalogu konfiguracyjnego: %v%s", Colors.red, err, Colors.reset)
+		return
+	}
 	content := fmt.tprintf("{\"language\":\"%s\"}", lang)
-	_ = os.write_entire_file_from_string(file, content)
+	if err := os.write_entire_file_from_string(file, content); err != nil {
+		fmt.printfln("%sNie można zapisać pliku języka: %v%s", Colors.red, err, Colors.reset)
+	}
 }
 load_styles :: proc(file: string) {
 	data, err := os.read_entire_file_from_path(file, context.allocator)
