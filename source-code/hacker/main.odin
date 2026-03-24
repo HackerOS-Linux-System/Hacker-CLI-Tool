@@ -1,27 +1,32 @@
 package hackeros
+
 import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:path/filepath"
 import "core:mem"
+
 main :: proc() {
 	lang := load_lang()
 	trans := get_translations_main(lang)
 	style_file := get_config_path("style.css")
 	load_styles(style_file)
+
 	args := os.args[1:]
 	if len(args) == 0 || args[0] == "help" {
 		show_main_help(lang)
 		os.exit(0)
 	}
+
 	command := args[0]
 	rest := args[1:]
+
 	switch command {
 		case "unpack":
 			handle_unpack(rest, lang)
 		case "pack":
 			handle_pack(rest, lang)
-		case "env": // ← NOWOŚĆ
+		case "env":
 			handle_env(rest, lang)
 		case "help-ui":
 			safe_run("~/.hackeros/hacker/hacker-help")
@@ -136,6 +141,8 @@ main :: proc() {
 			safe_run(repair_path)
 		case "settings":
 			handle_settings(rest, lang)
+		case "switch":
+			handle_switch(rest, lang)
 		case:
 			// Try custom command
 			custom_file := get_custom_command_path(command)
@@ -154,12 +161,203 @@ main :: proc() {
 					os.exit(1)
 				}
 			} else if !try_plugin_command(command, rest, lang) {
-				fmt.printfln("%s%s %s%s", Colors.red, trans["unknown_command"], command, Colors.reset)
-				show_main_help(lang)
+				// Zmieniony format błędu
+				fmt.printfln("%s[ERROR] Unknown command -> %s%s", Colors.red, command, Colors.reset)
 				os.exit(1)
 			}
 	}
 }
+
+// ====================== NOWY HANDLER: hacker switch ======================
+
+handle_switch :: proc(args: []string, lang: string) {
+	trans := get_translations_main(lang)
+	if len(args) == 0 {
+		show_switch_help(lang)
+		os.exit(0)
+	}
+
+	switch args[0] {
+		case "hacker-mode":
+			handle_hacker_mode_switch(lang)
+		case "steam-gamemode":
+			handle_steam_gamemode_switch(lang)
+		case:
+			fmt.printfln("%s%s %s%s", Colors.red, trans["unknown_switch"], args[0], Colors.reset)
+			show_switch_help(lang)
+			os.exit(1)
+	}
+}
+
+show_switch_help :: proc(lang: string) {
+	trans := get_translations_main(lang)
+	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["switch_subcommands"], Colors.reset)
+	fmt.printfln(" %shacker-mode %s- %s", Colors.gray, Colors.reset, trans["hacker_mode_desc"])
+	fmt.printfln(" %ssteam-gamemode %s- %s", Colors.gray, Colors.reset, trans["steam_gamemode_desc"])
+}
+
+// Główna logika przełączania na Hacker-Mode
+handle_hacker_mode_switch :: proc(lang: string) {
+	trans := get_translations_main(lang)
+
+	session_file := "/usr/share/wayland-sessions/Hacker-Mode.desktop"
+
+	// 1. Sprawdzenie czy plik .desktop istnieje
+	if !path_exists(session_file) {
+		fmt.printfln("%sPlik %s nie został znaleziony!%s", Colors.red, session_file, Colors.reset)
+		fmt.printfln("%sZainstaluj go za pomocą:%s hacker unpack hacker-mode", Colors.yellow, Colors.reset)
+		os.exit(1)
+	}
+
+	// 2. Detekcja aktualnego środowiska graficznego
+	de_env := ""
+	if v := os.get_env_alloc("XDG_CURRENT_DESKTOP", context.temp_allocator); v != "" {
+		de_env = v
+	} else if v := os.get_env_alloc("DESKTOP_SESSION", context.temp_allocator); v != "" {
+		de_env = v
+	}
+
+	de_env_lower := strings.to_lower(de_env)
+
+	current_de := ""
+	if strings.contains(de_env_lower, "plasma") || strings.contains(de_env_lower, "kde") {
+		current_de = "plasma-desktop"
+	} else if strings.contains(de_env_lower, "gnome") {
+		current_de = "gnome"
+	} else if strings.contains(de_env_lower, "xfce") {
+		current_de = "xfce4"
+	}
+
+	if current_de == "" {
+		fmt.printfln("%sNie wykryto obsługiwanego środowiska (plasma-desktop / gnome / xfce4).%s", Colors.red, Colors.reset)
+		os.exit(1)
+	}
+
+	fmt.printfln("%sWykryto środowisko: %s. Wyłączam je...%s", Colors.yellow, current_de, Colors.reset)
+
+	// 3. Wyłączenie aktualnego środowiska graficznego
+	switch current_de {
+		case "plasma-desktop":
+			safe_run("killall -9 plasmashell kwin_wayland kwin_x11 krunner kded5")
+		case "gnome":
+			safe_run("killall -9 gnome-shell")
+		case "xfce4":
+			safe_run("killall -9 xfce4-session xfwm4 xfdesktop")
+	}
+
+	// 4. Detekcja Display Managera
+	dm := detect_display_manager()
+
+	if strings.contains(dm, "lightdm") || strings.contains(dm, "sddm") || strings.contains(dm, "gdm") || strings.contains(dm, "gdm3") {
+		fmt.printfln("%sWykryto DM: %s. Uruchamiam sesję Hacker-Mode...%s", Colors.green, dm, Colors.reset)
+
+		exec_cmd := get_desktop_exec(session_file)
+		if exec_cmd != "" {
+			safe_run(exec_cmd)
+		} else {
+			fmt.printfln("%sNie znaleziono linii Exec= w pliku .desktop.%s", Colors.red, Colors.reset)
+		}
+	} else {
+		fmt.printfln("%sDM (%s) nie jest jednym z lightdm/sddm/gdm. Środowisko wyłączone – zaloguj się ponownie i wybierz Hacker-Mode ręcznie.%s", Colors.yellow, dm, Colors.reset)
+	}
+}
+
+// Nowa funkcja: przełączanie na Steam GameMode (gamescope-session)
+handle_steam_gamemode_switch :: proc(lang: string) {
+	trans := get_translations_main(lang)
+
+	session_file := "/usr/share/wayland-sessions/gamescope-session-steam.desktop"
+
+	// 1. Sprawdzenie czy plik .desktop istnieje
+	if !path_exists(session_file) {
+		fmt.printfln("%sPlik %s nie został znaleziony!%s", Colors.red, session_file, Colors.reset)
+		fmt.printfln("%sZainstaluj go za pomocą:%s hacker unpack gamescope-session-steam", Colors.yellow, Colors.reset)
+		os.exit(1)
+	}
+
+	// 2. Detekcja aktualnego środowiska graficznego
+	de_env := ""
+	if v := os.get_env_alloc("XDG_CURRENT_DESKTOP", context.temp_allocator); v != "" {
+		de_env = v
+	} else if v := os.get_env_alloc("DESKTOP_SESSION", context.temp_allocator); v != "" {
+		de_env = v
+	}
+
+	de_env_lower := strings.to_lower(de_env)
+
+	current_de := ""
+	if strings.contains(de_env_lower, "plasma") || strings.contains(de_env_lower, "kde") {
+		current_de = "plasma-desktop"
+	} else if strings.contains(de_env_lower, "gnome") {
+		current_de = "gnome"
+	} else if strings.contains(de_env_lower, "xfce") {
+		current_de = "xfce4"
+	}
+
+	if current_de == "" {
+		fmt.printfln("%sNie wykryto obsługiwanego środowiska (plasma-desktop / gnome / xfce4).%s", Colors.red, Colors.reset)
+		os.exit(1)
+	}
+
+	fmt.printfln("%sWykryto środowisko: %s. Wyłączam je...%s", Colors.yellow, current_de, Colors.reset)
+
+	// 3. Wyłączenie aktualnego środowiska graficznego
+	switch current_de {
+		case "plasma-desktop":
+			safe_run("killall -9 plasmashell kwin_wayland kwin_x11 krunner kded5")
+		case "gnome":
+			safe_run("killall -9 gnome-shell")
+		case "xfce4":
+			safe_run("killall -9 xfce4-session xfwm4 xfdesktop")
+	}
+
+	// 4. Detekcja Display Managera
+	dm := detect_display_manager()
+
+	if strings.contains(dm, "lightdm") || strings.contains(dm, "sddm") || strings.contains(dm, "gdm") || strings.contains(dm, "gdm3") {
+		fmt.printfln("%sWykryto DM: %s. Uruchamiam sesję Steam GameMode...%s", Colors.green, dm, Colors.reset)
+
+		exec_cmd := get_desktop_exec(session_file)
+		if exec_cmd != "" {
+			safe_run(exec_cmd)
+		} else {
+			fmt.printfln("%sNie znaleziono linii Exec= w pliku .desktop.%s", Colors.red, Colors.reset)
+		}
+	} else {
+		fmt.printfln("%sDM (%s) nie jest jednym z lightdm/sddm/gdm. Środowisko wyłączone – zaloguj się ponownie i wybierz Steam GameMode ręcznie.%s", Colors.yellow, dm, Colors.reset)
+	}
+}
+
+// ====================== POMOCNICZE FUNKCJE ======================
+
+detect_display_manager :: proc() -> string {
+	dm_file := "/etc/X11/default-display-manager"
+	if path_exists(dm_file) {
+		data, err := os.read_entire_file(dm_file, context.allocator)
+		if err == nil {
+			return filepath.base(strings.trim_space(string(data)))
+		}
+	}
+	return "unknown"
+}
+
+get_desktop_exec :: proc(path: string) -> string {
+	data, err := os.read_entire_file(path, context.allocator)
+	if err != nil {
+		return ""
+	}
+	content := string(data)
+	for line in strings.split_lines_iterator(&content) {
+		trimmed := strings.trim_space(line)
+		if strings.has_prefix(trimmed, "Exec=") {
+			return strings.trim_prefix(trimmed, "Exec=")
+		}
+	}
+	return ""
+}
+
+// ====================== RESZTA PLIKU (bez zmian) ======================
+
 handle_system :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 {
@@ -175,6 +373,7 @@ handle_system :: proc(args: []string, lang: string) {
 			os.exit(1)
 	}
 }
+
 handle_update :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 {
@@ -190,31 +389,46 @@ handle_update :: proc(args: []string, lang: string) {
 		}
 	}
 }
+
 show_hackeros_tools :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["tools_index"], Colors.reset)
-	fmt.printfln(" * bytes - %s", trans["tool_bytes"])
-	fmt.printfln(" * hl - %s", trans["tool_hl"])
-	fmt.printfln(" * hli - %s", trans["tool_hli"])
-	fmt.printfln(" * hacker - %s", trans["tool_hacker"])
-	fmt.printfln(" * Hacker Kernel - %s", trans["tool_kernel"])
-	fmt.printfln(" * HackerOS Steam - %s", trans["tool_steam"])
-	fmt.printfln(" * HackerOS Welcome - %s", trans["tool_welcome"])
-	fmt.printfln(" * HackerOS App - %s", trans["tool_app"])
-	fmt.printfln(" * HackerOS Store - %s", trans["tool_store"])
-	fmt.printfln(" * Security Mode - %s", trans["tool_security_mode"])
-	fmt.printfln(" * Hacker Mode - %s", trans["tool_hacker_mode"])
-	fmt.printfln(" * isolator - %s", trans["tool_isolator"])
-	fmt.printfln(" * hpm - %s", trans["tool_hpm"])
-	fmt.printfln(" * HackerOS Game Mode - %s", trans["tool_game_mode"])
-	fmt.printfln(" * hup - %s", trans["tool_hup"])
-	fmt.printfln(" * hammer - %s", trans["tool_hammer"])
-	fmt.printfln(" * HackerOS Games - %s", trans["tool_games"])
-	fmt.printfln(" * Hacker Launcher - %s", trans["tool_launcher"])
-	fmt.printfln(" * virus - %s", trans["tool_virus"])
-	fmt.printfln(" * HackerOS Builder - %s", trans["tool_builder"])
-	fmt.printfln(" * Blue Environment (BETA) - %s", trans["tool_blue"])
+	// Zaktualizowana lista narzędzi
+	fmt.printfln(" %s* bit%s - %s", Colors.green, Colors.reset, trans["tool_bit"])
+	fmt.printfln(" %s* virus%s - %s", Colors.green, Colors.reset, trans["tool_virus"])
+	fmt.printfln(" %s* bytes%s - %s", Colors.green, Colors.reset, trans["tool_bytes"])
+	fmt.printfln(" %s* hl%s - %s", Colors.green, Colors.reset, trans["tool_hl"])
+	fmt.printfln(" %s* hackerc%s - %s", Colors.green, Colors.reset, trans["tool_hackerc"])
+	fmt.printfln(" %s* hacker%s - %s", Colors.green, Colors.reset, trans["tool_hacker"])
+	fmt.printfln(" %s* Hacker Kernel%s - %s", Colors.green, Colors.reset, trans["tool_kernel"])
+	fmt.printfln(" %s* HackerOS Steam%s - %s", Colors.green, Colors.reset, trans["tool_steam"])
+	fmt.printfln(" %s* HackerOS Welcome%s - %s", Colors.green, Colors.reset, trans["tool_welcome"])
+	fmt.printfln(" %s* HackerOS App%s - %s", Colors.green, Colors.reset, trans["tool_app"])
+	fmt.printfln(" %s* Hacker Mode%s - %s", Colors.green, Colors.reset, trans["tool_hacker_mode"])
+	fmt.printfln(" %s* isolator%s - %s", Colors.green, Colors.reset, trans["tool_isolator"])
+	fmt.printfln(" %s* hpm%s - %s", Colors.green, Colors.reset, trans["tool_hpm"])
+	fmt.printfln(" %s* HackerOS Game Mode%s - %s", Colors.green, Colors.reset, trans["tool_game_mode"])
+	fmt.printfln(" %s* hup%s - %s", Colors.green, Colors.reset, trans["tool_hup"])
+	fmt.printfln(" %s* hammer%s - %s", Colors.green, Colors.reset, trans["tool_hammer"])
+	fmt.printfln(" %s* HackerOS Games%s - %s", Colors.green, Colors.reset, trans["tool_games"])
+	fmt.printfln(" %s* HackerOS Cockpit (archiwum)%s - %s", Colors.green, Colors.reset, trans["tool_cockpit"])
+	fmt.printfln(" %s* Hacker Launcher%s - %s", Colors.green, Colors.reset, trans["tool_launcher"])
+	fmt.printfln(" %s* lpm%s - %s", Colors.green, Colors.reset, trans["tool_lpm"])
+	fmt.printfln(" %s* hedit%s - %s", Colors.green, Colors.reset, trans["tool_hedit"])
+	fmt.printfln(" %s* ngt%s - %s", Colors.green, Colors.reset, trans["tool_ngt"])
+	fmt.printfln(" %s* hbuild%s - %s", Colors.green, Colors.reset, trans["tool_hbuild"])
+	fmt.printfln(" %s* HackerDeck%s - %s", Colors.green, Colors.reset, trans["tool_hackerdeck"])
+	fmt.printfln(" %s* Hacker Term%s - %s", Colors.green, Colors.reset, trans["tool_hackerterm"])
+	fmt.printfln(" %s* HackerOS Store%s - %s", Colors.green, Colors.reset, trans["tool_store"])
+	fmt.printfln(" %s* hsh%s - %s", Colors.green, Colors.reset, trans["tool_hsh"])
+	fmt.printfln(" %s* getit%s - %s", Colors.green, Colors.reset, trans["tool_getit"])
+	fmt.printfln(" %s* HackerOS Builder%s - %s", Colors.green, Colors.reset, trans["tool_builder"])
+	fmt.printfln(" %s* HexAi%s - %s", Colors.green, Colors.reset, trans["tool_hexai"])
+	fmt.printfln(" %s* chker%s - %s", Colors.green, Colors.reset, trans["tool_chker"])
+	fmt.printfln(" %s* anvil%s - %s", Colors.green, Colors.reset, trans["tool_anvil"])
+	fmt.printfln(" %s* Blue Environment (BETA - niestabilne)%s - %s", Colors.green, Colors.reset, trans["tool_blue"])
 }
+
 handle_plugin :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 {
@@ -279,6 +493,7 @@ handle_plugin :: proc(args: []string, lang: string) {
 			os.exit(1)
 	}
 }
+
 show_plugin_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["plugin_subcommands"], Colors.reset)
@@ -286,6 +501,7 @@ show_plugin_help :: proc(lang: string) {
 	fmt.printfln(" %senable %s- %s", Colors.gray, Colors.reset, trans["enable_desc"])
 	fmt.printfln(" %sdisable %s- %s", Colors.gray, Colors.reset, trans["disable_desc"])
 }
+
 handle_enable :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 {
@@ -307,12 +523,14 @@ handle_enable :: proc(args: []string, lang: string) {
 			os.exit(1)
 	}
 }
+
 show_enable_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["enable_subcommands"], Colors.reset)
 	fmt.printfln(" %smotd %s- %s", Colors.gray, Colors.reset, trans["motd_desc"])
 	fmt.printfln(" %sspecial-motd %s- %s", Colors.gray, Colors.reset, trans["special_motd_desc"])
 }
+
 handle_disable :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 {
@@ -329,12 +547,14 @@ handle_disable :: proc(args: []string, lang: string) {
 			os.exit(1)
 	}
 }
+
 show_disable_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["disable_subcommands"], Colors.reset)
 	fmt.printfln(" %smotd %s- %s", Colors.gray, Colors.reset, trans["motd_desc"])
 	fmt.printfln(" %sspecial-motd %s- %s", Colors.gray, Colors.reset, trans["special_motd_desc"])
 }
+
 handle_settings :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	supported_languages := []string{"pl","en","de","fr","es","it","ru","zh","ja","ko","pt","ar","hi"}
@@ -370,18 +590,20 @@ handle_settings :: proc(args: []string, lang: string) {
 			os.exit(1)
 	}
 }
+
 show_settings_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["settings_subcommands"], Colors.reset)
 	fmt.printfln(" %slanguage [ ] %s- %s", Colors.gray, Colors.reset, trans["language_desc"])
 }
+
 show_main_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["tool_title"], Colors.reset)
 	cmds := [][2]string{
 		{"unpack", trans["desc_unpack"]},
 		{"pack", trans["desc_pack"]},
-		{"env", trans["desc_env"]}, // ← NOWOŚĆ
+		{"env", trans["desc_env"]},
 		{"help", trans["desc_help"]},
 		{"help-ui",trans["desc_help_ui"]},
 		{"docs", trans["desc_docs"]},
@@ -408,6 +630,7 @@ show_main_help :: proc(lang: string) {
 		{"issue", trans["desc_issue"]},
 		{"repair", trans["desc_repair"]},
 		{"settings", trans["desc_settings"]},
+		{"switch", trans["desc_switch"]},
 	}
 	for c in cmds {
 		fmt.printfln(" %s%s %s- %s", Colors.gray, c[0], Colors.reset, c[1])
