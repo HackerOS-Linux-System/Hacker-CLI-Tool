@@ -9,12 +9,6 @@ handle_pack :: proc(args: []string, lang: string) {
 	}
 	sub := args[0]
 	switch sub {
-		case "install":
-			fmt.printfln("%s%s HackerLand...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
-			safe_run("curl -L https://raw.githubusercontent.com/HackerOS-Linux-System/HackerLand/main/remove.hl -o /tmp/remove.hl")
-			safe_run("hl run /tmp/remove.hl")
-			safe_run("rm -f /tmp/remove.hl")
-			fmt.printfln("%s%s%s", Colors.green, trans["pack_full_done"], Colors.reset)
 		case "add-ons":
 			safe_run("sudo apt remove -y wine winetricks")
 			safe_run("flatpak uninstall -y flathub io.github.dvlv.boxbuddyrs")
@@ -24,12 +18,12 @@ handle_pack :: proc(args: []string, lang: string) {
 			handle_pack([]string{"gaming"}, lang)
 			handle_pack([]string{"cybersecurity"}, lang)
 		case "devtools":
-			safe_run("flatpak uninstall -y flathub io.atom.Atom")
+			safe_run("flatpak uninstall -y flathub com.visualstudio.code")
 			safe_run("sudo apt remove -y crystal shards")
 			safe_run("sudo apt remove -y npm nodejs")
-			safe_run("flatpak uninstall -y flathub com.visualstudio.code")
 			safe_run("rustup self uninstall -y || true")
-			safe_run("sudo apt remove -y golang-go")
+			// Zamiast golang-go usuwamy golang (co spowoduje usunięcie golang-go)
+			safe_run("sudo apt remove -y golang")
 			safe_run("sudo apt remove -y lua5.4")
 			safe_run("sudo snap remove zig")
 		case "emulators":
@@ -59,10 +53,6 @@ handle_pack :: proc(args: []string, lang: string) {
 			safe_run("git clone https://github.com/HackerOS-Linux-System/gamescope-session-steam.git /tmp/gamescope-session-steam || true")
 			safe_run("hl run /tmp/gamescope-session-steam/remove.hl")
 			safe_run("rm -rf /tmp/gamescope-session-steam")
-		case "xanmod":
-			safe_run("/usr/share/HackerOS/Scripts/Bin/remove-xanmod.sh")
-		case "liquorix":
-			safe_run("/usr/share/HackerOS/Scripts/Bin/remove-liquorix.sh")
 		case "automatic-updates":
 			safe_run("sudo systemctl disable --now hup.service || true")
 			safe_run("sudo rm -f /etc/systemd/system/hup.service")
@@ -74,16 +64,17 @@ handle_pack :: proc(args: []string, lang: string) {
 			safe_run("git clone https://github.com/HackerOS-Linux-System/HackerOS-TV.git /tmp/HackerOS-TV || true")
 			safe_run("hl run /tmp/HackerOS-TV/remove.hl")
 			safe_run("rm -rf /tmp/HackerOS-TV")
-		case "security-mode":
-			safe_run("git clone https://github.com/HackerOS-Linux-System/Security-Mode.git /tmp/Security-Mode || true")
-			safe_run("hl run /tmp/Security-Mode/remove.hl")
-			safe_run("rm -rf /tmp/Security-Mode")
 		case "winboat":
 			safe_run("sudo apt remove -y winboat || true")
 		case "nvidia-drivers":
 			safe_run("/usr/share/HackerOS/Scripts/Bin/remove-nvidia-drivers.sh")
 		case "hl-utils":
-			safe_run("sudo rm -f /usr/bin/bytes /usr/bin/hli")
+			// Nowa implementacja: pobiera i uruchamia remove-utils.hl
+			fmt.printfln("%s%s hl-utils...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
+			safe_run("curl -L https://github.com/HackerOS-Linux-System/Hacker-Lang/blob/main/remove-utils.hl -o /tmp/remove-utils.hl")
+			safe_run("hl run /tmp/remove-utils.hl")
+			safe_run("rm -f /tmp/remove-utils.hl")
+			fmt.printfln("%s%s%s", Colors.green, trans["pack_done"], Colors.reset)
 		case "flox":
 			safe_run("sudo apt remove -y flox || true")
 		case "hackeros-builder":
@@ -96,15 +87,15 @@ handle_pack :: proc(args: []string, lang: string) {
 			safe_run("hl run /tmp/remove.hl")
 			safe_run("rm -f /tmp/remove.hl")
 			fmt.printfln("%s%s%s", Colors.green, trans["pack_done"], Colors.reset)
-		case "hackerland":
-			fmt.printfln("%s%s HackerLand...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
-			safe_run("curl -L https://raw.githubusercontent.com/HackerOS-Linux-System/HackerLand/main/remove.hl -o /tmp/remove.hl")
-			safe_run("hl run /tmp/remove.hl")
-			safe_run("rm -f /tmp/remove.hl")
-			fmt.printfln("%s%s%s", Colors.green, trans["pack_done"], Colors.reset)
 		case "lpm":
 			fmt.printfln("%s%s lpm...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
 			safe_run("curl -L https://github.com/HackerOS-Linux-System/lpm/blob/main/remove.hl -o /tmp/remove.hl")
+			safe_run("hl run /tmp/remove.hl")
+			safe_run("rm -f /tmp/remove.hl")
+			fmt.printfln("%s%s%s", Colors.green, trans["pack_done"], Colors.reset)
+		case "HackerScript":
+			fmt.printfln("%s%s HackerScript...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
+			safe_run("curl -L https://github.com/HackerOS-Linux-System/HackerScript/blob/main/remove.hl -o /tmp/remove.hl")
 			safe_run("hl run /tmp/remove.hl")
 			safe_run("rm -f /tmp/remove.hl")
 			fmt.printfln("%s%s%s", Colors.green, trans["pack_done"], Colors.reset)
@@ -114,6 +105,25 @@ handle_pack :: proc(args: []string, lang: string) {
 			safe_run("hl run /tmp/addons-remove.hl")
 			safe_run("rm -f /tmp/addons-remove.hl")
 			fmt.printfln("%sDodatki do gier HackerOS usunięte pomyślnie.%s", Colors.green, trans["pack_done"], Colors.reset)
+			// Nowe komendy
+		case "hexai":
+			fmt.printfln("%s%s HexAi...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
+			safe_run("curl -L https://github.com/HackerOS-Linux-System/HexAi/blob/main/remove.hl -o /tmp/hexai-remove.hl")
+			safe_run("hl run /tmp/hexai-remove.hl")
+			safe_run("rm -f /tmp/hexai-remove.hl")
+			fmt.printfln("%s%s%s", Colors.green, trans["pack_done"], Colors.reset)
+		case "hackerscript-utils":
+			fmt.printfln("%s%s HackerScript Utils...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
+			safe_run("curl -L https://github.com/HackerOS-Linux-System/HackerScript/blob/main/remove-utils.hl -o /tmp/hackerscript-utils-remove.hl")
+			safe_run("hl run /tmp/hackerscript-utils-remove.hl")
+			safe_run("rm -f /tmp/hackerscript-utils-remove.hl")
+			fmt.printfln("%s%s%s", Colors.green, trans["pack_done"], Colors.reset)
+		case "hackerdeck":
+			fmt.printfln("%s%s HackerDeck...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
+			safe_run("curl -L https://github.com/HackerOS-Linux-System/HackerDeck/blob/main/remove.hl -o /tmp/hackerdeck-remove.hl")
+			safe_run("hl run /tmp/hackerdeck-remove.hl")
+			safe_run("rm -f /tmp/hackerdeck-remove.hl")
+			fmt.printfln("%s%s%s", Colors.green, trans["pack_done"], Colors.reset)
 		case:
 			fmt.printfln("%s%s %s%s", Colors.red, trans["pack_unknown"], sub, Colors.reset)
 			show_pack_help(lang)
@@ -124,7 +134,6 @@ show_pack_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["pack_title"], Colors.reset)
 	cmds := [][2]string{
-		{"install", trans["pack_install"]},
 		{"add-ons", trans["pack_add_ons"]},
 		{"gs", trans["pack_gs"]},
 		{"devtools", trans["pack_devtools"]},
@@ -134,12 +143,9 @@ show_pack_help :: proc(lang: string) {
 		{"gaming", trans["pack_gaming"]},
 		{"hacker-mode", trans["pack_hacker_mode"]},
 		{"gamescope-session-steam", trans["pack_gamescope"]},
-		{"xanmod", trans["pack_xanmod"]},
-		{"liquorix", trans["pack_liquorix"]},
 		{"automatic-updates", trans["pack_auto_updates"]},
 		{"alacritty-config", trans["pack_alacritty"]},
 		{"hackeros-tv", trans["pack_hackeros_tv"]},
-		{"security-mode", trans["pack_security_mode"]},
 		{"winboat", trans["pack_winboat"]},
 		{"nvidia-drivers", trans["pack_nvidia"]},
 		{"hl-utils", trans["pack_hl_utils"]},
@@ -147,9 +153,13 @@ show_pack_help :: proc(lang: string) {
 		{"hackeros-builder", trans["pack_builder"]},
 		{"isolator", trans["pack_isolator"]},
 		{"hammer", trans["pack_hammer"]},
-		{"hackerland", trans["pack_hackerland"]},
 		{"lpm", trans["pack_lpm"]},
 		{"hackeros-games-addons", trans["pack_hackeros-games"]},
+		{"HackerScript", trans["pack_hackerscript"]},
+		// Nowe
+		{"hexai", trans["pack_hexai"]},
+		{"hackerscript-utils", trans["pack_hackerscript_utils"]},
+		{"hackerdeck", trans["pack_hackerdeck"]},
 	}
 	for c in cmds {
 		fmt.printfln(" %s%-28s %s- %s", Colors.gray, c[0], Colors.reset, c[1])
