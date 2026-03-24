@@ -19,31 +19,31 @@ fr_translations :: proc() -> map[string]string {
     trans["env_docs_desc"] = "Tutoriel complet + exemples"
     trans["env_settings_desc"] = "Liste de tous les environnements"
     trans["env_docs"] = `
-%s=== Hacker env – tutoriel complet ===%s
-1. Créez un fichier de configuration (par exemple, pentest.hk) :
-[env]
--> name => pentest-env
--> image => fedora:latest
--> shell => zsh
-[packages]
--> -> nmap
--> -> metasploit-framework
--> -> burpsuite
-[sync_configs]
--> -> ~/.zshrc
--> -> ~/.config/nvim
-[sync_tools]
--> snap => ["code"]
--> flatpak => ["com.brave.Browser"]
--> system => ["~/go/bin/gf"]
-2. Créez l'environnement :
-hacker env create ./pentest.hk
-3. Entrez :
-hacker env enter pentest-env
-4. Supprimez :
-hacker env remove pentest-env
-Tous les environnements sont des conteneurs podman normaux – vous pouvez utiliser distrobox enter / podman exec normalement.
-`
+    %s=== Hacker env – tutoriel complet ===%s
+    1. Créez un fichier de configuration (par exemple, pentest.hk) :
+    [env]
+    -> name => pentest-env
+    -> image => fedora:latest
+    -> shell => zsh
+    [packages]
+    -> -> nmap
+    -> -> metasploit-framework
+    -> -> burpsuite
+    [sync_configs]
+    -> -> ~/.zshrc
+    -> -> ~/.config/nvim
+    [sync_tools]
+    -> snap => ["code"]
+    -> flatpak => ["com.brave.Browser"]
+    -> system => ["~/go/bin/gf"]
+    2. Créez l'environnement :
+    hacker env create ./pentest.hk
+    3. Entrez :
+    hacker env enter pentest-env
+    4. Supprimez :
+    hacker env remove pentest-env
+    Tous les environnements sont des conteneurs podman normaux – vous pouvez utiliser distrobox enter / podman exec normalement.
+    `
     // Traductions de main
     trans["usage_install"] = "Utilisation : hacker install <paquet>"
     trans["usage_remove"] = "Utilisation : hacker remove <paquet>"
@@ -68,27 +68,40 @@ Tous les environnements sont des conteneurs podman normaux – vous pouvez utili
     trans["unknown_update_flag"] = "Drapeau inconnu pour update :"
     trans["available_flags"] = "Drapeaux disponibles : --with-gui"
     trans["tools_index"] = "Index des outils HackerOS :"
-    trans["tool_bytes"] = "gestionnaire de paquets pour le langage de programmation hacker"
-    trans["tool_hl"] = "outil pour compiler ou exécuter des fichiers/scripts avec l'extension .hacker"
-    trans["tool_hli"] = "outil pour les grands projets en langage hacker"
+    trans["tool_bit"] = "gestionnaire de paquets pour HackerScript - plus avancé"
+    trans["tool_virus"] = "gestionnaire de paquets pour HackerScript"
+    trans["tool_bytes"] = "gestionnaire de paquets pour Hacker Lang"
+    trans["tool_hl"] = "interpréteur/compilateur pour les scripts écrits en Hacker Lang"
+    trans["tool_hackerc"] = "compilateur pour HackerScript"
     trans["tool_hacker"] = "outil CLI principal de HackerOS"
     trans["tool_kernel"] = "noyau HackerOS ; si vous voulez développer, contactez à : gmail - <hackeros068@gmail.com> ou <https://github.com/orgs/HackerOS-Linux-System/discussions>"
     trans["tool_steam"] = "conteneur pour Steam"
     trans["tool_welcome"] = "application de bienvenue HackerOS"
-    trans["tool_app"] = "interface GUI pour l'outil hacker + magasin d'applications"
-    trans["tool_store"] = "magasin HackerOS"
-    trans["tool_security_mode"] = "mode pour les tests de pénétration"
-    trans["tool_hacker_mode"] = "mode jeu"
-    trans["tool_isolator"] = "outil CLI pour installer des paquets dans des environnements podman isolés"
-    trans["tool_hpm"] = "frontend pour apt + installation graphique de paquets flatpak, apt, snap"
+    trans["tool_app"] = "application HackerOS pour téléphones"
+    trans["tool_hacker_mode"] = "mode jeu inspiré de steamos gamemode"
+    trans["tool_isolator"] = "outil CLI pour installer des paquets depuis le dépôt dans des conteneurs podman"
+    trans["tool_hpm"] = "gestionnaire de paquets communautaire"
     trans["tool_game_mode"] = "mode jeu inspiré par ASUS Armoury Crate"
     trans["tool_hup"] = "système d'actualisations automatiques"
-    trans["tool_hammer"] = "outil pour gérer les dépôts HackerOS"
-    trans["tool_games"] = "GUI pour lancer des jeux : starblaster, bit-jump"
-    trans["tool_launcher"] = "lancer des jeux Windows avec cette application"
-    trans["tool_virus"] = "simulateur de virus"
-    trans["tool_builder"] = "constructeur HackerOS"
+    trans["tool_hammer"] = "système d'installation/mise à jour atomique des paquets (utilisé uniquement dans l'édition atomic)"
+    trans["tool_games"] = "GUI pour lancer des jeux : starblaster, bit-jump, bark squadron, the racer"
+    trans["tool_cockpit"] = "centre de contrôle système dans le navigateur"
+    trans["tool_launcher"] = "lancez des jeux exe avec cette application"
+    trans["tool_lpm"] = "Successeur de apt"
+    trans["tool_hedit"] = "éditeur de texte inspiré de nano"
+    trans["tool_ngt"] = "outil moderne inspiré de mc"
+    trans["tool_hbuild"] = "équivalent moderne de cmake/meson"
+    trans["tool_hackerdeck"] = "surcouche pour waydroid"
+    trans["tool_hackerterm"] = "Terminal pour HackerOS"
+    trans["tool_store"] = "Boutique HackerOS"
+    trans["tool_hsh"] = "shell propriétaire (peut remplacer zsh/bash)"
+    trans["tool_getit"] = "outil CLI pour télécharger des dossiers depuis github/gitlab. Peut également remplacer wget/curl et git"
+    trans["tool_builder"] = "surcouche pour live build"
+    trans["tool_hexai"] = "IA pour HackerOS (attention nécessite un matériel puissant)"
+    trans["tool_chker"] = "outil pour changer le noyau vers des versions personnalisées"
+    trans["tool_anvil"] = "outil CLI pour gérer un système en lecture seule (utilisé uniquement dans l'édition atomic)"
     trans["tool_blue"] = "si vous voulez aider au développement de l'environnement graphique HackerOS, contactez à gmail - <hackeros068@gmail.com> ou <https://github.com/orgs/HackerOS-Linux-System/discussions>"
+
     trans["plugins"] = "Plugins :"
     trans["enabled"] = "activé"
     trans["disabled"] = "désactivé"
@@ -149,12 +162,14 @@ Tous les environnements sont des conteneurs podman normaux – vous pouvez utili
     trans["desc_issue"] = "Ouvrir un nouveau ticket sur GitHub dans le navigateur (préfère Vivaldi)"
     trans["desc_repair"] = "Réparer le système HackerOS"
     trans["desc_settings"] = "Paramètres de l'outil (utilisez 'hacker settings' pour les sous-commandes)"
+    trans["desc_switch"] = "Changer de mode (hacker-mode, steam-gamemode)"
     trans["custom_commands"] = "Commandes personnalisées :"
     trans["no_description"] = "Aucune description"
     trans["invalid_config"] = "Configuration invalide"
     trans["plugins_title"] = "Commandes des plugins :"
     trans["hacker_lang_info1"] = "Pour utiliser le langage de programmation hacker pour les fichiers/scripts avec l'extension .hacker,"
     trans["hacker_lang_info2"] = "utilisez la commande \"hl\" et \"bytes\" pour télécharger les dépendances, pour les compiler ou les exécuter."
+
     // Traductions de unpack
     trans["unpack_downloading"] = "Téléchargement"
     trans["unpack_done"] = "Installation terminée."
@@ -165,7 +180,6 @@ Tous les environnements sont des conteneurs podman normaux – vous pouvez utili
     trans["unpack_hydra_warning"] = "Note : Hydra look-and-feel peut nécessiter une configuration manuelle."
     trans["unpack_unknown"] = "Sous-commande unpack inconnue :"
     trans["unpack_title"] = "Sous-commandes unpack :"
-    trans["unpack_install"] = "Installer HackerLand"
     trans["unpack_add_ons"] = "Installer wine et outils associés"
     trans["unpack_gs"] = "Installer gaming et cybersecurity"
     trans["unpack_devtools"] = "Installer outils de développement"
@@ -176,23 +190,24 @@ Tous les environnements sont des conteneurs podman normaux – vous pouvez utili
     trans["unpack_gaming_roblox"] = "Installer gaming avec support Roblox"
     trans["unpack_hacker_mode"] = "Installer mode jeu inspiré par steam gamepadui"
     trans["unpack_gamescope"] = "Configurer session gamescope pour Steam"
-    trans["unpack_xanmod"] = "Déballer noyau Xanmod"
-    trans["unpack_liquorix"] = "Déballer noyau Liquorix"
     trans["unpack_auto_updates"] = "Activer actualisations automatiques"
     trans["unpack_alacritty"] = "Installer configuration Alacritty (copie alacritty.toml dans ~/.config/alacritty/)"
     trans["unpack_hackeros_tv"] = "Installer HackerOS TV"
-    trans["unpack_security_mode"] = "Installer mode sécurité"
     trans["unpack_winboat"] = "Installer Winboat"
     trans["unpack_nvidia"] = "Installer pilotes NVIDIA"
-    trans["unpack_hl_utils"] = "Installer binaires hl-utils"
+    trans["unpack_hl_utils"] = "Installer les utilitaires Hacker Lang (hl-utils)"
     trans["unpack_flox"] = "Installer Flox"
     trans["unpack_builder"] = "Installer HackerOS Builder"
     trans["unpack_isolator"] = "Installer Isolator"
     trans["unpack_hydra"] = "Installer Hydra look-and-feel"
     trans["unpack_hammer"] = "Installer Hammer"
-    trans["unpack_hackerland"] = "Installer HackerLand"
     trans["unpack_hackeros-games"] = "Installer add-ons jeux HackerOS"
     trans["unpack_lpm"] = "Installer LPM"
+    trans["unpack_hackerscript"] = "Installer HackerScript"
+    trans["unpack_hexai"] = "Installer HexAi"
+    trans["unpack_hackerscript_utils"] = "Installer les utilitaires HackerScript"
+    trans["unpack_hackerdeck"] = "Installer HackerDeck"
+
     // Traductions de pack
     trans["pack_downloading"] = "Téléchargement du script de suppression"
     trans["pack_full_done"] = "Suppression complète terminée."
@@ -200,7 +215,6 @@ Tous les environnements sont des conteneurs podman normaux – vous pouvez utili
     trans["pack_done"] = "Suppression terminée."
     trans["pack_unknown"] = "Sous-commande pack inconnue :"
     trans["pack_title"] = "Sous-commandes pack :"
-    trans["pack_install"] = "Supprimer HackerLand"
     trans["pack_add_ons"] = "Supprimer wine et outils associés"
     trans["pack_gs"] = "Supprimer gaming et cybersecurity"
     trans["pack_devtools"] = "Supprimer outils de développement"
@@ -210,21 +224,28 @@ Tous les environnements sont des conteneurs podman normaux – vous pouvez utili
     trans["pack_gaming"] = "Supprimer outils de gaming"
     trans["pack_hacker_mode"] = "Supprimer outils mode hacker"
     trans["pack_gamescope"] = "Supprimer session gamescope pour Steam"
-    trans["pack_xanmod"] = "Supprimer noyau Xanmod"
-    trans["pack_liquorix"] = "Supprimer noyau Liquorix"
     trans["pack_auto_updates"] = "Désactiver actualisations automatiques"
     trans["pack_alacritty"] = "Supprimer configuration Alacritty"
     trans["pack_hackeros_tv"] = "Supprimer HackerOS TV"
-    trans["pack_security_mode"] = "Supprimer mode sécurité"
     trans["pack_winboat"] = "Supprimer Winboat"
     trans["pack_nvidia"] = "Supprimer pilotes NVIDIA"
-    trans["pack_hl_utils"] = "Supprimer binaires hl-utils"
+    trans["pack_hl_utils"] = "Supprimer les utilitaires Hacker Lang (hl-utils)"
     trans["pack_flox"] = "Supprimer Flox"
     trans["pack_builder"] = "Supprimer HackerOS Builder"
     trans["pack_isolator"] = "Supprimer Isolator"
     trans["pack_hammer"] = "Supprimer Hammer"
-    trans["pack_hackerland"] = "Supprimer HackerLand"
     trans["pack_lpm"] = "Supprimer LPM"
     trans["pack_hackeros-games"] = "Supprimer add-ons jeux HackerOS"
+    trans["pack_hackerscript"] = "Supprimer HackerScript"
+    trans["pack_hexai"] = "Supprimer HexAi"
+    trans["pack_hackerscript_utils"] = "Supprimer les utilitaires HackerScript"
+    trans["pack_hackerdeck"] = "Supprimer HackerDeck"
+
+    // Traductions pour switch
+    trans["switch_subcommands"] = "Sous-commandes switch :"
+    trans["hacker_mode_desc"] = "Passer en mode Hacker-Mode (session Wayland)"
+    trans["steam_gamemode_desc"] = "Passer en mode gaming Steam (gamescope-session)"
+    trans["unknown_switch"] = "Sous-commande switch inconnue :"
+
     return trans
 }
