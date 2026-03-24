@@ -5,20 +5,16 @@ import "core:strings"
 import "core:path/filepath"
 import "core:slice"
 import "base:runtime"
-// =============================================
-// Struktura konfiguracji env
-// =============================================
+
 EnvConfig :: struct {
     name: string,
     image: string,
     shell: string,
     packages: [dynamic]string,
     sync_configs: [dynamic]string,
-    sync_tools: map[string][dynamic]string, // "snap" -> ["tool1", "tool2"]
+    sync_tools: map[string][dynamic]string,
 }
-// =============================================
-// Główna procedura
-// =============================================
+
 handle_env :: proc(args: []string, lang: string) {
     trans := get_translations_main(lang)
     if len(args) == 0 || args[0] == "help" {
@@ -56,9 +52,7 @@ handle_env :: proc(args: []string, lang: string) {
             os.exit(1)
     }
 }
-// =============================================
-// CREATE
-// =============================================
+
 env_create :: proc(file_path: string, lang: string) {
     trans := get_translations_main(lang)
     if !path_exists(file_path) {
@@ -72,7 +66,6 @@ env_create :: proc(file_path: string, lang: string) {
         os.exit(1)
     }
     fmt.printfln("%sTworzenie środowiska %s (%s)...%s", Colors.yellow, cfg.name, cfg.image, Colors.reset)
-    // Tworzenie kontenera przez podman (nakładka)
     create_cmd := fmt.tprintf(`podman create \
     --name %s \
     --label hacker-env=true \
@@ -80,19 +73,16 @@ env_create :: proc(file_path: string, lang: string) {
     -it \
     %s`, cfg.name, cfg.name, cfg.image)
     safe_run(create_cmd)
-    // Instalacja powłoki
     if cfg.shell == "zsh" {
         safe_run(fmt.tprintf("podman exec %s bash -c 'apt update && apt install -y zsh || dnf install -y zsh || true'", cfg.name))
         safe_run(fmt.tprintf("podman exec %s chsh -s /bin/zsh root", cfg.name))
     }
-    // Instalacja pakietów
     for pkg in cfg.packages {
         safe_run(fmt.tprintf(`podman exec %s bash -c '
         if command -v apt > /dev/null; then apt install -y %s;
         elif command -v dnf > /dev/null; then dnf install -y %s;
         fi'`, cfg.name, pkg, pkg))
     }
-    // Sync dotfiles
     for cfg_path in cfg.sync_configs {
         home := os.get_env_alloc("HOME", context.allocator)
         host, _ := strings.replace(cfg_path, "~", home, 1)
@@ -101,39 +91,25 @@ env_create :: proc(file_path: string, lang: string) {
             safe_run(fmt.tprintf("podman cp %s %s:%s", host, cfg.name, target))
         }
     }
-    // Sync tools (tymczasowe bind-mounty przy enter – zrobione w env_enter)
     fmt.printfln("%sŚrodowisko %s zostało utworzone pomyślnie!%s", Colors.green, cfg.name, Colors.reset)
 }
-// =============================================
-// REMOVE
-// =============================================
+
 env_remove :: proc(name: string) {
     safe_run(fmt.tprintf("podman rm -f %s 2>/dev/null || true", name))
     fmt.printfln("%sŚrodowisko %s zostało usunięte.%s", Colors.green, name, Colors.reset)
 }
-// =============================================
-// ENTER (z tymczasowym podpinaniem narzędzi)
-// =============================================
+
 env_enter :: proc(name: string) {
     container := name
     if container == "" {
-        // lista wszystkich hacker-env
         safe_run(`podman ps -a --filter "label=hacker-env=true" --format "{{.Names}}"`)
         return
     }
-    // Przygotowanie tymczasowych mountów narzędzi
     mount_flags := ""
-    // TODO: wczytaj sync_tools z configu (na razie hardcoded przykład)
-    // Uwaga: podman exec nie wspiera -v; aby dodać mounty, trzeba użyć distrobox lub zmodyfikować kontener
-    // Na razie hardcoded przykład, ale wymaga distrobox enter lub podobnego
-    // mount_flags = `-v /usr/bin/nvim:/usr/bin/nvim:ro -v ~/.local/share/nvim:/root/.local/share/nvim`
-    // Tymczasowo: uzyj podman exec bez mountow
     enter_cmd := fmt.tprintf("podman start %s 2>/dev/null || true && podman exec -it %s zsh || bash", container, container)
     safe_run(enter_cmd)
 }
-// =============================================
-// DOCS + SETTINGS + HELP
-// =============================================
+
 env_docs :: proc(lang: string) {
     fmt.printfln(`
     %s=== Hacker env – pełny tutorial ===%s
@@ -175,13 +151,9 @@ show_env_help :: proc(lang: string) {
     fmt.printfln(" %sdocs %s- Pełny tutorial + przykłady", Colors.gray, Colors.reset)
     fmt.printfln(" %ssettings %s- Lista wszystkich środowisk", Colors.gray, Colors.reset)
 }
-// =============================================
-// Prosty parser .hk (używa hk-parser przez foreign jeśli dostępny)
-// =============================================
 parse_env_file :: proc(path: string) -> EnvConfig {
     cfg: EnvConfig
     cfg.sync_tools = make(map[string][dynamic]string)
-    // fallback – prosty parser stringowy (działa na większości plików)
     data, err := os.read_entire_file(path, context.allocator)
     if err != nil { return cfg }
     content := string(data)
@@ -211,7 +183,6 @@ parse_env_file :: proc(path: string) -> EnvConfig {
                         case "sync_configs":
                             append(&cfg.sync_configs, val)
                         case "sync_tools":
-                            // obsługa prostego przypadku: -> snap => nvim,code
                             tool_type := key
                             tools := strings.split(val, ",")
                             for &t in tools {
