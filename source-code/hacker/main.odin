@@ -34,28 +34,28 @@ main :: proc() {
 			safe_run("~/.hackeros/hacker/hacker-docs")
 		case "install":
 			if len(rest) == 0 {
-				fmt.printfln("%s%s%s", Colors.red, trans["usage_install"], Colors.reset)
+				print_error("%s", trans["usage_install"])
 				os.exit(1)
 			}
 			pkg := strings.join(rest, " ")
 			safe_run(fmt.tprintf("~/.hackeros/hacker/apt-fronted install %s", pkg))
 		case "remove":
 			if len(rest) == 0 {
-				fmt.printfln("%s%s%s", Colors.red, trans["usage_remove"], Colors.reset)
+				print_error("%s", trans["usage_remove"])
 				os.exit(1)
 			}
 			pkg := strings.join(rest, " ")
 			safe_run(fmt.tprintf("~/.hackeros/hacker/apt-fronted remove %s", pkg))
 		case "flatpak-install":
 			if len(rest) == 0 {
-				fmt.printfln("%s%s%s", Colors.red, trans["usage_flatpak_install"], Colors.reset)
+				print_error("%s", trans["usage_flatpak_install"])
 				os.exit(1)
 			}
 			pkg := strings.join(rest, " ")
 			safe_run(fmt.tprintf("flatpak install -y %s", pkg))
 		case "flatpak-remove":
 			if len(rest) == 0 {
-				fmt.printfln("%s%s%s", Colors.red, trans["usage_flatpak_remove"], Colors.reset)
+				print_error("%s", trans["usage_flatpak_remove"])
 				os.exit(1)
 			}
 			pkg := strings.join(rest, " ")
@@ -77,19 +77,19 @@ main :: proc() {
 			safe_run("source /usr/lib/HackerOS/venv/bin/activate && ~/.hackeros/hacker/hacker-shell")
 		case "enter":
 			if len(rest) == 0 {
-				fmt.printfln("%s%s%s", Colors.red, trans["usage_enter"], Colors.reset)
+				print_error("%s", trans["usage_enter"])
 				os.exit(1)
 			}
 			safe_run(fmt.tprintf("distrobox enter %s", rest[0]))
 		case "remove-container":
 			if len(rest) == 0 {
-				fmt.printfln("%s%s%s", Colors.red, trans["usage_remove_container"], Colors.reset)
+				print_error("%s", trans["usage_remove_container"])
 				os.exit(1)
 			}
 			safe_run(fmt.tprintf("distrobox rm %s", rest[0]))
 		case "restart":
 			if len(rest) == 0 {
-				fmt.printfln("%s%s%s", Colors.red, trans["usage_restart"], Colors.reset)
+				print_error("%s", trans["usage_restart"])
 				os.exit(1)
 			}
 			safe_run(fmt.tprintf("sudo systemctl restart %s", rest[0]))
@@ -113,7 +113,7 @@ main :: proc() {
 			file_path :: "/etc/xdg/kcm-about-distrorc"
 			data, err := os.read_entire_file(file_path, context.allocator)
 			if err != nil {
-				fmt.printfln("%s%s %s%s", Colors.red, trans["file_not_found"], file_path, Colors.reset)
+				print_error("%s %s", trans["file_not_found"], file_path)
 				os.exit(1)
 			}
 			content := string(data)
@@ -127,7 +127,7 @@ main :: proc() {
 			if variant != "" {
 				fmt.printfln("%s%s%s", Colors.green, variant, Colors.reset)
 			} else {
-				fmt.printfln("%s%s%s", Colors.red, trans["variant_not_found"], Colors.reset)
+				print_error("%s", trans["variant_not_found"])
 			}
 		case "info":
 			fmt.printfln("%s%s%s", Colors.green, trans["version_tool"], Colors.reset)
@@ -153,22 +153,21 @@ main :: proc() {
 						arg_str := strings.join(rest, " ")
 						safe_run(fmt.tprintf("%s %s", exec_cmd, arg_str))
 					} else {
-						fmt.printfln("%s%s%s", Colors.red, trans["no_exec_custom"], Colors.reset)
+						print_error("%s", trans["no_exec_custom"])
 						os.exit(1)
 					}
 				} else {
-					fmt.printfln("%s%s%s", Colors.red, trans["error_custom"], Colors.reset)
+					print_error("%s", trans["error_custom"])
 					os.exit(1)
 				}
 			} else if !try_plugin_command(command, rest, lang) {
-				// Zmieniony format błędu
-				fmt.printfln("%s[ERROR] Unknown command -> %s%s", Colors.red, command, Colors.reset)
+				print_error("Unknown command -> %s", command)
 				os.exit(1)
 			}
 	}
 }
 
-// ====================== NOWY HANDLER: hacker switch ======================
+// ====================== FUNKCJE OBSŁUGI SWITCH ======================
 
 handle_switch :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
@@ -183,7 +182,7 @@ handle_switch :: proc(args: []string, lang: string) {
 		case "steam-gamemode":
 			handle_steam_gamemode_switch(lang)
 		case:
-			fmt.printfln("%s%s %s%s", Colors.red, trans["unknown_switch"], args[0], Colors.reset)
+			print_error("Unknown switch subcommand -> %s", args[0])
 			show_switch_help(lang)
 			os.exit(1)
 	}
@@ -204,8 +203,8 @@ handle_hacker_mode_switch :: proc(lang: string) {
 
 	// 1. Sprawdzenie czy plik .desktop istnieje
 	if !path_exists(session_file) {
-		fmt.printfln("%sPlik %s nie został znaleziony!%s", Colors.red, session_file, Colors.reset)
-		fmt.printfln("%sZainstaluj go za pomocą:%s hacker unpack hacker-mode", Colors.yellow, Colors.reset)
+		print_error("Plik %s nie został znaleziony!", session_file)
+		print_warning("Zainstaluj go za pomocą: hacker unpack hacker-mode")
 		os.exit(1)
 	}
 
@@ -229,7 +228,7 @@ handle_hacker_mode_switch :: proc(lang: string) {
 	}
 
 	if current_de == "" {
-		fmt.printfln("%sNie wykryto obsługiwanego środowiska (plasma-desktop / gnome / xfce4).%s", Colors.red, Colors.reset)
+		print_error("Nie wykryto obsługiwanego środowiska (plasma-desktop / gnome / xfce4).")
 		os.exit(1)
 	}
 
@@ -255,27 +254,25 @@ handle_hacker_mode_switch :: proc(lang: string) {
 		if exec_cmd != "" {
 			safe_run(exec_cmd)
 		} else {
-			fmt.printfln("%sNie znaleziono linii Exec= w pliku .desktop.%s", Colors.red, Colors.reset)
+			print_error("Nie znaleziono linii Exec= w pliku .desktop.")
 		}
 	} else {
-		fmt.printfln("%sDM (%s) nie jest jednym z lightdm/sddm/gdm. Środowisko wyłączone – zaloguj się ponownie i wybierz Hacker-Mode ręcznie.%s", Colors.yellow, dm, Colors.reset)
+		print_warning("DM (%s) nie jest jednym z lightdm/sddm/gdm. Środowisko wyłączone – zaloguj się ponownie i wybierz Hacker-Mode ręcznie.", dm)
 	}
 }
 
-// Nowa funkcja: przełączanie na Steam GameMode (gamescope-session)
+// Przełączanie na Steam GameMode (gamescope-session)
 handle_steam_gamemode_switch :: proc(lang: string) {
 	trans := get_translations_main(lang)
 
 	session_file := "/usr/share/wayland-sessions/gamescope-session-steam.desktop"
 
-	// 1. Sprawdzenie czy plik .desktop istnieje
 	if !path_exists(session_file) {
-		fmt.printfln("%sPlik %s nie został znaleziony!%s", Colors.red, session_file, Colors.reset)
-		fmt.printfln("%sZainstaluj go za pomocą:%s hacker unpack gamescope-session-steam", Colors.yellow, Colors.reset)
+		print_error("Plik %s nie został znaleziony!", session_file)
+		print_warning("Zainstaluj go za pomocą: hacker unpack gamescope-session-steam")
 		os.exit(1)
 	}
 
-	// 2. Detekcja aktualnego środowiska graficznego
 	de_env := ""
 	if v := os.get_env_alloc("XDG_CURRENT_DESKTOP", context.temp_allocator); v != "" {
 		de_env = v
@@ -295,13 +292,12 @@ handle_steam_gamemode_switch :: proc(lang: string) {
 	}
 
 	if current_de == "" {
-		fmt.printfln("%sNie wykryto obsługiwanego środowiska (plasma-desktop / gnome / xfce4).%s", Colors.red, Colors.reset)
+		print_error("Nie wykryto obsługiwanego środowiska (plasma-desktop / gnome / xfce4).")
 		os.exit(1)
 	}
 
 	fmt.printfln("%sWykryto środowisko: %s. Wyłączam je...%s", Colors.yellow, current_de, Colors.reset)
 
-	// 3. Wyłączenie aktualnego środowiska graficznego
 	switch current_de {
 		case "plasma-desktop":
 			safe_run("killall -9 plasmashell kwin_wayland kwin_x11 krunner kded5")
@@ -311,7 +307,6 @@ handle_steam_gamemode_switch :: proc(lang: string) {
 			safe_run("killall -9 xfce4-session xfwm4 xfdesktop")
 	}
 
-	// 4. Detekcja Display Managera
 	dm := detect_display_manager()
 
 	if strings.contains(dm, "lightdm") || strings.contains(dm, "sddm") || strings.contains(dm, "gdm") || strings.contains(dm, "gdm3") {
@@ -321,14 +316,14 @@ handle_steam_gamemode_switch :: proc(lang: string) {
 		if exec_cmd != "" {
 			safe_run(exec_cmd)
 		} else {
-			fmt.printfln("%sNie znaleziono linii Exec= w pliku .desktop.%s", Colors.red, Colors.reset)
+			print_error("Nie znaleziono linii Exec= w pliku .desktop.")
 		}
 	} else {
-		fmt.printfln("%sDM (%s) nie jest jednym z lightdm/sddm/gdm. Środowisko wyłączone – zaloguj się ponownie i wybierz Steam GameMode ręcznie.%s", Colors.yellow, dm, Colors.reset)
+		print_warning("DM (%s) nie jest jednym z lightdm/sddm/gdm. Środowisko wyłączone – zaloguj się ponownie i wybierz Steam GameMode ręcznie.", dm)
 	}
 }
 
-// ====================== POMOCNICZE FUNKCJE ======================
+// ====================== FUNKCJE POMOCNICZE SWITCH ======================
 
 detect_display_manager :: proc() -> string {
 	dm_file := "/etc/X11/default-display-manager"
@@ -356,7 +351,7 @@ get_desktop_exec :: proc(path: string) -> string {
 	return ""
 }
 
-// ====================== RESZTA PLIKU (bez zmian) ======================
+// ====================== POZOSTAŁE FUNKCJE ======================
 
 handle_system :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
@@ -369,7 +364,7 @@ handle_system :: proc(args: []string, lang: string) {
 		case "logs":
 			safe_run("journalctl -xe")
 		case:
-			fmt.printfln("%s%s %s%s", Colors.red, trans["unknown_system"], args[0], Colors.reset)
+			print_error("Unknown system subcommand -> %s", args[0])
 			os.exit(1)
 	}
 }
@@ -383,7 +378,7 @@ handle_update :: proc(args: []string, lang: string) {
 			case "--with-gui":
 				safe_run("~/.hackeros/hacker/update-system")
 			case:
-				fmt.printfln("%s%s %s%s", Colors.red, trans["unknown_update_flag"], args[0], Colors.reset)
+				print_error("Unknown flag for update -> %s", args[0])
 				fmt.println(trans["available_flags"])
 				os.exit(1)
 		}
@@ -457,12 +452,12 @@ handle_plugin :: proc(args: []string, lang: string) {
 			}
 		case "enable":
 			if len(args) < 2 {
-				fmt.printfln("%s%s%s", Colors.red, trans["usage_plugin_enable"], Colors.reset)
+				print_error("%s", trans["usage_plugin_enable"])
 				os.exit(1)
 			}
 			plugin_file := fmt.tprintf("%s/%s.hacker", get_plugin_dir(), args[1])
 			if !path_exists(plugin_file) {
-				fmt.printfln("%s%s%s", Colors.red, trans["plugin_not_found"], Colors.reset)
+				print_error("%s", trans["plugin_not_found"])
 				os.exit(1)
 			}
 			config, ok := parse_hacker_file(plugin_file)
@@ -473,12 +468,12 @@ handle_plugin :: proc(args: []string, lang: string) {
 			}
 		case "disable":
 			if len(args) < 2 {
-				fmt.printfln("%s%s%s", Colors.red, trans["usage_plugin_disable"], Colors.reset)
+				print_error("%s", trans["usage_plugin_disable"])
 				os.exit(1)
 			}
 			plugin_file := fmt.tprintf("%s/%s.hacker", get_plugin_dir(), args[1])
 			if !path_exists(plugin_file) {
-				fmt.printfln("%s%s%s", Colors.red, trans["plugin_not_found"], Colors.reset)
+				print_error("%s", trans["plugin_not_found"])
 				os.exit(1)
 			}
 			config, ok := parse_hacker_file(plugin_file)
@@ -488,7 +483,7 @@ handle_plugin :: proc(args: []string, lang: string) {
 				fmt.printfln("%s%s '%s'.%s", Colors.green, trans["disabled_plugin"], args[1], Colors.reset)
 			}
 		case:
-			fmt.printfln("%s%s %s%s", Colors.red, trans["unknown_plugin"], args[0], Colors.reset)
+			print_error("Unknown plugin subcommand -> %s", args[0])
 			show_plugin_help(lang)
 			os.exit(1)
 	}
@@ -518,7 +513,7 @@ handle_enable :: proc(args: []string, lang: string) {
 			safe_run("sudo chmod a+x /usr/libexec/hackeros-motd")
 			fmt.printfln("%s%s%s", Colors.green, trans["enabled_special_motd"], Colors.reset)
 		case:
-			fmt.printfln("%s%s %s%s", Colors.red, trans["unknown_enable"], args[0], Colors.reset)
+			print_error("Unknown enable subcommand -> %s", args[0])
 			show_enable_help(lang)
 			os.exit(1)
 	}
@@ -542,7 +537,7 @@ handle_disable :: proc(args: []string, lang: string) {
 			safe_run("sudo rm -rf /usr/libexec/hackeros-motd")
 			fmt.printfln("%s%s%s", Colors.green, trans["disabled_motd"], Colors.reset)
 		case:
-			fmt.printfln("%s%s %s%s", Colors.red, trans["unknown_disable"], args[0], Colors.reset)
+			print_error("Unknown disable subcommand -> %s", args[0])
 			show_disable_help(lang)
 			os.exit(1)
 	}
@@ -554,6 +549,8 @@ show_disable_help :: proc(lang: string) {
 	fmt.printfln(" %smotd %s- %s", Colors.gray, Colors.reset, trans["motd_desc"])
 	fmt.printfln(" %sspecial-motd %s- %s", Colors.gray, Colors.reset, trans["special_motd_desc"])
 }
+
+// ====================== POPRAWIONA FUNKCJA handle_settings ======================
 
 handle_settings :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
@@ -577,15 +574,13 @@ handle_settings :: proc(args: []string, lang: string) {
 			if found {
 				save_language(new_lang)
 				fmt.printfln("%s%s %s.%s", Colors.green, trans["language_set"], new_lang, Colors.reset)
+				os.exit(0) // <- KLUCZOWE: kończy program, aby nowy język został załadowany przy następnym uruchomieniu
 			} else {
-				fmt.printfln("%s%s %s. %s %s%s",
-							 Colors.red, trans["unsupported_language"], new_lang,
-				 trans["supported"], strings.join(supported_languages, ", "),
-							 Colors.reset)
+				print_error("%s %s. %s %s", trans["unsupported_language"], new_lang, trans["supported"], strings.join(supported_languages, ", "))
 				os.exit(1)
 			}
 		case:
-			fmt.printfln("%s%s %s%s", Colors.red, trans["unknown_settings"], args[0], Colors.reset)
+			print_error("Unknown settings subcommand -> %s", args[0])
 			show_settings_help(lang)
 			os.exit(1)
 	}
