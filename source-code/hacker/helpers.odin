@@ -1,11 +1,14 @@
 package hackeros
+
 import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:path/filepath"
 import "core:encoding/json"
 import "core:sys/posix"
+
 sep_str :: "/"
+
 ColorCodes :: struct {
 	red, yellow, green, magenta, gray, bold, reset, blue, cyan, white: string,
 }
@@ -23,15 +26,36 @@ _colors := ColorCodes{
 	white = "\e[37m",
 }
 Colors := _colors
+
+print_error :: proc(format: string, args: ..any) {
+	fmt.print(Colors.red)
+	fmt.print("[ERROR] ")
+	fmt.printfln(format, ..args)
+	fmt.print(Colors.reset)
+}
+
+print_warning :: proc(format: string, args: ..any) {
+	fmt.print(Colors.yellow)
+	fmt.print("[WARN] ")
+	fmt.printfln(format, ..args)
+	fmt.print(Colors.reset)
+}
+
+print_info :: proc(format: string, args: ..any) {
+	fmt.print(Colors.green)
+	fmt.print("[INFO] ")
+	fmt.printfln(format, ..args)
+	fmt.print(Colors.reset)
+}
+
 safe_run :: proc(cmd: string) -> bool {
 	pid := posix.fork()
 	if pid < 0 {
 		err := posix.get_errno()
-		fmt.printfln("%sFailed to fork: %v%s", Colors.red, err, Colors.reset)
+		print_error("Failed to fork: %v", err)
 		return false
 	}
 	if pid == 0 {
-		// child
 		sh_str := "/bin/sh\x00"
 		sh_cstr := cstring(raw_data(sh_str))
 		c_str := "-c\x00"
@@ -41,53 +65,58 @@ safe_run :: proc(cmd: string) -> bool {
 		args := raw_data(args_array[:])
 		exec_err := posix.execvp(sh_cstr, args)
 		if exec_err == -1 {
-			fmt.printfln("%sExec failed: %v%s", Colors.red, posix.get_errno(), Colors.reset)
+			print_error("Exec failed: %v", posix.get_errno())
 		}
 		free(rawptr(cmd_cstr))
 		posix._exit(1)
 	}
-	// parent: wait
 	status: i32
 	wpid := posix.waitpid(pid, &status, {})
 	if wpid == -1 {
 		err := posix.get_errno()
-		fmt.printfln("%sWait failed: %v%s", Colors.red, err, Colors.reset)
+		print_error("Wait failed: %v", err)
 		return false
 	}
 	if wpid != pid {
-		fmt.printfln("%sWaitpid returned unexpected pid: %d%s", Colors.red, wpid, Colors.reset)
+		print_error("Waitpid returned unexpected pid: %d", wpid)
 		return false
 	}
 	exit_code := posix.WEXITSTATUS(status)
 	if exit_code != 0 {
-		fmt.printfln("%sCommand '%s' failed with exit code %d%s",
-					 Colors.red, cmd, exit_code, Colors.reset)
+		print_error("Command '%s' failed with exit code %d", cmd, exit_code)
 		return false
 	}
 	return true
 }
+
 get_home :: proc() -> string {
 	home, found := os.lookup_env_alloc("HOME", context.allocator)
 	if !found { return "/root" }
 	return home
 }
+
 get_config_path :: proc(file: string) -> string {
 	return strings.join([]string{get_home(), ".config", "hackeros", "hacker", file}, sep_str, context.allocator)
 }
+
 get_custom_dir :: proc() -> string {
 	return get_config_path("custom-commands")
 }
+
 get_plugin_dir :: proc() -> string {
 	return get_config_path("plugins")
 }
+
 get_custom_command_path :: proc(name: string) -> string {
 	suffix := strings.concatenate({name, ".hacker"}, context.allocator)
 	return strings.join([]string{get_custom_dir(), suffix}, sep_str, context.allocator)
 }
+
 path_exists :: proc(p: string) -> bool {
 	_, err := os.stat(p, context.allocator)
 	return err == nil
 }
+
 glob_dir :: proc(dir: string, suffix: string) -> []string {
 	result := make([dynamic]string, context.allocator)
 	handle, oerr := os.open(dir)
@@ -102,6 +131,9 @@ glob_dir :: proc(dir: string, suffix: string) -> []string {
 	}
 	return result[:]
 }
+
+// ====================== NAPRAWIONA OBSŁUGA JĘZYKA ======================
+
 load_lang :: proc() -> string {
 	file := get_config_path("language.json")
 	data, err := os.read_entire_file_from_path(file, context.allocator)
@@ -111,46 +143,72 @@ load_lang :: proc() -> string {
 	}
 	val, jerr := json.parse(data)
 	if jerr != nil {
-		fmt.printfln("%sBłąd parsowania pliku języka, przywracam domyślny (pl).%s", Colors.yellow, Colors.reset)
+		print_warning("Błąd parsowania pliku języka, przywracam domyślny (pl).")
 		save_language("pl")
 		return "pl"
 	}
 	defer json.destroy_value(val)
 	obj, is_obj := val.(json.Object)
 	if !is_obj {
+		print_warning("Plik języka nie zawiera obiektu JSON, przywracam domyślny (pl).")
 		save_language("pl")
 		return "pl"
 	}
 	lang_val, has := obj["language"]
 	if !has {
+		print_warning("Plik języka nie zawiera klucza 'language', przywracam domyślny (pl).")
 		save_language("pl")
 		return "pl"
 	}
 	lang_str, is_str := lang_val.(json.String)
 	if !is_str {
+		print_warning("Wartość 'language' nie jest ciągiem znaków, przywracam domyślny (pl).")
 		save_language("pl")
 		return "pl"
 	}
-	l := string(lang_str)
+	raw := string(lang_str)
+
+	// Usuń wszystkie znaki, które nie są literami (a-z)
+	cleaned_builder := strings.builder_make(context.allocator)
+	defer strings.builder_destroy(&cleaned_builder)
+	for c in raw {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
+			strings.write_rune(&cleaned_builder, c)
+		}
+	}
+	cleaned_str := strings.to_lower(strings.to_string(cleaned_builder))
+
 	valid_langs := []string{"pl","en","de","fr","es","it","ru","zh","ja","ko","pt","ar","hi"}
 	for sl in valid_langs {
-		if l == sl { return l }
+		if cleaned_str == sl {
+			return cleaned_str
+		}
 	}
+	print_warning("Nieobsługiwany język '%s', przywracam domyślny (pl).", cleaned_str)
 	save_language("pl")
 	return "pl"
 }
+
 save_language :: proc(lang: string) {
 	file := get_config_path("language.json")
 	dir := filepath.dir(file, context.allocator)
-	if err := os.make_directory_all(dir); err != nil {
-		fmt.printfln("%sNie można utworzyć katalogu konfiguracyjnego: %v%s", Colors.red, err, Colors.reset)
-		return
+
+	if !path_exists(dir) {
+		if err := os.make_directory_all(dir); err != nil {
+			print_error("Nie można utworzyć katalogu konfiguracyjnego %s: %v", dir, err)
+			return
+		}
 	}
-	content := fmt.tprintf("{\"language\":\"%s\"}", lang)
+
+	content := strings.concatenate({"{\"language\":\"", lang, "\"}"}, context.allocator)
+
 	if err := os.write_entire_file_from_string(file, content); err != nil {
-		fmt.printfln("%sNie można zapisać pliku języka: %v%s", Colors.red, err, Colors.reset)
+		print_error("Nie można zapisać pliku języka %s: %v", file, err)
 	}
 }
+
+// ====================== POZOSTAŁE FUNKCJE ======================
+
 load_styles :: proc(file: string) {
 	data, err := os.read_entire_file_from_path(file, context.allocator)
 	if err != nil { return }
@@ -183,6 +241,7 @@ load_styles :: proc(file: string) {
 		}
 	}
 }
+
 @(private)
 parse_hex2 :: proc(s: string) -> int {
 	val := 0
@@ -196,7 +255,9 @@ parse_hex2 :: proc(s: string) -> int {
 	}
 	return val
 }
+
 HackerConfig :: map[string]string
+
 parse_hacker_file :: proc(path: string) -> (HackerConfig, bool) {
 	data, err := os.read_entire_file_from_path(path, context.allocator)
 	if err != nil { return {}, false }
@@ -234,6 +295,7 @@ parse_hacker_file :: proc(path: string) -> (HackerConfig, bool) {
 	}
 	return config, true
 }
+
 @(private)
 append_clone :: proc(s: []string, extra: string) -> []string {
 	result := make([]string, len(s)+1, context.allocator)
@@ -241,6 +303,7 @@ append_clone :: proc(s: []string, extra: string) -> []string {
 	result[len(s)] = extra
 	return result
 }
+
 write_hacker_file :: proc(path: string, config: HackerConfig) {
 	sb, _ := strings.builder_make(context.allocator)
 	defer strings.builder_destroy(&sb)
@@ -251,6 +314,7 @@ write_hacker_file :: proc(path: string, config: HackerConfig) {
 	strings.write_string(&sb, "]\n")
 	_ = os.write_entire_file_from_string(path, strings.to_string(sb))
 }
+
 try_plugin_command :: proc(command: string, args: []string, lang: string) -> bool {
 	for f in glob_dir(get_plugin_dir(), ".hacker") {
 		config, ok := parse_hacker_file(f)
