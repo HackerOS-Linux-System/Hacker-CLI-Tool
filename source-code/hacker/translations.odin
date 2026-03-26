@@ -13,16 +13,16 @@ get_translations_main :: proc(lang: string) -> map[string]string {
             trans = fr_translations()
         case "es":
             trans = es_translations()
-            // case "it":
-            //     trans = it_translations()
-            // case "ru":
-            //     trans = ru_translations()
-            // case "zh":
-            //     trans = zh_translations()
-            // case "ja":
-            //     trans = ja_translations()
-            // case "ko":
-            //     trans = ko_translations()
+        case "it":
+            trans = it_translations()
+        case "ru":
+            trans = ru_translations()
+        case "zh":
+            trans = zh_translations()
+        case "ja":
+            trans = ja_translations()
+        case "ko":
+            trans = ko_translations()
             // case "pt":
             //     trans = pt_translations()
             // case "ar":
