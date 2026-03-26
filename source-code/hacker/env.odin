@@ -26,16 +26,16 @@ handle_env :: proc(args: []string, lang: string) {
     switch sub {
         case "create":
             if len(rest) == 0 {
-                fmt.printfln("%sUżycie: hacker env create <plik.hk|plik.yaml>%s", Colors.red, Colors.reset)
+                print_error("%s", trans["env_create_usage"])
                 os.exit(1)
             }
             env_create(rest[0], lang)
         case "remove":
             if len(rest) == 0 {
-                fmt.printfln("%sUżycie: hacker env remove <nazwa>%s", Colors.red, Colors.reset)
+                print_error("%s", trans["env_remove_usage"])
                 os.exit(1)
             }
-            env_remove(rest[0])
+            env_remove(rest[0], lang)
         case "enter":
             name := ""
             if len(rest) > 0 {
@@ -47,7 +47,7 @@ handle_env :: proc(args: []string, lang: string) {
         case "settings":
             env_settings(lang)
         case:
-            fmt.printfln("%sNieznana podkomenda env: %s%s", Colors.red, sub, Colors.reset)
+            print_error("%s %s", trans["env_unknown_sub"], sub)
             show_env_help(lang)
             os.exit(1)
     }
@@ -56,16 +56,16 @@ handle_env :: proc(args: []string, lang: string) {
 env_create :: proc(file_path: string, lang: string) {
     trans := get_translations_main(lang)
     if !path_exists(file_path) {
-        fmt.printfln("%sPlik nie istnieje: %s%s", Colors.red, file_path, Colors.reset)
+        print_error("%s %s", trans["file_not_exists"], file_path)
         os.exit(1)
     }
     cfg := parse_env_file(file_path)
     defer free_env_config(&cfg)
     if cfg.name == "" || cfg.image == "" {
-        fmt.printfln("%sBrak wymaganych pól name lub image w pliku konfiguracyjnym%s", Colors.red, Colors.reset)
+        print_error("%s", trans["env_missing_fields"])
         os.exit(1)
     }
-    fmt.printfln("%sTworzenie środowiska %s (%s)...%s", Colors.yellow, cfg.name, cfg.image, Colors.reset)
+    fmt.printfln("%s%s %s (%s)...%s", Colors.yellow, trans["env_creating"], cfg.name, cfg.image, Colors.reset)
     create_cmd := fmt.tprintf(`podman create \
     --name %s \
     --label hacker-env=true \
@@ -91,12 +91,13 @@ env_create :: proc(file_path: string, lang: string) {
             safe_run(fmt.tprintf("podman cp %s %s:%s", host, cfg.name, target))
         }
     }
-    fmt.printfln("%sŚrodowisko %s zostało utworzone pomyślnie!%s", Colors.green, cfg.name, Colors.reset)
+    fmt.printfln("%s%s %s!%s", Colors.green, trans["env_created"], cfg.name, Colors.reset)
 }
 
-env_remove :: proc(name: string) {
+env_remove :: proc(name: string, lang: string) {
+    trans := get_translations_main(lang)
     safe_run(fmt.tprintf("podman rm -f %s 2>/dev/null || true", name))
-    fmt.printfln("%sŚrodowisko %s zostało usunięte.%s", Colors.green, name, Colors.reset)
+    fmt.printfln("%s%s %s.%s", Colors.green, trans["env_removed"], name, Colors.reset)
 }
 
 env_enter :: proc(name: string) {
@@ -105,12 +106,12 @@ env_enter :: proc(name: string) {
         safe_run(`podman ps -a --filter "label=hacker-env=true" --format "{{.Names}}"`)
         return
     }
-    mount_flags := ""
     enter_cmd := fmt.tprintf("podman start %s 2>/dev/null || true && podman exec -it %s zsh || bash", container, container)
     safe_run(enter_cmd)
 }
 
 env_docs :: proc(lang: string) {
+    // Można dodać tłumaczenia, na razie pozostaje polski
     fmt.printfln(`
     %s=== Hacker env – pełny tutorial ===%s
     1. Utwórz plik konfiguracyjny (np. pentest.hk):
@@ -138,19 +139,23 @@ env_docs :: proc(lang: string) {
     Wszystkie środowiska są normalnymi kontenerami podman – możesz używać distrobox enter / podman exec normalnie.
     `, Colors.bold, Colors.reset)
 }
+
 env_settings :: proc(lang: string) {
-    fmt.printfln("%sLista wszystkich środowisk Hacker env:%s", Colors.magenta, Colors.reset)
+    trans := get_translations_main(lang)
+    fmt.printfln("%s%s%s", Colors.magenta, trans["env_list"], Colors.reset)
     safe_run(`podman ps -a --filter "label=hacker-env=true" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"`)
 }
+
 show_env_help :: proc(lang: string) {
     trans := get_translations_main(lang)
-    fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, "Podkomendy env:", Colors.reset)
-    fmt.printfln(" %screate <plik.hk|plik.yaml> %s- Utwórz nowe środowisko z pliku", Colors.gray, Colors.reset)
-    fmt.printfln(" %sremove <nazwa> %s- Usuń środowisko", Colors.gray, Colors.reset)
-    fmt.printfln(" %senter [nazwa] %s- Wejdź do środowiska (z podpiętymi narzędziami)", Colors.gray, Colors.reset)
-    fmt.printfln(" %sdocs %s- Pełny tutorial + przykłady", Colors.gray, Colors.reset)
-    fmt.printfln(" %ssettings %s- Lista wszystkich środowisk", Colors.gray, Colors.reset)
+    fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["env_subcommands"], Colors.reset)
+    fmt.printfln(" %screate <plik.hk|plik.yaml> %s- %s", Colors.gray, Colors.reset, trans["env_create_desc"])
+    fmt.printfln(" %sremove <nazwa> %s- %s", Colors.gray, Colors.reset, trans["env_remove_desc"])
+    fmt.printfln(" %senter [nazwa] %s- %s", Colors.gray, Colors.reset, trans["env_enter_desc"])
+    fmt.printfln(" %sdocs %s- %s", Colors.gray, Colors.reset, trans["env_docs_desc"])
+    fmt.printfln(" %ssettings %s- %s", Colors.gray, Colors.reset, trans["env_settings_desc"])
 }
+
 parse_env_file :: proc(path: string) -> EnvConfig {
     cfg: EnvConfig
     cfg.sync_tools = make(map[string][dynamic]string)
@@ -199,6 +204,7 @@ parse_env_file :: proc(path: string) -> EnvConfig {
     }
     return cfg
 }
+
 free_env_config :: proc(cfg: ^EnvConfig) {
     delete(cfg.packages)
     delete(cfg.sync_configs)
