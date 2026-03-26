@@ -207,6 +207,8 @@ en_translations :: proc() -> map[string]string {
     trans["unpack_hexai"] = "Install HexAi"
     trans["unpack_hackerscript_utils"] = "Install HackerScript utilities"
     trans["unpack_hackerdeck"] = "Install HackerDeck"
+    trans["unpack_hackeros_containers"] = "Install HackerOS containers (e.g., blackarch, kali)"
+    trans["unpack_hsharp"] = "Install H# (H-Sharp) tools – programming language for HackerOS"
 
     // Translations from pack
     trans["pack_downloading"] = "Downloading removal script"
@@ -240,6 +242,8 @@ en_translations :: proc() -> map[string]string {
     trans["pack_hexai"] = "Remove HexAi"
     trans["pack_hackerscript_utils"] = "Remove HackerScript utilities"
     trans["pack_hackerdeck"] = "Remove HackerDeck"
+    trans["pack_hackeros_containers"] = "Remove HackerOS containers"
+    trans["pack_hsharp"] = "Remove H# (H-Sharp) tools"
 
     // Translations for switch
     trans["switch_subcommands"] = "Switch subcommands:"
