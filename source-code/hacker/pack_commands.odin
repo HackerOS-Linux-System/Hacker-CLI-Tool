@@ -1,6 +1,7 @@
 package hackeros
 import "core:fmt"
 import "core:os"
+
 handle_pack :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 || args[0] == "help" {
@@ -22,7 +23,6 @@ handle_pack :: proc(args: []string, lang: string) {
 			safe_run("sudo apt remove -y crystal shards")
 			safe_run("sudo apt remove -y npm nodejs")
 			safe_run("rustup self uninstall -y || true")
-			// Zamiast golang-go usuwamy golang (co spowoduje usunięcie golang-go)
 			safe_run("sudo apt remove -y golang")
 			safe_run("sudo apt remove -y lua5.4")
 			safe_run("sudo snap remove zig")
@@ -68,12 +68,19 @@ handle_pack :: proc(args: []string, lang: string) {
 			safe_run("sudo apt remove -y winboat || true")
 		case "nvidia-drivers":
 			safe_run("/usr/share/HackerOS/Scripts/Bin/remove-nvidia-drivers.sh")
-		case "hl-utils":
-			// Nowa implementacja: pobiera i uruchamia remove-utils.hl
-			fmt.printfln("%s%s hl-utils...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
-			safe_run("curl -L https://github.com/HackerOS-Linux-System/Hacker-Lang/blob/main/remove-utils.hl -o /tmp/remove-utils.hl")
-			safe_run("hl run /tmp/remove-utils.hl")
-			safe_run("rm -f /tmp/remove-utils.hl")
+			// Nowe: HackerOS Containers
+		case "hackeros-containers":
+			fmt.printfln("%s%s hackeros-containers...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
+			safe_run("curl -L https://github.com/HackerOS-Linux-System/HackerOS-Containers/raw/main/remove.hl -o /tmp/remove-containers.hl")
+			safe_run("hl run /tmp/remove-containers.hl")
+			safe_run("rm -f /tmp/remove-containers.hl")
+			fmt.printfln("%s%s%s", Colors.green, trans["pack_done"], Colors.reset)
+			// Nowe: H# (H-Sharp) – zastępuje hl-utils
+		case "h#", "hl-utils":
+			fmt.printfln("%s%s H# (H-Sharp)...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
+			safe_run("curl -L https://github.com/HackerOS-Linux-System/H-Sharp/raw/main/remove.hl -o /tmp/remove-hsharp.hl")
+			safe_run("hl run /tmp/remove-hsharp.hl")
+			safe_run("rm -f /tmp/remove-hsharp.hl")
 			fmt.printfln("%s%s%s", Colors.green, trans["pack_done"], Colors.reset)
 		case "flox":
 			safe_run("sudo apt remove -y flox || true")
@@ -105,7 +112,6 @@ handle_pack :: proc(args: []string, lang: string) {
 			safe_run("hl run /tmp/addons-remove.hl")
 			safe_run("rm -f /tmp/addons-remove.hl")
 			fmt.printfln("%sDodatki do gier HackerOS usunięte pomyślnie.%s", Colors.green, trans["pack_done"], Colors.reset)
-			// Nowe komendy
 		case "hexai":
 			fmt.printfln("%s%s HexAi...%s", Colors.yellow, trans["pack_downloading"], Colors.reset)
 			safe_run("curl -L https://github.com/HackerOS-Linux-System/HexAi/blob/main/remove.hl -o /tmp/hexai-remove.hl")
@@ -125,11 +131,12 @@ handle_pack :: proc(args: []string, lang: string) {
 			safe_run("rm -f /tmp/hackerdeck-remove.hl")
 			fmt.printfln("%s%s%s", Colors.green, trans["pack_done"], Colors.reset)
 		case:
-			fmt.printfln("%s%s %s%s", Colors.red, trans["pack_unknown"], sub, Colors.reset)
+			print_error("Unknown pack subcommand -> %s", sub)
 			show_pack_help(lang)
 			os.exit(1)
 	}
 }
+
 show_pack_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["pack_title"], Colors.reset)
@@ -148,7 +155,8 @@ show_pack_help :: proc(lang: string) {
 		{"hackeros-tv", trans["pack_hackeros_tv"]},
 		{"winboat", trans["pack_winboat"]},
 		{"nvidia-drivers", trans["pack_nvidia"]},
-		{"hl-utils", trans["pack_hl_utils"]},
+		{"hackeros-containers", trans["pack_hackeros_containers"]}, // nowe
+		{"h#", trans["pack_hsharp"]},                                // nowe (H#)
 		{"flox", trans["pack_flox"]},
 		{"hackeros-builder", trans["pack_builder"]},
 		{"isolator", trans["pack_isolator"]},
@@ -156,7 +164,6 @@ show_pack_help :: proc(lang: string) {
 		{"lpm", trans["pack_lpm"]},
 		{"hackeros-games-addons", trans["pack_hackeros-games"]},
 		{"HackerScript", trans["pack_hackerscript"]},
-		// Nowe
 		{"hexai", trans["pack_hexai"]},
 		{"hackerscript-utils", trans["pack_hackerscript_utils"]},
 		{"hackerdeck", trans["pack_hackerdeck"]},
