@@ -2,6 +2,7 @@ package hackeros
 import "core:fmt"
 import "core:os"
 import "core:strings"
+
 handle_unpack :: proc(args: []string, lang: string) {
 	trans := get_translations_main(lang)
 	if len(args) == 0 || args[0] == "help" {
@@ -20,12 +21,10 @@ handle_unpack :: proc(args: []string, lang: string) {
 			handle_unpack([]string{"gaming"}, lang)
 			handle_unpack([]string{"cybersecurity"}, lang)
 		case "devtools":
-			// Zastąpiono Atom przez VS Code
 			safe_run("flatpak install -y --noninteractive flathub com.visualstudio.code")
 			safe_run("sudo apt install -y crystal shards")
 			safe_run("sudo apt install -y npm nodejs")
 			safe_run("curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y")
-			// Zamiast golang-go instalujemy golang
 			safe_run("sudo apt install -y golang")
 			safe_run("sudo apt install -y lua5.4")
 			safe_run("sudo snap install zig --beta --classic")
@@ -79,12 +78,19 @@ handle_unpack :: proc(args: []string, lang: string) {
 			safe_run("rm -f /tmp/winboat.deb")
 		case "nvidia-drivers":
 			safe_run("/usr/share/HackerOS/Scripts/Bin/unpack-nvidia-drivers.sh")
-		case "hl-utils":
-			// Nowa implementacja: pobiera i uruchamia install-utils.hl
-			fmt.printfln("%s%s hl-utils...%s", Colors.yellow, trans["unpack_downloading"], Colors.reset)
-			safe_run("curl -L https://github.com/HackerOS-Linux-System/Hacker-Lang/blob/main/install-utils.hl -o /tmp/install-utils.hl")
-			safe_run("hl run /tmp/install-utils.hl")
-			safe_run("rm -f /tmp/install-utils.hl")
+			// Nowe: HackerOS Containers
+		case "hackeros-containers":
+			fmt.printfln("%s%s hackeros-containers...%s", Colors.yellow, trans["unpack_downloading"], Colors.reset)
+			safe_run("curl -L https://github.com/HackerOS-Linux-System/HackerOS-Containers/raw/main/install.hl -o /tmp/install-containers.hl")
+			safe_run("hl run /tmp/install-containers.hl")
+			safe_run("rm -f /tmp/install-containers.hl")
+			fmt.printfln("%s%s%s", Colors.green, trans["unpack_done"], Colors.reset)
+			// Nowe: H# (H-Sharp) – zastępuje hl-utils
+		case "h#", "hl-utils":
+			fmt.printfln("%s%s H# (H-Sharp)...%s", Colors.yellow, trans["unpack_downloading"], Colors.reset)
+			safe_run("curl -L https://github.com/HackerOS-Linux-System/H-Sharp/raw/main/install.hl -o /tmp/install-hsharp.hl")
+			safe_run("hl run /tmp/install-hsharp.hl")
+			safe_run("rm -f /tmp/install-hsharp.hl")
 			fmt.printfln("%s%s%s", Colors.green, trans["unpack_done"], Colors.reset)
 		case "flox":
 			safe_run("wget https://downloads.flox.dev/by-env/stable/deb/flox.x86_64-linux.deb -O /tmp/flox.deb")
@@ -128,7 +134,6 @@ handle_unpack :: proc(args: []string, lang: string) {
 			safe_run("hl run /tmp/install.hl")
 			safe_run("rm -f /tmp/install.hl")
 			fmt.printfln("%s%s%s", Colors.green, trans["unpack_done"], Colors.reset)
-			// Nowe komendy
 		case "hexai":
 			fmt.printfln("%s%s HexAi...%s", Colors.yellow, trans["unpack_downloading"], Colors.reset)
 			safe_run("curl -L https://github.com/HackerOS-Linux-System/HexAi/blob/main/install.hl -o /tmp/hexai-install.hl")
@@ -148,11 +153,12 @@ handle_unpack :: proc(args: []string, lang: string) {
 			safe_run("rm -f /tmp/hackerdeck-install.hl")
 			fmt.printfln("%s%s%s", Colors.green, trans["unpack_done"], Colors.reset)
 		case:
-			fmt.printfln("%s%s %s%s", Colors.red, trans["unpack_unknown"], sub, Colors.reset)
+			print_error("Unknown unpack subcommand -> %s", sub)
 			show_unpack_help(lang)
 			os.exit(1)
 	}
 }
+
 show_unpack_help :: proc(lang: string) {
 	trans := get_translations_main(lang)
 	fmt.printfln("%s%s%s%s", Colors.bold, Colors.magenta, trans["unpack_title"], Colors.reset)
@@ -172,7 +178,8 @@ show_unpack_help :: proc(lang: string) {
 		{"hackeros-tv", trans["unpack_hackeros_tv"]},
 		{"winboat", trans["unpack_winboat"]},
 		{"nvidia-drivers", trans["unpack_nvidia"]},
-		{"hl-utils", trans["unpack_hl_utils"]},
+		{"hackeros-containers", trans["unpack_hackeros_containers"]}, // nowe
+		{"h#", trans["unpack_hsharp"]},                                // nowe (H#)
 		{"flox", trans["unpack_flox"]},
 		{"hackeros-builder", trans["unpack_builder"]},
 		{"isolator", trans["unpack_isolator"]},
@@ -181,7 +188,6 @@ show_unpack_help :: proc(lang: string) {
 		{"hackeros-games-addons", trans["unpack_hackeros-games"]},
 		{"lpm", trans["unpack_lpm"]},
 		{"HackerScript", trans["unpack_hackerscript"]},
-		// Nowe
 		{"hexai", trans["unpack_hexai"]},
 		{"hackerscript-utils", trans["unpack_hackerscript_utils"]},
 		{"hackerdeck", trans["unpack_hackerdeck"]},
