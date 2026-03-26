@@ -10,36 +10,36 @@ handle_run :: proc(args: []string, lang: string) {
 		os.exit(0)
 	}
 	switch args[0] {
-	case "update-system":
-		safe_run("/usr/share/HackerOS/Scripts/Bin/update-system.sh")
-	case "check-updates":
-		safe_run("/usr/share/HackerOS/Scripts/Bin/check_updates_notify.sh")
-	case "steam":
-		safe_run("/usr/share/HackerOS/Scripts/Steam/HackerOS-Steam.sh")
-	case "hacker-launcher":
-		safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker_Launcher.AppImage")
-	case "hackeros-game-mode":
-		safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Game-Mode.AppImage")
-	case "update-hackeros":
-		safe_run("/usr/share/HackerOS/Scripts/Bin/update-hackeros.sh")
-	case "update-wallpapers":
-		safe_run("/usr/share/HackerOS/Scripts/Bin/update-wallpapers.sh")
-	case "remove-debian-kernel":
-		safe_run("/usr/share/HackerOS/Scripts/Bin/remove-debian-kernel.sh")
-	case "HackerOS-Store":
-		safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Store")
-	case "HackerOS-Steam":
-		safe_run("HackerOS-Steam run")
-	case "HackerDeck":
-		safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerDeck")
-	case "Hacker-Term":
-		safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker-Term.AppImage")
-	case "build-hackeros":
-		safe_run("sudo /usr/share/HackerOS/Archived/build-hackeros")
-	case:
-		fmt.printfln("%s%s %s%s", Colors.red, trans["run_unknown"], args[0], Colors.reset)
-		show_run_help(lang)
-		os.exit(1)
+		case "update-system":
+			safe_run("/usr/share/HackerOS/Scripts/Bin/update-system.sh")
+		case "check-updates":
+			safe_run("/usr/share/HackerOS/Scripts/Bin/check_updates_notify.sh")
+		case "steam":
+			safe_run("/usr/share/HackerOS/Scripts/Steam/HackerOS-Steam.sh")
+		case "hacker-launcher":
+			safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker_Launcher")
+		case "hackeros-game-mode":
+			safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Game-Mode.AppImage")
+		case "update-hackeros":
+			safe_run("/usr/share/HackerOS/Scripts/Bin/update-hackeros.sh")
+		case "update-wallpapers":
+			safe_run("/usr/share/HackerOS/Scripts/Bin/update-wallpapers.sh")
+		case "remove-debian-kernel":
+			safe_run("/usr/share/HackerOS/Scripts/Bin/remove-debian-kernel.sh")
+		case "HackerOS-Store":
+			safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Store")
+		case "HackerOS-Steam":
+			safe_run("HackerOS-Steam run")
+		case "HackerDeck":
+			safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerDeck")
+		case "Hacker-Term":
+			safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker-Term")
+		case "build-hackeros":
+			safe_run("sudo /usr/share/HackerOS/Archived/build-hackeros")
+		case:
+			print_error("Unknown run subcommand -> %s", args[0])
+			show_run_help(lang)
+			os.exit(1)
 	}
 }
 
