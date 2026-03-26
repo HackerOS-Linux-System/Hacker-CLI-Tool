@@ -177,7 +177,7 @@ de_translations :: proc() -> map[string]string {
     trans["unpack_blackarch_info2"] = "Betrete den Container mit: hacker enter blackarch"
     trans["unpack_roblox_done"] = "Unterstützung für Roblox installiert."
     trans["unpack_alacritty_done"] = "Alacritty-Konfiguration erfolgreich in ~/.config/alacritty/alacritty.toml installiert"
-    trans["unpack_hydra_warning"] = "Hinweis: Hydra Look-and-Feel könnte manuelle Konfiguration erfordern."
+    trans["unpack_hydra_warning"] = "Hinweis: Hydra Look-and-Fehl könnte manuelle Konfiguration erfordern."
     trans["unpack_unknown"] = "Unbekannter unpack Unterbefehl:"
     trans["unpack_title"] = "Unpack Unterbefehle:"
     trans["unpack_add_ons"] = "Wine und verwandte Tools installieren"
@@ -207,6 +207,8 @@ de_translations :: proc() -> map[string]string {
     trans["unpack_hexai"] = "HexAi installieren"
     trans["unpack_hackerscript_utils"] = "HackerScript Hilfsprogramme installieren"
     trans["unpack_hackerdeck"] = "HackerDeck installieren"
+    trans["unpack_hackeros_containers"] = "HackerOS-Container installieren (z. B. blackarch, kali)"
+    trans["unpack_hsharp"] = "H# (H-Sharp) Tools installieren – Programmiersprache für HackerOS"
 
     // Tłumaczenia z pack
     trans["pack_downloading"] = "Entfernungs-Skript herunterladen"
@@ -240,6 +242,8 @@ de_translations :: proc() -> map[string]string {
     trans["pack_hexai"] = "HexAi entfernen"
     trans["pack_hackerscript_utils"] = "HackerScript Hilfsprogramme entfernen"
     trans["pack_hackerdeck"] = "HackerDeck entfernen"
+    trans["pack_hackeros_containers"] = "HackerOS-Container entfernen"
+    trans["pack_hsharp"] = "H# (H-Sharp) Tools entfernen"
 
     // Tłumaczenia dla switch
     trans["switch_subcommands"] = "Switch Unterbefehle:"
