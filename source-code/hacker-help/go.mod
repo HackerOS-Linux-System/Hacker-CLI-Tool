@@ -1,4 +1,4 @@
-module hacker-help
+<module hacker-help
 
 go 1.21
 
