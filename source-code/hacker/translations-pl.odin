@@ -18,32 +18,6 @@ pl_translations :: proc() -> map[string]string {
 	trans["env_enter_desc"] = "Wejdź do środowiska (z podpiętymi narzędziami)"
 	trans["env_docs_desc"] = "Pełny tutorial + przykłady"
 	trans["env_settings_desc"] = "Lista wszystkich środowisk"
-	trans["env_docs"] = `
-	%s=== Hacker env – pełny tutorial ===%s
-	1. Utwórz plik konfiguracyjny (np. pentest.hk):
-	[env]
-	-> name => pentest-env
-	-> image => fedora:latest
-	-> shell => zsh
-	[packages]
-	-> -> nmap
-	-> -> metasploit-framework
-	-> -> burpsuite
-	[sync_configs]
-	-> -> ~/.zshrc
-	-> -> ~/.config/nvim
-	[sync_tools]
-	-> snap => ["code"]
-	-> flatpak => ["com.brave.Browser"]
-	-> system => ["~/go/bin/gf"]
-	2. Utwórz środowisko:
-	hacker env create ./pentest.hk
-	3. Wejdź:
-	hacker env enter pentest-env
-	4. Usuń:
-	hacker env remove pentest-env
-	Wszystkie środowiska są normalnymi kontenerami podman – możesz używać distrobox enter / podman exec normalnie.
-	`
 	// Tłumaczenia z main
 	trans["usage_install"] = "Użycie: hacker install <pakiet>"
 	trans["usage_remove"] = "Użycie: hacker remove <pakiet>"
@@ -55,8 +29,8 @@ pl_translations :: proc() -> map[string]string {
 	trans["how_to_create1"] = "Aby utworzyć niestandardową komendę:"
 	trans["how_to_create2"] = "Utwórz plik {nazwa-komendy}.hacker w ~/.config/hackeros/hacker/custom-commands/"
 	trans["how_to_create3"] = "Przykładowy plik niestandardowej komendy znajdziesz pod: <https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker>"
-	trans["version_tool"] = "Najnowsza wersja narzędzia hacker: 2.3.1"
-	trans["version_os"] = "Najnowsza wersja HackerOS: 4.5"
+	trans["version_tool"] = "Najnowsza wersja narzędzia hacker: 2.4.1"
+	trans["version_os"] = "Najnowsza wersja HackerOS: 4.6"
 	trans["file_not_found"] = "Plik nie znaleziony:"
 	trans["variant_not_found"] = "Wariant nie znaleziony w pliku."
 	trans["no_exec_custom"] = "Brak 'exec' w pliku niestandardowej komendy."
@@ -101,7 +75,7 @@ pl_translations :: proc() -> map[string]string {
 	trans["tool_chker"] = "narzędzie do zmiany jądra na te customowe"
 	trans["tool_anvil"] = "narzędzie cli do zarządzania systemem readonly (używane tylko w edycji atomic)"
 	trans["tool_blue"] = "jeśli chcesz pomóc w rozwoju środowiska graficznego HackerOS, skontaktuj się na gmail - <hackeros068@gmail.com> lub <https://github.com/orgs/HackerOS-Linux-System/discussions>"
-
+	trans["tool_hsharp"] = "H# (H-Sharp) — język programowania dla HackerOS"
 	trans["plugins"] = "Pluginy:"
 	trans["enabled"] = "włączony"
 	trans["disabled"] = "wyłączony"
@@ -111,11 +85,13 @@ pl_translations :: proc() -> map[string]string {
 	trans["enabled_plugin"] = "Włączono plugin"
 	trans["usage_plugin_disable"] = "Użycie: hacker plugin disable <nazwa-pluginu>"
 	trans["disabled_plugin"] = "Wyłączono plugin"
+	trans["usage_plugin_info"] = "Użycie: hacker plugin info <nazwa-pluginu>"
 	trans["unknown_plugin"] = "Nieznana podkomenda plugin:"
 	trans["plugin_subcommands"] = "Podkomendy plugin:"
 	trans["list_desc"] = "Wyświetl wszystkie pluginy i ich status"
 	trans["enable_desc"] = "Włącz plugin"
 	trans["disable_desc"] = "Wyłącz plugin"
+	trans["plugin_info_desc"] = "Szczegółowe informacje o pluginie"
 	trans["enabled_motd"] = "Włączono MOTD."
 	trans["enabled_special_motd"] = "Włączono specjalne MOTD."
 	trans["unknown_enable"] = "Nieznana podkomenda enable:"
@@ -150,9 +126,11 @@ pl_translations :: proc() -> map[string]string {
 	trans["desc_hacker_lang"] = "Informacje o języku programowania hacker"
 	trans["desc_ascii"] = "Wyświetl sztukę ASCII"
 	trans["desc_shell"] = "Uruchom shell hackera"
+	trans["desc_interactive"] = "Interaktywna powłoka TUI (Go + Bubble Tea)"
 	trans["desc_enter"] = "Wejdź do kontenera Distrobox"
 	trans["desc_remove_container"] = "Usuń kontener Distrobox"
 	trans["desc_restart"] = "Restartuj usługę systemową"
+	trans["desc_doctor"] = "Diagnostyka systemu — brama do narzędzia repair"
 	trans["desc_plugin"] = "Zarządzaj pluginami (użyj 'hacker plugin' po subkomendy)"
 	trans["desc_enable"] = "Włącz funkcje (użyj 'hacker enable' po subkomendy)"
 	trans["desc_disable"] = "Wyłącz funkcje (użyj 'hacker disable' po subkomendy)"
@@ -160,16 +138,39 @@ pl_translations :: proc() -> map[string]string {
 	trans["desc_index"] = "Pokaż indeks wszystkich narzędzi HackerOS"
 	trans["desc_info"] = "Pokaż wersje narzędzia i HackerOS"
 	trans["desc_issue"] = "Otwórz nowe zgłoszenie na GitHub w przeglądarce (preferuje Vivaldi)"
-	trans["desc_repair"] = "Napraw system HackerOS"
+	trans["desc_repair"] = "Narzędzie naprawcze TUI (uruchom przez hacker doctor)"
 	trans["desc_settings"] = "Ustawienia narzędzia (użyj 'hacker settings' po subkomendy)"
 	trans["desc_switch"] = "Przełączanie między trybami (hacker-mode, steam-gamemode)"
 	trans["custom_commands"] = "Niestandardowe komendy:"
 	trans["no_description"] = "Brak opisu"
 	trans["invalid_config"] = "Nieprawidłowa konfiguracja"
 	trans["plugins_title"] = "Komendy z pluginów:"
+	trans["no_plugins_found"] = "Brak pluginów w katalogu"
+	trans["plugins_dir_hint"] = "Katalog pluginów: ~/.config/hackeros/hacker/plugins/"
+	trans["no_plugins_active"] = "(brak aktywnych pluginów)"
 	trans["hacker_lang_info1"] = "Aby używać języka programowania hacker dla plików/skryptów z rozszerzeniem .hacker,"
 	trans["hacker_lang_info2"] = "użyj komendy \"hl\" i \"bytes\" do pobierania zależności, aby je skompilować lub uruchomić."
-
+	// doctor / repair
+	trans["repair_use_doctor"] = "Aby uruchomić narzędzie naprawcze, najpierw wpisz: hacker doctor"
+	trans["repair_doctor_hint"] = "hacker doctor przeprowadzi diagnostykę i zapyta czy uruchomić repair"
+	trans["repair_not_found"] = "Nie znaleziono binarki hacker-repair w ~/.hackeros/hacker/"
+	trans["repair_install_hint"] = "Upewnij się, że ~/.hackeros/hacker/hacker-repair istnieje i jest wykonywalny"
+	trans["doctor_intro"] = "Przeprowadzam podstawową diagnostykę systemu..."
+	trans["doctor_check_dpkg"] = "Sprawdzam integralność bazy pakietów dpkg..."
+	trans["doctor_check_disk"] = "Sprawdzam miejsce na dysku..."
+	trans["doctor_check_net"] = "Sprawdzam połączenie sieciowe..."
+	trans["doctor_check_services"] = "Sprawdzam usługi systemowe..."
+	trans["doctor_prompt"] = "Czy uruchomić narzędzie hacker-repair?"
+	trans["doctor_yes"] = "Uruchom hacker-repair"
+	trans["doctor_no"] = "Anuluj"
+	trans["doctor_launching_repair"] = "Uruchamiam hacker-repair..."
+	trans["doctor_cancelled"] = "Anulowano."
+	// interactive
+	trans["interactive_not_found"] = "Nie znaleziono binarki hacker-interactive"
+	trans["interactive_hint"] = "Binarka powinna znajdować się w ~/.hackeros/hacker/hacker-interactive"
+	// network
+	trans["network_not_found"] = "Nie znaleziono binarki hacker-network"
+	trans["network_hint"] = "Zainstaluj hacker-network w ~/.hackeros/hacker/"
 	// Tłumaczenia z unpack
 	trans["unpack_downloading"] = "Pobieranie"
 	trans["unpack_done"] = "Zakończono instalację."
@@ -195,24 +196,20 @@ pl_translations :: proc() -> map[string]string {
 	trans["unpack_hackeros_tv"] = "Zainstaluj HackerOS TV"
 	trans["unpack_winboat"] = "Zainstaluj Winboat"
 	trans["unpack_nvidia"] = "Zainstaluj sterowniki NVIDIA"
-	trans["unpack_hl_utils"] = "Zainstaluj narzędzia pomocnicze Hacker Lang (hl-utils)"
+	trans["unpack_hackeros_containers"] = "Zainstaluj kontenery HackerOS (np. blackarch, kali)"
+	trans["unpack_hsharp"] = "Zainstaluj H# (H-Sharp) — język programowania dla HackerOS"
+	trans["unpack_hsharp_utils"] = "Zainstaluj narzędzia pomocnicze H#"
 	trans["unpack_flox"] = "Zainstaluj Flox"
 	trans["unpack_builder"] = "Zainstaluj HackerOS Builder"
 	trans["unpack_isolator"] = "Zainstaluj Isolator"
 	trans["unpack_hydra"] = "Zainstaluj Hydra look-and-feel"
 	trans["unpack_hammer"] = "Zainstaluj Hammer"
-	trans["unpack_hackeros-games"] = "Zainstaluj dodatki do gier HackerOS"
+	trans["unpack_hackeros_games"] = "Zainstaluj dodatki do gier HackerOS"
 	trans["unpack_lpm"] = "Zainstaluj LPM"
-	trans["unpack_hackerscript"] = "Zainstaluj HackerScript"
 	trans["unpack_hexai"] = "Zainstaluj HexAi"
-	trans["unpack_hackerscript_utils"] = "Zainstaluj narzędzia pomocnicze HackerScript"
 	trans["unpack_hackerdeck"] = "Zainstaluj HackerDeck"
-	trans["unpack_hackeros_containers"] = "Zainstaluj kontenery HackerOS (np. blackarch, kali)"
-	trans["unpack_hsharp"] = "Zainstaluj narzędzia H# (H-Sharp) – język programowania dla HackerOS"
-
 	// Tłumaczenia z pack
 	trans["pack_downloading"] = "Pobieranie skryptu usuwania"
-	trans["pack_full_done"] = "Pełne usunięcie zakończone."
 	trans["pack_alacritty_done"] = "Konfiguracja Alacritty została usunięta."
 	trans["pack_done"] = "Zakończono usuwanie."
 	trans["pack_unknown"] = "Nieznana podkomenda pack:"
@@ -231,25 +228,67 @@ pl_translations :: proc() -> map[string]string {
 	trans["pack_hackeros_tv"] = "Usuń HackerOS TV"
 	trans["pack_winboat"] = "Usuń Winboat"
 	trans["pack_nvidia"] = "Usuń sterowniki NVIDIA"
-	trans["pack_hl_utils"] = "Usuń narzędzia pomocnicze Hacker Lang (hl-utils)"
+	trans["pack_hackeros_containers"] = "Usuń kontenery HackerOS"
+	trans["pack_hsharp"] = "Usuń H# (H-Sharp)"
+	trans["pack_hsharp_utils"] = "Usuń narzędzia pomocnicze H#"
 	trans["pack_flox"] = "Usuń Flox"
 	trans["pack_builder"] = "Usuń HackerOS Builder"
 	trans["pack_isolator"] = "Usuń Isolator"
 	trans["pack_hammer"] = "Usuń Hammer"
 	trans["pack_lpm"] = "Usuń LPM"
-	trans["pack_hackeros-games"] = "Usuń dodatki do gier HackerOS"
-	trans["pack_hackerscript"] = "Usuń HackerScript"
+	trans["pack_hackeros_games"] = "Usuń dodatki do gier HackerOS"
 	trans["pack_hexai"] = "Usuń HexAi"
-	trans["pack_hackerscript_utils"] = "Usuń narzędzia pomocnicze HackerScript"
 	trans["pack_hackerdeck"] = "Usuń HackerDeck"
-	trans["pack_hackeros_containers"] = "Usuń kontenery HackerOS"
-	trans["pack_hsharp"] = "Usuń narzędzia H# (H-Sharp)"
-
-	// Tłumaczenia dla switch
+	// switch
 	trans["switch_subcommands"] = "Podkomendy switch:"
 	trans["hacker_mode_desc"] = "Przełącz na tryb Hacker-Mode (sesja Wayland)"
 	trans["steam_gamemode_desc"] = "Przełącz na tryb gamingowy Steam (gamescope-session)"
 	trans["unknown_switch"] = "Nieznana podkomenda switch:"
-
+	// run
+	trans["run_title"] = "Podkomendy run:"
+	trans["run_update_system"] = "Uruchom skrypt aktualizacji systemu"
+	trans["run_check_updates"] = "Sprawdź dostępne aktualizacje"
+	trans["run_steam"] = "Uruchom Steam przez skrypt HackerOS"
+	trans["run_hacker_launcher"] = "Hacker Launcher"
+	trans["run_game_mode"] = "HackerOS Game Mode"
+	trans["run_update_hackeros"] = "Aktualizuj komponenty HackerOS"
+	trans["run_update_wallpapers"] = "Aktualizuj tapety"
+	trans["run_remove_debian_kernel"] = "Usuń domyślne jądro Debian"
+	trans["run_hackeros_store"] = "Sklep HackerOS"
+	trans["run_hackeros_steam"] = "Kontener Steam HackerOS"
+	trans["run_hackerdeck"] = "HackerDeck"
+	trans["run_hacker_term"] = "Terminal HackerOS"
+	trans["run_build_hackeros"] = "Zbuduj obraz HackerOS (live build)"
+	// languages
+	trans["desc_languages"] = "Języki programowania ekosystemu HackerOS"
+	trans["lang_hackerlang_desc"] = "Hacker Lang to uproszczony język skryptowy przeznaczony do automatyzacji zadań systemowych oraz pisania skryptów instalacyjnych (.hl). Posiada własną interaktywną powłokę, która może zastąpić tradycyjny shell."
+	trans["lang_hackerlang_use"] = "Użycie: hl run skrypt.hl  |  hl compile skrypt.hl"
+	trans["lang_hackerlang_shell"] = "Powłoka: uruchom 'hl' bez argumentów aby wejść do trybu interaktywnego"
+	trans["lang_hsharp_desc"] = "H# (H-Sharp) to w pełni funkcjonalny język programowania ogólnego przeznaczenia, zaprojektowany zarówno dla dużych projektów, jak i krótkich skryptów. Jego wyróżnikiem jest zaawansowany system extern, umożliwiający bezproblemową integrację z bibliotekami zewnętrznymi i innymi językami."
+	trans["lang_hsharp_use"] = "Użycie: hsc skrypt.hsc  |  h# run skrypt.hsc"
+	trans["lang_hsharp_extern"] = "System extern: pozwala wywoływać kod C, Rust i inne biblioteki natywne bezpośrednio z poziomu H#"
+	trans["lang_docs_header"] = "Pełna dokumentacja ekosystemu:"
+	trans["lang_docs_hint"] = "Dokumentacja zawiera opis składni, przykłady kodu, API standardowej biblioteki oraz przewodniki dla obu języków."
+	// look
+	trans["look_desc"] = "Dostosuj wygląd kolorystyczny interfejsu CLI"
+	trans["look_subcommands"] = "Podkomendy look:"
+	trans["look_preset_desc"] = "Zastosuj gotowy schemat kolorów (default, ocean, forest, sunset, mono, hacker)"
+	trans["look_set_desc"] = "Ustaw konkretny kolor (klucze: accent, success, error, warning, info, dim)"
+	trans["look_reset_desc"] = "Przywróć domyślne kolory"
+	trans["look_show_desc"] = "Pokaż bieżący schemat kolorów"
+	trans["look_current_title"] = "Bieżący wygląd CLI:"
+	trans["look_presets_title"] = "Dostępne presety:"
+	trans["look_using_defaults"] = "(brak pliku look.json — używane są kolory domyślne)"
+	trans["look_usage_hint"] = "Użycie: hacker settings look preset <nazwa>  |  hacker settings look set <klucz> <#hex>  |  hacker settings look reset"
+	trans["look_preset_applied"] = "Zastosowano preset"
+	trans["look_restart_hint"] = "Zmiany będą widoczne od następnego wywołania hacker."
+	trans["look_unknown_preset"] = "Nieznany preset:"
+	trans["look_available_presets"] = "Dostępne presety:"
+	trans["look_set_usage"] = "Użycie: hacker settings look set <klucz> <#rrggbb>  (klucze: accent, success, error, warning, info, dim)"
+	trans["look_invalid_key"] = "Nieznany klucz koloru:"
+	trans["look_valid_keys"] = "Dostępne klucze"
+	trans["look_invalid_hex"] = "Nieprawidłowy format hex. Użyj formatu #rrggbb (np. #c026d3)"
+	trans["look_color_set"] = "Ustawiono kolor"
+	trans["look_reset_done"] = "Kolory zresetowane do wartości domyślnych."
 	return trans
 }
