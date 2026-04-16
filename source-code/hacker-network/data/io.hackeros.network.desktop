@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=HackerOS Network
+Name[pl]=HackerOS Sieć
+Comment=Manage network connections
+Comment[pl]=Zarządzaj połączeniami sieciowymi
+Exec=hacker-network
+Icon=io.hackeros.network
+Terminal=false
+Type=Application
+Categories=Network;Settings;GTK;
+Keywords=wifi;network;ethernet;nmcli;wireless;
+StartupNotify=true
+StartupWMClass=hacker-network
