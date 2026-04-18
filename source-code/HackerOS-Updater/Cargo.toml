@@ -1,13 +1,19 @@
 [package]
 name = "HackerOS-Updater"
-version = "2.3.1"
+version = "2.4.1"
 edition = "2021"
 
+[[bin]]
+name = "HackerOS-Updater"
+path = "src/main.rs"
+
 [dependencies]
-ratatui = "0.26"
-crossterm = "0.27"
-tokio = { version = "1", features = ["full"] }
+ratatui = "0.28"
+crossterm = "0.28"
 anyhow = "1.0"
-tui-textarea = "0.4"
-futures = "0.3"
-console = "0.15"
+libc = "0.2"
+
+[profile.release]
+opt-level = 3
+strip = true
+lto = true
