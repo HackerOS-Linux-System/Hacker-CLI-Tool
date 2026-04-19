@@ -3,224 +3,480 @@ require "process"
 require "file_utils"
 require "colorize"
 
-# ANSI color codes
-RED = "\e[31m"
-GREEN = "\e[32m"
-BLUE = "\e[34m"
-YELLOW = "\e[33m"
-CYAN = "\e[36m"
-MAGENTA = "\e[35m"
-RESET = "\e[0m"
-
-# Paths
-HACKEROS_UPDATE_SCRIPT = "/usr/share/HackerOS/Scripts/Bin/update-hackeros.sh"
+# ── Paths ────────────────────────────────────────────────────────────────────
+HACKEROS_UPDATE_SCRIPT   = "/usr/share/HackerOS/Scripts/Bin/update-hackeros.sh"
 WALLPAPERS_UPDATE_SCRIPT = "/usr/share/HackerOS/Scripts/Bin/update-wallpapers.sh"
-BIN_PATH = Process.executable_path.not_nil!
-AUTO_SCRIPT_PATH = "#{ENV["HOME"]}/.hackeros/auto-update.sh" # Script to wait for internet
+BIN_PATH                 = Process.executable_path.not_nil!
 
-def display_header(title : String)
-  puts "<--------[ #{title} ]-------->".colorize(:yellow)
+# Global: stored password used to keep sudo alive in background
+
+# ── Sudo state ────────────────────────────────────────────────────────────────
+module SudoState
+  @@password : String = ""
+
+  def self.password=(pwd : String)
+    @@password = pwd
+  end
+
+  def self.password : String
+    @@password
+  end
 end
 
-def run_command(cmd : String) : {Bool, String}
-  status = Process.run(cmd, shell: true, input: Process::Redirect::Inherit, output: Process::Redirect::Inherit, error: Process::Redirect::Inherit)
-  {status.success?, ""}
+# ── UI helpers ───────────────────────────────────────────────────────────────
+def banner(title : String)
+  total_width = 52
+  label       = " [ #{title} ] "
+  side        = [2, (total_width - label.size) // 2].max
+  left_line   = "─" * side
+  right_line  = "─" * [0, total_width - side - label.size].max
+  puts ""
+  puts (left_line + label.colorize(:white).bold.to_s + right_line).colorize(:dark_gray)
 end
 
-def get_status(success : Bool) : String
-  if success
-    "#{BLUE}COMPLETE#{RESET}"
+def step(msg : String)
+  puts "  #{"›".colorize(:dark_gray)}  #{msg.colorize(:white)}"
+end
+
+def ok(msg : String)
+  puts "  #{"✓".colorize(:green).bold}  #{msg.colorize(:light_gray)}"
+end
+
+def fail_msg(msg : String)
+  puts "  #{"✗".colorize(:red).bold}  #{msg.colorize(:light_gray)}"
+end
+
+def warn_msg(msg : String)
+  puts "  #{"⚠".colorize(:yellow).bold}  #{msg.colorize(:light_gray)}"
+end
+
+def format_duration(seconds : Int64) : String
+  if seconds >= 60
+    m = seconds // 60
+    s = seconds % 60
+    "#{m}m #{s}s"
   else
-    "#{RED}FAILED#{RESET}"
+    "#{seconds}s"
   end
 end
 
-def perform_updates : {String, String, String, String, String, String, String, String, String}
-  # APT Update
-  display_header("System Update")
-  apt_success = true
-  ["sudo apt update", "sudo apt upgrade -y", "sudo apt autoclean"].each do |cmd|
-    success, _ = run_command(cmd)
-    apt_success &&= success
+# ── Command runner ───────────────────────────────────────────────────────────
+def run_command(cmd : String) : Bool
+  Process.run(
+    cmd,
+    shell:  true,
+    input:  Process::Redirect::Inherit,
+    output: Process::Redirect::Inherit,
+    error:  Process::Redirect::Inherit
+  ).success?
+end
+
+def capture_command(cmd : String) : {Bool, String}
+  buf    = IO::Memory.new
+  status = Process.run(cmd, shell: true, input: Process::Redirect::Close, output: buf, error: buf)
+  {status.success?, buf.to_s}
+end
+
+# ── Sudo helpers ─────────────────────────────────────────────────────────────
+
+# Run sudo command with password piped via stdin — bypasses TTY cache issues.
+def sudo_run(cmd : String) : Bool
+  full = "echo #{Process.quote(SudoState.password)} | sudo -S sh -c #{Process.quote(cmd)} 2>/dev/null"
+  Process.run(
+    full,
+    shell:  true,
+    input:  Process::Redirect::Close,
+    output: Process::Redirect::Inherit,
+    error:  Process::Redirect::Inherit
+  ).success?
+end
+
+# ── Sudo password prompt ──────────────────────────────────────────────────────
+def prompt_sudo_password : String
+  puts ""
+  puts "  #{"┌".colorize(:dark_gray)} #{"Sudo authentication".colorize(:white).bold}"
+  puts "  #{"│".colorize(:dark_gray)}  #{"Password is piped directly to each sudo call — no repeated prompts.".colorize(:dark_gray)}"
+  print "  #{"└".colorize(:dark_gray)}  #{"password".colorize(:white)} › "
+
+  password = ""
+  STDIN.raw do |io|
+    loop do
+      byte = io.read_byte
+      break if byte.nil?
+      char = byte.chr
+      break if char == '\r' || char == '\n'
+      if char == '\u007F' || char == '\b'
+        unless password.empty?
+          password = password[0..-2]
+          print "\b \b"
+        end
+        next
+      end
+      password += char.to_s
+      print "*"
+    end
   end
-  apt_status = get_status(apt_success)
+  puts ""
 
-  # Flatpak Update
-  display_header("Flatpak Update")
-  flatpak_success, _ = run_command("flatpak update -y")
-  flatpak_status = get_status(flatpak_success)
+  # Validate by running a harmless sudo command
+  validated = Process.run(
+    "echo #{Process.quote(password)} | sudo -S true 2>/dev/null",
+    shell:  true,
+    input:  Process::Redirect::Close,
+    output: Process::Redirect::Close,
+    error:  Process::Redirect::Close
+  ).success?
 
-  # Snap Update
-  display_header("Snap Update")
-  snap_success, _ = run_command("sudo snap refresh")
-  snap_status = get_status(snap_success)
+  unless validated
+    puts ""
+    puts "  #{"✗".colorize(:red).bold}  #{"Incorrect password — aborting.".colorize(:red)}"
+    exit(1)
+  end
 
-  # Brew Installation/Check and Update
-  display_header("Brew Installation/Check")
+  puts "  #{"✓".colorize(:green).bold}  #{"Authentication successful.".colorize(:light_gray)}"
+  puts ""
+  password
+end
+
+# ── Individual update sections ───────────────────────────────────────────────
+def update_apt : Bool
+  banner("System Update · APT")
+  success = true
+  {
+    "apt update"     => "Refreshing package lists",
+    "apt upgrade -y" => "Upgrading packages",
+    "apt autoclean"  => "Cleaning cache",
+  }.each do |cmd, label|
+    step label
+    success &&= sudo_run(cmd)
+  end
+  success
+end
+
+def update_flatpak : Bool
+  banner("Flatpak Update")
+  step "Updating Flatpak apps"
+  run_command("flatpak update -y")
+end
+
+def update_snap : Bool
+  banner("Snap Update")
+  step "Refreshing snaps"
+  sudo_run("snap refresh")
+end
+
+def update_brew : Bool
+  banner("Homebrew Update")
   brew_installed = Process.run("command -v brew", shell: true).success?
-  install_success = false
-  if !brew_installed
-    install_cmds = [
-      "NONINTERACTIVE=1 /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"",
-      "echo 'eval \"$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"' >> ~/.zshrc",
-      "eval \"$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\""
-    ]
-    install_success = true
-    install_cmds.each do |cmd|
-      success, _ = run_command(cmd)
-      install_success &&= success
-    end
-    if install_success
-      puts "#{GREEN}Brew installed successfully.#{RESET}"
+
+  unless brew_installed
+    step "Brew not found — installing…"
+    install_ok = true
+    [
+      %(NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"),
+      %(echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.zshrc),
+      %(eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"),
+    ].each { |c| install_ok &&= run_command(c) }
+
+    if install_ok
+      ok "Brew installed successfully"
+      brew_installed = true
     else
-      puts "#{RED}Failed to install Brew.#{RESET}"
+      fail_msg "Brew installation failed"
+      return false
     end
   else
-    puts "#{GREEN}Brew is already installed.#{RESET}"
+    ok "Brew already installed"
   end
-  brew_status = get_status(false) # Default to failed
-  if brew_installed || install_success
-    display_header("Brew Update")
-    brew_success = true
-    ["brew update", "brew upgrade", "brew cleanup"].each do |cmd|
-      success, _ = run_command(cmd)
-      brew_success &&= success
+
+  return false unless brew_installed
+
+  success = true
+  {
+    "brew update"  => "Fetching updates",
+    "brew upgrade" => "Upgrading formulae",
+    "brew cleanup" => "Cleaning up",
+  }.each do |cmd, label|
+    step label
+    success &&= run_command(cmd)
+  end
+  success
+end
+
+def update_firmware : Bool
+  banner("Firmware Update · fwupd")
+  step "Checking for firmware updates"
+  sudo_run("fwupdmgr update")
+end
+
+def update_omz : Bool
+  banner("Oh My Zsh Update")
+  step "Updating Oh My Zsh"
+  run_command(%(zsh -c 'ZSH_DISABLE_COMPFIX=true NONINTERACTIVE=1 "$HOME/.oh-my-zsh/tools/upgrade.sh" 2>/dev/null'))
+end
+
+def update_distrobox : Bool
+  banner("Distrobox Update")
+  step "Upgrading all containers"
+  run_command("distrobox-upgrade --all")
+end
+
+def update_hnm : Bool
+  banner("HackerOS Nix Manager · hnm")
+
+  step "Checking Nix installation…"
+  check_ok, check_out = capture_command("hnm check 2>&1")
+
+  if check_out.includes?("not found") && !check_ok
+    warn_msg "hnm command not found — skipping Nix section"
+    return false
+  end
+
+  nix_found = check_out.includes?("✓ nix") && !check_out.includes?("NOT FOUND")
+
+  unless nix_found
+    warn_msg "Nix not installed — running `hnm unpack`"
+    unpack_ok = run_command("hnm unpack")
+    unless unpack_ok
+      fail_msg "hnm unpack failed — skipping update & upgrade"
+      return false
     end
-    brew_status = get_status(brew_success)
+    ok "hnm unpack completed"
+  else
+    ok "Nix installation verified"
+    check_out.lines.each { |l| puts "     #{l.colorize(:dark_gray)}" }
   end
 
-  # Firmware Update
-  display_header("Firmware Update")
-  fw_success, _ = run_command("sudo fwupdmgr update")
-  fw_status = get_status(fw_success)
+  step "Running hnm update"
+  update_ok = run_command("hnm update")
+  fail_msg "hnm update failed" unless update_ok
 
-  # Oh My Zsh Update
-  display_header("Oh My Zsh Update")
-  omz_success, _ = run_command("zsh -c \"source ~/.zshrc && omz update\"")
-  omz_status = get_status(omz_success)
+  step "Running hnm upgrade"
+  upgrade_ok = run_command("hnm upgrade")
+  fail_msg "hnm upgrade failed" unless upgrade_ok
 
-  # Distrobox Update
-  display_header("Distrobox Update")
-  distrobox_success, _ = run_command("distrobox-upgrade --all")
-  distrobox_status = get_status(distrobox_success)
-
-  # HackerOS Update
-  display_header("HackerOS Update")
-  hacker_success, _ = run_command(HACKEROS_UPDATE_SCRIPT)
-  hacker_status = get_status(hacker_success)
-
-  # Wallpapers Update
-  display_header("Wallpaper Updates")
-  wall_success, _ = run_command(WALLPAPERS_UPDATE_SCRIPT)
-  wall_status = get_status(wall_success)
-
-  {apt_status, flatpak_status, snap_status, brew_status, fw_status, omz_status, distrobox_status, hacker_status, wall_status}
+  update_ok && upgrade_ok
 end
 
-def show_summary(apt_status, flatpak_status, snap_status, brew_status, fw_status, omz_status, distrobox_status, hacker_status, wall_status)
-  puts "\nSystem Updates - #{apt_status}"
-  puts "Flatpak Updates - #{flatpak_status}"
-  puts "Snap Updates - #{snap_status}"
-  puts "Brew Updates - #{brew_status}"
-  puts "Firmware Updates - #{fw_status}"
-  puts "Oh My Zsh Updates - #{omz_status}"
-  puts "Distrobox Updates - #{distrobox_status}"
-  puts "HackerOS Updates - #{hacker_status}"
-  puts "Wallpaper Updates - #{wall_status}"
+def update_hackeros : Bool
+  banner("HackerOS Update")
+  step "Running HackerOS update script"
+  run_command(HACKEROS_UPDATE_SCRIPT)
 end
 
-def enable_automatic_updates
-  # Create a script that waits for internet and runs the updater
-  auto_script = <<-SCRIPT
-  #!/bin/bash
-  while ! ping -c 1 google.com &> /dev/null; do
-    sleep 5
-  done
-  #{BIN_PATH}
-  SCRIPT
-  File.write(AUTO_SCRIPT_PATH, auto_script)
-  File.chmod(AUTO_SCRIPT_PATH, 0o755)
+def update_wallpapers : Bool
+  banner("Wallpaper Updates")
+  step "Fetching latest wallpapers"
+  run_command(WALLPAPERS_UPDATE_SCRIPT)
+end
 
-  # Add to crontab
-  current_crontab = `crontab -l`
-  unless current_crontab.includes?("@reboot #{AUTO_SCRIPT_PATH}")
-    new_crontab = current_crontab + "\n@reboot #{AUTO_SCRIPT_PATH}\n"
-    File.write("/tmp/crontab.txt", new_crontab)
-    run_command("crontab /tmp/crontab.txt")
-    File.delete("/tmp/crontab.txt")
+# ── Clean section ─────────────────────────────────────────────────────────────
+def do_clean
+  banner("System Clean")
+
+  step "APT autoremove"
+  sudo_run("apt autoremove -y")
+
+  step "APT clean"
+  sudo_run("apt clean")
+
+  step "Flatpak remove unused runtimes"
+  run_command("flatpak uninstall --unused -y")
+
+  if Process.run("command -v snap", shell: true).success?
+    step "Snap remove disabled snaps"
+    # Remove all disabled (old revision) snaps
+    run_command(%(snap list --all 2>/dev/null | awk '/disabled/{print $1, $3}' | while read name rev; do echo #{Process.quote(SudoState.password)} | sudo -S snap remove "$name" --revision="$rev" 2>/dev/null; done))
   end
-  puts "#{GREEN}Automatic updates enabled.#{RESET}"
+
+  if Process.run("command -v brew", shell: true).success?
+    step "Brew cleanup"
+    run_command("brew cleanup --prune=all")
+  end
+
+  puts ""
+  ok "Clean complete"
 end
 
-def disable_automatic_updates
-  # Remove from crontab
-  current_crontab = `crontab -l`
-  new_crontab = current_crontab.lines.reject { |line| line.includes?("@reboot #{AUTO_SCRIPT_PATH}") }.join("\n")
-  File.write("/tmp/crontab.txt", new_crontab)
-  run_command("crontab /tmp/crontab.txt")
-  File.delete("/tmp/crontab.txt")
+# ── Results record ───────────────────────────────────────────────────────────
+record Results,
+  apt        : Bool,
+  flatpak    : Bool,
+  snap       : Bool,
+  brew       : Bool,
+  firmware   : Bool,
+  omz        : Bool,
+  distrobox  : Bool,
+  hnm        : Bool,
+  hackeros   : Bool,
+  wallpapers : Bool,
+  elapsed    : Int64
 
-  # Remove script if exists
-  File.delete(AUTO_SCRIPT_PATH) if File.exists?(AUTO_SCRIPT_PATH)
-  puts "#{GREEN}Automatic updates disabled.#{RESET}"
+def perform_updates(pwd : String) : Results
+  SudoState.password = pwd
+  start = Time.monotonic
+
+  apt        = update_apt
+  flatpak    = update_flatpak
+  snap       = update_snap
+  brew       = update_brew
+  firmware   = update_firmware
+  omz        = update_omz
+  distrobox  = update_distrobox
+  hnm        = update_hnm
+  hackeros   = update_hackeros
+  wallpapers = update_wallpapers
+
+  elapsed = (Time.monotonic - start).total_seconds.to_i64
+
+  Results.new(
+    apt:        apt,
+    flatpak:    flatpak,
+    snap:       snap,
+    brew:       brew,
+    firmware:   firmware,
+    omz:        omz,
+    distrobox:  distrobox,
+    hnm:        hnm,
+    hackeros:   hackeros,
+    wallpapers: wallpapers,
+    elapsed:    elapsed
+  )
 end
+
+# ── Summary ──────────────────────────────────────────────────────────────────
+def show_summary(r : Results)
+  rows = [
+    {"System (APT)",       r.apt},
+    {"Flatpak",            r.flatpak},
+    {"Snap",               r.snap},
+    {"Homebrew",           r.brew},
+    {"Firmware",           r.firmware},
+    {"Oh My Zsh",          r.omz},
+    {"Distrobox",          r.distrobox},
+    {"HackerOS Nix (hnm)", r.hnm},
+    {"HackerOS",           r.hackeros},
+    {"Wallpapers",         r.wallpapers},
+  ]
+
+  col_w = 26
+  box_w = 2 + col_w + 2 + 8 + 4  # 42
+
+  failed_count = rows.count { |(_, s)| !s }
+  all_ok       = failed_count == 0
+  footer_color = all_ok ? :green : :yellow
+  duration_str = format_duration(r.elapsed)
+
+  puts ""
+  puts "┌#{"─" * box_w}┐".colorize(:dark_gray)
+  title_pad = box_w - "Update Summary".size - 2
+  puts "│  #{"Update Summary".colorize(:yellow).bold}#{" " * [title_pad, 0].max}│".colorize(:dark_gray)
+  puts "├#{"─" * box_w}┤".colorize(:dark_gray)
+
+  rows.each do |(label, success)|
+    tag     = success ? "✓ OK".colorize(:green).bold.to_s : "✗ FAILED".colorize(:red).bold.to_s
+    tag_vis = success ? 4 : 8
+    padding = " " * [0, box_w - 2 - col_w - 2 - tag_vis - 1].max
+    puts "│  #{label.ljust(col_w).colorize(:white)}  #{tag}#{padding}│".colorize(:dark_gray)
+  end
+
+  puts "├#{"─" * box_w}┤".colorize(:dark_gray)
+
+  time_line = "Completed in #{duration_str}"
+  time_pad  = box_w - 2 - time_line.size - 1
+  puts "│  #{"Completed in".colorize(:dark_gray)} #{duration_str.colorize(footer_color).bold}#{" " * [time_pad, 0].max}│".colorize(:dark_gray)
+
+  status_text = all_ok ? "All updates completed successfully" : "#{failed_count} section(s) failed — check output above"
+  status_pad  = box_w - 2 - status_text.size - 1
+  puts "│  #{status_text.colorize(footer_color)}#{" " * [status_pad, 0].max}│".colorize(:dark_gray)
+
+  puts "└#{"─" * box_w}┘".colorize(:dark_gray)
+  puts ""
+end
+
+# ── Interactive menu ─────────────────────────────────────────────────────────
+MENU_ITEMS = [
+  {"Q", "Quit",     "Close this terminal"},
+  {"R", "Reboot",   "Reboot the system"},
+  {"S", "Shutdown", "Shutdown the system"},
+  {"L", "Log out",  "Log out from current session"},
+  {"T", "Terminal", "Open a new Alacritty terminal"},
+  {"C", "Clean",    "Remove unused packages & cache"},
+]
 
 def show_gui_menu
   loop do
-    puts "\n#{YELLOW}=== HackerOS Updater Menu ===#{RESET}"
-    puts "#{GREEN}[Q]uit#{RESET} #{CYAN}- Close this terminal#{RESET}"
-    puts "#{GREEN}[R]eboot#{RESET} #{CYAN}- Reboot the system#{RESET}"
-    puts "#{GREEN}[S]hutdown#{RESET} #{CYAN}- Shutdown the system#{RESET}"
-    puts "#{GREEN}[L]og out#{RESET} #{CYAN}- Log out from current session#{RESET}"
-    puts "#{GREEN}[T]erminal#{RESET} #{CYAN}- Open a new Alacritty terminal#{RESET}"
-    puts "#{GREEN}[A]utomatic Updates#{RESET} #{CYAN}- Enable automatic updates on boot#{RESET}"
-    puts "#{GREEN}[D]isable Automatic Updates#{RESET} #{CYAN}- Disable automatic updates on boot#{RESET}" # Added disable option
-    print "#{MAGENTA}Enter your choice: #{RESET}"
+    key_col_w = 17
+    desc_w    = 32
+    box_w     = 2 + key_col_w + 2 + desc_w
+
+    puts "┌#{"─" * box_w}┐".colorize(:dark_gray)
+    title     = "HackerOS Update System  ·  What's next?"
+    title_pad = box_w - title.size - 2
+    puts "│  #{title.colorize(:yellow).bold}#{" " * [title_pad, 0].max}│".colorize(:dark_gray)
+    puts "├#{"─" * box_w}┤".colorize(:dark_gray)
+
+    MENU_ITEMS.each do |(key, label, desc)|
+      key_col  = ("[#{key}]  #{label}").ljust(key_col_w)
+      desc_col = desc.ljust(desc_w)
+      puts "│  #{key_col.colorize(:white)}  #{desc_col.colorize(:dark_gray)}│".colorize(:dark_gray)
+    end
+
+    puts "└#{"─" * box_w}┘".colorize(:dark_gray)
+    print "\n  #{"›".colorize(:dark_gray)}  #{"Choice".colorize(:white)}: "
+
     choice = ""
     STDIN.raw do |io|
       byte = io.read_byte
       if byte
         choice = byte.chr.to_s.upcase
-        puts choice # Echo the choice
+        puts choice.colorize(:cyan).bold
       end
     end
+
+    puts ""
+
     case choice
-    when "Q"
-      exit(0)
-    when "R"
-      run_command("sudo reboot")
-    when "S"
-      run_command("sudo shutdown -h now")
-    when "L"
-      # For KDE
-      run_command("qdbus org.kde.ksmserver /KSMServer logout 0 0 0")
+    when "Q" then exit(0)
+    when "R" then sudo_run("reboot")
+    when "S" then sudo_run("shutdown -h now")
+    when "L" then run_command("qdbus org.kde.ksmserver /KSMServer logout 0 0 0")
     when "T"
-      Process.new("alacritty", input: Process::Redirect::Close, output: Process::Redirect::Close, error: Process::Redirect::Close)
-    when "A"
-      enable_automatic_updates
-    when "D"
-      disable_automatic_updates
+      Process.new("alacritty",
+        input:  Process::Redirect::Close,
+        output: Process::Redirect::Close,
+        error:  Process::Redirect::Close)
+    when "C" then do_clean
     else
-      puts "#{RED}Invalid choice. Try again.#{RESET}"
+      warn_msg "Unknown option '#{choice}' — try again"
     end
+
+    puts ""
   end
 end
 
+# ── Entry point ──────────────────────────────────────────────────────────────
 def main
   gui_mode = false
   OptionParser.parse do |parser|
-    parser.banner = "Usage: HackerOS-Updater [options]"
-    parser.on("--gui-mode", "Internal GUI mode") { gui_mode = true }
+    parser.banner = "Usage: hackeros-update-system [options]"
+    parser.on("--gui-mode", "Run in interactive GUI mode inside terminal") { gui_mode = true }
   end
 
   unless gui_mode
-    # Launch in Alacritty with gui-mode
-    Process.new("alacritty", args: ["-e", BIN_PATH, "--gui-mode"], input: Process::Redirect::Close, output: Process::Redirect::Close, error: Process::Redirect::Close)
+    Process.new(
+      "alacritty",
+      args:   ["-e", BIN_PATH, "--gui-mode"],
+      input:  Process::Redirect::Close,
+      output: Process::Redirect::Close,
+      error:  Process::Redirect::Close
+    )
     return
   end
 
-  apt_status, flatpak_status, snap_status, brew_status, fw_status, omz_status, distrobox_status, hacker_status, wall_status = perform_updates
-  show_summary(apt_status, flatpak_status, snap_status, brew_status, fw_status, omz_status, distrobox_status, hacker_status, wall_status)
+  pwd     = prompt_sudo_password
+  results = perform_updates(pwd)
+  show_summary(results)
   show_gui_menu
 end
 
