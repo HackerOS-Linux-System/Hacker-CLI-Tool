@@ -8,6 +8,8 @@ HACKEROS_UPDATE_SCRIPT   = "/usr/share/HackerOS/Scripts/Bin/update-hackeros.sh"
 WALLPAPERS_UPDATE_SCRIPT = "/usr/share/HackerOS/Scripts/Bin/update-wallpapers.sh"
 BIN_PATH                 = Process.executable_path.not_nil!
 
+DISTRO_RC_PATH = "/etc/xdg/kcm-about-distrorc"
+
 # Global: stored password used to keep sudo alive in background
 
 # ── Sudo state ────────────────────────────────────────────────────────────────
@@ -21,6 +23,18 @@ module SudoState
   def self.password : String
     @@password
   end
+end
+
+# ── Variant detection ─────────────────────────────────────────────────────────
+def detect_variant : String
+  return "Unknown" unless File.exists?(DISTRO_RC_PATH)
+  File.each_line(DISTRO_RC_PATH) do |line|
+    stripped = line.strip
+    if stripped.starts_with?("Variant=")
+      return stripped.sub("Variant=", "").strip
+    end
+  end
+  "Unknown"
 end
 
 # ── UI helpers ───────────────────────────────────────────────────────────────
@@ -153,6 +167,16 @@ def update_apt : Bool
   success
 end
 
+def update_hammer : Bool
+  banner("System Update · Hammer")
+  success = true
+  step "Running hammer update"
+  success &&= run_command("hammer update")
+  step "Running hammer upgrade"
+  success &&= run_command("hammer upgrade -y")
+  success
+end
+
 def update_flatpak : Bool
   banner("Flatpak Update")
   step "Updating Flatpak apps"
@@ -270,6 +294,24 @@ def update_wallpapers : Bool
   run_command(WALLPAPERS_UPDATE_SCRIPT)
 end
 
+def update_cybersecurity : Bool
+  banner("Cybersecurity Updates")
+  step "Running cybersecurity-cli update-all"
+  run_command("cybersecurity-cli update-all")
+end
+
+def update_blue : Bool
+  banner("Blue Updates")
+  step "Running blue update"
+  run_command("blue update")
+end
+
+def update_gaming : Bool
+  banner("Gaming Updates")
+  step "Running gaming-cli update"
+  run_command("gaming-cli update")
+end
+
 # ── Clean section ─────────────────────────────────────────────────────────────
 def do_clean
   banner("System Clean")
@@ -300,64 +342,196 @@ end
 
 # ── Results record ───────────────────────────────────────────────────────────
 record Results,
-  apt        : Bool,
-  flatpak    : Bool,
-  snap       : Bool,
-  brew       : Bool,
-  firmware   : Bool,
-  omz        : Bool,
-  distrobox  : Bool,
-  hnm        : Bool,
-  hackeros   : Bool,
-  wallpapers : Bool,
-  elapsed    : Int64
+  apt            : Bool,
+  hammer         : Bool,
+  flatpak        : Bool,
+  snap           : Bool,
+  brew           : Bool,
+  firmware       : Bool,
+  omz            : Bool,
+  distrobox      : Bool,
+  hnm            : Bool,
+  cybersecurity  : Bool,
+  blue           : Bool,
+  gaming         : Bool,
+  hackeros       : Bool,
+  wallpapers     : Bool,
+  elapsed        : Int64,
+  variant        : String
 
-def perform_updates(pwd : String) : Results
+def perform_updates(pwd : String, variant : String) : Results
   SudoState.password = pwd
   start = Time.monotonic
 
-  apt        = update_apt
-  flatpak    = update_flatpak
-  snap       = update_snap
-  brew       = update_brew
-  firmware   = update_firmware
-  omz        = update_omz
-  distrobox  = update_distrobox
-  hnm        = update_hnm
-  hackeros   = update_hackeros
-  wallpapers = update_wallpapers
+  apt           = false
+  hammer        = false
+  flatpak       = false
+  snap          = false
+  brew          = false
+  firmware      = false
+  omz           = false
+  distrobox     = false
+  hnm           = false
+  cybersecurity = false
+  blue          = false
+  gaming        = false
+  hackeros      = false
+  wallpapers    = false
+
+  case variant
+  when "Atomic Edition"
+    hammer    = update_hammer
+    flatpak   = update_flatpak
+    brew      = update_brew
+    firmware  = update_firmware
+    omz       = update_omz
+    distrobox = update_distrobox
+    hnm       = update_hnm
+    hackeros  = update_hackeros
+    wallpapers = update_wallpapers
+  when "Cybersecurity Edition"
+    apt           = update_apt
+    flatpak       = update_flatpak
+    snap          = update_snap
+    brew          = update_brew
+    firmware      = update_firmware
+    omz           = update_omz
+    distrobox     = update_distrobox
+    hnm           = update_hnm
+    cybersecurity = update_cybersecurity
+    hackeros      = update_hackeros
+    wallpapers    = update_wallpapers
+  when "Blue Edition"
+    apt        = update_apt
+    flatpak    = update_flatpak
+    snap       = update_snap
+    brew       = update_brew
+    firmware   = update_firmware
+    omz        = update_omz
+    distrobox  = update_distrobox
+    hnm        = update_hnm
+    blue       = update_blue
+    hackeros   = update_hackeros
+    wallpapers = update_wallpapers
+  when "Gaming Edition"
+    apt        = update_apt
+    flatpak    = update_flatpak
+    snap       = update_snap
+    brew       = update_brew
+    firmware   = update_firmware
+    omz        = update_omz
+    distrobox  = update_distrobox
+    hnm        = update_hnm
+    gaming     = update_gaming
+    hackeros   = update_hackeros
+    wallpapers = update_wallpapers
+  else
+    # Official Edition, LTS Edition, Hydra Edition, Gnome Edition, Xfce Edition, NVIDIA Edition, Unknown
+    apt        = update_apt
+    flatpak    = update_flatpak
+    snap       = update_snap
+    brew       = update_brew
+    firmware   = update_firmware
+    omz        = update_omz
+    distrobox  = update_distrobox
+    hnm        = update_hnm
+    hackeros   = update_hackeros
+    wallpapers = update_wallpapers
+  end
 
   elapsed = (Time.monotonic - start).total_seconds.to_i64
 
   Results.new(
-    apt:        apt,
-    flatpak:    flatpak,
-    snap:       snap,
-    brew:       brew,
-    firmware:   firmware,
-    omz:        omz,
-    distrobox:  distrobox,
-    hnm:        hnm,
-    hackeros:   hackeros,
-    wallpapers: wallpapers,
-    elapsed:    elapsed
+    apt:           apt,
+    hammer:        hammer,
+    flatpak:       flatpak,
+    snap:          snap,
+    brew:          brew,
+    firmware:      firmware,
+    omz:           omz,
+    distrobox:     distrobox,
+    hnm:           hnm,
+    cybersecurity: cybersecurity,
+    blue:          blue,
+    gaming:        gaming,
+    hackeros:      hackeros,
+    wallpapers:    wallpapers,
+    elapsed:       elapsed,
+    variant:       variant
   )
 end
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 def show_summary(r : Results)
-  rows = [
-    {"System (APT)",       r.apt},
-    {"Flatpak",            r.flatpak},
-    {"Snap",               r.snap},
-    {"Homebrew",           r.brew},
-    {"Firmware",           r.firmware},
-    {"Oh My Zsh",          r.omz},
-    {"Distrobox",          r.distrobox},
-    {"HackerOS Nix (hnm)", r.hnm},
-    {"HackerOS",           r.hackeros},
-    {"Wallpapers",         r.wallpapers},
-  ]
+  case r.variant
+  when "Atomic Edition"
+    rows = [
+      {"System (Hammer)",     r.hammer},
+      {"Flatpak",             r.flatpak},
+      {"Homebrew",            r.brew},
+      {"Firmware",            r.firmware},
+      {"Oh My Zsh",           r.omz},
+      {"Distrobox",           r.distrobox},
+      {"HackerOS Nix (hnm)",  r.hnm},
+      {"HackerOS",            r.hackeros},
+      {"Wallpapers",          r.wallpapers},
+    ]
+  when "Cybersecurity Edition"
+    rows = [
+      {"System (APT)",        r.apt},
+      {"Flatpak",             r.flatpak},
+      {"Snap",                r.snap},
+      {"Homebrew",            r.brew},
+      {"Firmware",            r.firmware},
+      {"Oh My Zsh",           r.omz},
+      {"Distrobox",           r.distrobox},
+      {"HackerOS Nix (hnm)",  r.hnm},
+      {"Cybersecurity",       r.cybersecurity},
+      {"HackerOS",            r.hackeros},
+      {"Wallpapers",          r.wallpapers},
+    ]
+  when "Blue Edition"
+    rows = [
+      {"System (APT)",        r.apt},
+      {"Flatpak",             r.flatpak},
+      {"Snap",                r.snap},
+      {"Homebrew",            r.brew},
+      {"Firmware",            r.firmware},
+      {"Oh My Zsh",           r.omz},
+      {"Distrobox",           r.distrobox},
+      {"HackerOS Nix (hnm)",  r.hnm},
+      {"Blue",                r.blue},
+      {"HackerOS",            r.hackeros},
+      {"Wallpapers",          r.wallpapers},
+    ]
+  when "Gaming Edition"
+    rows = [
+      {"System (APT)",        r.apt},
+      {"Flatpak",             r.flatpak},
+      {"Snap",                r.snap},
+      {"Homebrew",            r.brew},
+      {"Firmware",            r.firmware},
+      {"Oh My Zsh",           r.omz},
+      {"Distrobox",           r.distrobox},
+      {"HackerOS Nix (hnm)",  r.hnm},
+      {"Gaming",              r.gaming},
+      {"HackerOS",            r.hackeros},
+      {"Wallpapers",          r.wallpapers},
+    ]
+  else
+    rows = [
+      {"System (APT)",        r.apt},
+      {"Flatpak",             r.flatpak},
+      {"Snap",                r.snap},
+      {"Homebrew",            r.brew},
+      {"Firmware",            r.firmware},
+      {"Oh My Zsh",           r.omz},
+      {"Distrobox",           r.distrobox},
+      {"HackerOS Nix (hnm)",  r.hnm},
+      {"HackerOS",            r.hackeros},
+      {"Wallpapers",          r.wallpapers},
+    ]
+  end
 
   col_w = 26
   box_w = 2 + col_w + 2 + 8 + 4  # 42
@@ -474,8 +648,9 @@ def main
     return
   end
 
+  variant = detect_variant
   pwd     = prompt_sudo_password
-  results = perform_updates(pwd)
+  results = perform_updates(pwd, variant)
   show_summary(results)
   show_gui_menu
 end
