@@ -4,12 +4,13 @@
 // hl
 // cargo
 
-> cd hacker
+> cd source-code
+> cd update-system
 > crystal build src/main.cr --release
-> sudo mv main hacker
-> cd apt 
-> cargo build --release
+> sudo mv main update-system
 > cd ..
+> cd apt-fronted 
+> cargo build --release
 > cd ..
 > cd hacker-help
 > go get hacker-help
@@ -31,14 +32,10 @@
 > go build
 > cd ..
 > cd HackerOS-Updater
-> crystal build main.cr --release
-> cd better
-> go get HackerOS-Update-Better
-> go build
+> cargo build --release
+> cd ..
 > cd hacker-shell
 > cargo build --release
 > cd ..
 > cd ..
-> cd atomic
-> hl compile main.hacker
-> sudo mv main hacker
+~> [INFO] Building Hacker-CLi-Tool complete 
