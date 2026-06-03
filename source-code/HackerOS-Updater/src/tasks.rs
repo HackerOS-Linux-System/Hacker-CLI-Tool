@@ -1,8 +1,8 @@
 use crate::config::Variant;
 
 // --- CONFIGURATION ---
-pub const HACKEROS_UPDATE_SCRIPT: &str = "/usr/share/HackerOS/Scripts/Bin/update-hackeros.sh";
-pub const WALLPAPERS_UPDATE_SCRIPT: &str = "/usr/share/HackerOS/Scripts/Bin/update-wallpapers.sh";
+pub const HACKEROS_UPDATE_SCRIPT: &str = "/usr/share/HackerOS/Scripts/Bin/update-hackeros.hl";
+pub const WALLPAPERS_UPDATE_SCRIPT: &str = "/usr/share/HackerOS/Scripts/Bin/update-wallpapers.hl";
 
 // --- THEME COLOURS (re-exported for ui module) ---
 use ratatui::style::Color;
@@ -54,9 +54,6 @@ pub fn build_tasks(variant: &Variant) -> Vec<Task> {
 fn apt_task() -> Task {
     Task {
         name: "System Update (APT)".to_string(),
-        // DEBIAN_FRONTEND=noninteractive prevents interactive prompts.
-        // dist-upgrade handles dependency changes that plain upgrade skips.
-        // -o Dpkg::Options force-confdef/confold: never block on config-file prompts.
         command: [
             "DEBIAN_FRONTEND=noninteractive",
             "apt-get update -qq &&",
@@ -155,7 +152,7 @@ fn hnm_task() -> Task {
 fn hackeros_update_task() -> Task {
     Task {
         name: "HackerOS Update".to_string(),
-        command: HACKEROS_UPDATE_SCRIPT.to_string(),
+        command: format!("/usr/bin/hl run {}", HACKEROS_UPDATE_SCRIPT),
         is_sudo: false,
         status: TaskStatus::Pending,
         optional: false,
@@ -166,7 +163,7 @@ fn hackeros_update_task() -> Task {
 fn wallpapers_task() -> Task {
     Task {
         name: "Wallpapers Update".to_string(),
-        command: WALLPAPERS_UPDATE_SCRIPT.to_string(),
+        command: format!("/usr/bin/hl run {}", WALLPAPERS_UPDATE_SCRIPT),
         is_sudo: false,
         status: TaskStatus::Pending,
         optional: true,
