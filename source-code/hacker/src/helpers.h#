@@ -1,0 +1,519 @@
+extern dynamic [c] is
+    fn system(cmd: string) -> int
+    fn getenv(name: string) -> string
+    fn exit(code: int)
+    fn isatty(fd: int) -> int
+end
+
+;; ── Kolory ANSI ───────────────────────────────────────────────────────────────
+
+pub struct Colors is
+    pub red:     string
+    pub yellow:  string
+    pub green:   string
+    pub magenta: string
+    pub gray:    string
+    pub bold:    string
+    pub reset:   string
+    pub blue:    string
+    pub cyan:    string
+    pub white:   string
+end
+
+pub fn default_colors() -> Colors is
+    return Colors {
+        red:     "\x1b[31m",
+        yellow:  "\x1b[33m",
+        green:   "\x1b[32m",
+        magenta: "\x1b[35m",
+        gray:    "\x1b[90m",
+        bold:    "\x1b[1m",
+        reset:   "\x1b[0m",
+        blue:    "\x1b[34m",
+        cyan:    "\x1b[36m",
+        white:   "\x1b[37m",
+    }
+end
+
+pub fn make_ansi_rgb(r: int, g: int, b: int) -> string is
+    return "\x1b[38;2;" + to_string(r) + ";" + to_string(g) + ";" + to_string(b) + "m"
+end
+
+pub fn parse_hex2(s: string) -> int is
+    let mut val: int = 0
+    let mut i:   int = 0
+    while i < string_len(s) is
+        val = val * 16
+        let ch: string = string_at(s, i)
+        if ch >= "0" && ch <= "9" is
+            val += to_int(ch)
+        else if ch >= "a" && ch <= "f" is
+            val += to_int_from_hex(ch)
+        else if ch >= "A" && ch <= "F" is
+            val += to_int_from_hex(string_lower(ch))
+        end
+        i += 1
+    end
+    return val
+end
+
+pub fn hex_to_ansi(hex: string) -> string is
+    if string_len(hex) != 7 || string_at(hex, 0) != "#" is return "" end
+    let r: int = parse_hex2(string_slice(hex, 1, 3))
+    let g: int = parse_hex2(string_slice(hex, 3, 5))
+    let b: int = parse_hex2(string_slice(hex, 5, 7))
+    return make_ansi_rgb(r, g, b)
+end
+
+;; ── Wypisywanie ───────────────────────────────────────────────────────────────
+
+pub fn print_error(c: Colors, msg: string) is
+    write(c.red + "[ERROR] " + msg + c.reset)
+end
+
+pub fn print_warning(c: Colors, msg: string) is
+    write(c.yellow + "[WARN] " + msg + c.reset)
+end
+
+pub fn print_info(c: Colors, msg: string) is
+    write(c.green + "[INFO] " + msg + c.reset)
+end
+
+;; ── safe_run ─────────────────────────────────────────────────────────────────
+
+pub fn safe_run(cmd: string, c: Colors) -> bool is
+    let rc: int = system(cmd)
+    if rc != 0 is
+        write(c.red + "[ERROR] Command failed (exit " + to_string(rc) + "): " + cmd + c.reset)
+        return false
+    end
+    return true
+end
+
+pub fn safe_run_silent(cmd: string) -> bool is
+    let rc: int = system(cmd + " >/dev/null 2>&1")
+    return rc == 0
+end
+
+;; ── Ścieżki ───────────────────────────────────────────────────────────────────
+
+pub fn get_home() -> string is
+    let h: string = getenv("HOME")
+    if h == "" is return "/root" end
+    return h
+end
+
+pub fn get_config_path(file: string) -> string is
+    return get_home() + "/.config/hackeros/hacker/" + file
+end
+
+pub fn get_custom_dir() -> string is
+    return get_config_path("custom-commands")
+end
+
+pub fn get_plugin_dir() -> string is
+    return get_config_path("plugins")
+end
+
+pub fn get_custom_command_path(name: string) -> string is
+    return get_custom_dir() + "/" + name + ".hacker"
+end
+
+pub fn get_home_path(rel: string) -> string is
+    return get_home() + "/" + rel
+end
+
+pub fn path_exists(p: string) -> bool is
+    return file_exists(p)
+end
+
+;; ── Glob (lista plików z sufiksem) ────────────────────────────────────────────
+
+pub fn glob_dir(dir: string, suffix: string) -> [string] is
+    ;; Użyj find do enumerowania plików
+    let tmp: string = "/tmp/hacker_glob_" + to_string(proc_id()) + ".txt"
+    system("find " + dir + " -maxdepth 1 -name '*" + suffix + "' 2>/dev/null | sort > " + tmp)
+    let content: string = file_read(tmp)
+    file_delete(tmp)
+    if content == "" is return [] end
+    let lines: [string] = string_split(content, "\n")
+    let n: int = array_len(lines)
+    let mut result: [string] = []
+    let mut i: int = 0
+    while i < n is
+        let l: string = string_trim(lines[i])
+        if l != "" is
+            result = array_push(result, l)
+        end
+        i += 1
+    end
+    return result
+end
+
+;; ── HackerConfig / parser .hacker ────────────────────────────────────────────
+;; Format: [...] blok, linie: key > value, zagnieżdżone: >key.subkey > value
+
+pub struct HackerEntry is
+    pub key:   string
+    pub value: string
+end
+
+pub struct HackerConfig is
+    pub entries: [HackerEntry]
+    pub count:   int
+end
+
+pub fn hcfg_get(cfg: HackerConfig, key: string) -> string is
+    let mut i: int = 0
+    while i < cfg.count is
+        if cfg.entries[i].key == key is
+            return cfg.entries[i].value
+        end
+        i += 1
+    end
+    return ""
+end
+
+pub fn hcfg_has(cfg: HackerConfig, key: string) -> bool is
+    return hcfg_get(cfg, key) != ""
+end
+
+pub fn hcfg_set(cfg: HackerConfig, key: string, val: string) -> HackerConfig is
+    let mut entries: [HackerEntry] = []
+    let mut found: bool = false
+    let mut i: int = 0
+    while i < cfg.count is
+        if cfg.entries[i].key == key is
+            entries = array_push(entries, HackerEntry { key: key, value: val })
+            found   = true
+        else is
+            entries = array_push(entries, cfg.entries[i])
+        end
+        i += 1
+    end
+    if !found is
+        entries = array_push(entries, HackerEntry { key: key, value: val })
+    end
+    return HackerConfig { entries: entries, count: array_len(entries) }
+end
+
+pub fn parse_hacker_file(path: string) -> HackerConfig is
+    let empty: HackerConfig = HackerConfig { entries: [], count: 0 }
+    if !file_exists(path) is return empty end
+
+    let content: string = string_trim(file_read(path))
+    if !string_starts_with(content, "[") is return empty end
+    ;; Strip outer [ ... ]
+    let inner: string = string_trim(string_slice(content, 1, string_len(content) - 1))
+
+    let lines:  [string] = string_split(inner, "\n")
+    let nlines: int      = array_len(lines)
+    let mut entries: [HackerEntry] = []
+    let mut path_stack: [string]   = []
+    let mut stack_depth: int       = 0
+
+    let mut i: int = 0
+    while i < nlines is
+        let raw:  string = lines[i]
+        let line: string = string_trim(raw)
+        i += 1
+        if line == "" is continue end
+
+        ;; Count leading '>'s for nesting level
+        let mut level: int = 0
+        let mut li:    int = 0
+        while li < string_len(line) && string_at(line, li) == ">" is
+            level += 1
+            li    += 1
+        end
+        let line: string = string_trim(string_slice(line, li, string_len(line)))
+
+        let arrow: int    = string_find(line, ">")
+        let key:   string = if arrow >= 0 then string_trim(string_slice(line, 0, arrow)) else line end
+        let val:   string = if arrow >= 0 then string_trim(string_slice(line, arrow + 1, string_len(line))) else "" end
+
+        ;; Trim path_stack to current level
+        while stack_depth > level is
+            stack_depth -= 1
+        end
+
+        if val == "" is
+            ;; Section header — push to path
+            if stack_depth < 16 is
+                path_stack = array_set(path_stack, stack_depth, key)
+                stack_depth += 1
+            end
+        else is
+            ;; Build full dotted key
+            let mut full_key: string = ""
+            let mut pi: int = 0
+            while pi < stack_depth is
+                if full_key != "" is full_key = full_key + "." end
+                full_key = full_key + path_stack[pi]
+                pi += 1
+            end
+            if full_key != "" is full_key = full_key + "." end
+            full_key = full_key + key
+            entries = array_push(entries, HackerEntry { key: full_key, value: val })
+        end
+    end
+
+    return HackerConfig { entries: entries, count: array_len(entries) }
+end
+
+pub fn write_hacker_file(path: string, cfg: HackerConfig) is
+    let mut out: string = "[\n"
+    let mut i: int = 0
+    while i < cfg.count is
+        out = out + cfg.entries[i].key + "> " + cfg.entries[i].value + "\n"
+        i += 1
+    end
+    out = out + "]\n"
+    file_write(path, out)
+end
+
+;; ── Plugin deps check ─────────────────────────────────────────────────────────
+
+pub fn check_plugin_deps(cfg: HackerConfig) -> bool is
+    let deps_val: string = hcfg_get(cfg, "depends")
+    if deps_val == "" is return true end
+    let deps: [string] = string_split(deps_val, ",")
+    let n:    int      = array_len(deps)
+    let mut i: int = 0
+    while i < n is
+        let dep: string = string_trim(deps[i])
+        if dep != "" is
+            if !safe_run_silent("command -v " + dep) is
+                return false
+            end
+        end
+        i += 1
+    end
+    return true
+end
+
+;; ── Plugin try ───────────────────────────────────────────────────────────────
+
+pub fn try_plugin_command(command: string, args: [string], argc: int, c: Colors) -> bool is
+    let files: [string] = glob_dir(get_plugin_dir(), ".hacker")
+    let n:     int      = array_len(files)
+    let mut i: int = 0
+    while i < n is
+        let cfg: HackerConfig = parse_hacker_file(files[i])
+        if hcfg_get(cfg, "enabled") != "true" is i += 1 continue end
+        let exec_key: string = "commands." + command + ".exec"
+        let exec_cmd: string = hcfg_get(cfg, exec_key)
+        if exec_cmd != "" is
+            let mut arg_str: string = ""
+            let mut j: int = 0
+            while j < argc is
+                if j > 0 is arg_str = arg_str + " " end
+                arg_str = arg_str + args[j]
+                j += 1
+            end
+            safe_run(exec_cmd + " " + arg_str, c)
+            return true
+        end
+        i += 1
+    end
+    return false
+end
+
+pub fn run_plugin_update_hooks(hook_type: string, c: Colors) is
+    let hook_key: string = "hooks." + hook_type
+    let files:    [string] = glob_dir(get_plugin_dir(), ".hacker")
+    let n:        int      = array_len(files)
+    let mut i: int = 0
+    while i < n is
+        let cfg: HackerConfig = parse_hacker_file(files[i])
+        if hcfg_get(cfg, "enabled") != "true" is i += 1 continue end
+        let hook: string = hcfg_get(cfg, hook_key)
+        if hook != "" is
+            write(c.gray + "-> [hook] " + hook_type + "..." + c.reset)
+            safe_run(hook, c)
+        end
+        i += 1
+    end
+end
+
+;; ── Wersja HackerOS ───────────────────────────────────────────────────────────
+
+pub fn read_hackeros_version() -> string is
+    let path: string    = "/usr/share/HackerOS/Config-Files/release-info.json"
+    if !file_exists(path) is return "HackerOS (wersja nieznana)" end
+    let content: string = file_read(path)
+    let idx:     int    = string_find(content, "\"version\"")
+    if idx < 0 is return "HackerOS (błąd odczytu)" end
+    let rest: string = string_slice(content, idx + 9, string_len(content))
+    let colon: int   = string_find(rest, ":")
+    if colon < 0 is return "HackerOS (błąd odczytu)" end
+    let rest: string = string_slice(rest, colon + 1, string_len(rest))
+    let open: int    = string_find(rest, "\"")
+    if open < 0 is return "HackerOS (błąd odczytu)" end
+    let rest: string = string_slice(rest, open + 1, string_len(rest))
+    let close: int   = string_find(rest, "\"")
+    if close < 0 is return "HackerOS (błąd odczytu)" end
+    let ver: string  = string_slice(rest, 0, close)
+    let arrow: int   = string_find(ver, " -> ")
+    if arrow >= 0 is
+        return string_trim(string_slice(ver, arrow + 4, string_len(ver)))
+    end
+    return string_trim(ver)
+end
+
+;; ── Detect display manager ────────────────────────────────────────────────────
+
+pub fn detect_display_manager() -> string is
+    let dm_file: string = "/etc/X11/default-display-manager"
+    if !file_exists(dm_file) is return "unknown" end
+    let content: string = string_trim(file_read(dm_file))
+    ;; basename
+    let slash: int = string_rfind(content, "/")
+    if slash >= 0 is
+        return string_slice(content, slash + 1, string_len(content))
+    end
+    return content
+end
+
+pub fn get_desktop_exec(path: string) -> string is
+    if !file_exists(path) is return "" end
+    let content: string = file_read(path)
+    let lines:   [string] = string_split(content, "\n")
+    let n: int = array_len(lines)
+    let mut i: int = 0
+    while i < n is
+        let line: string = string_trim(lines[i])
+        if string_starts_with(line, "Exec=") is
+            return string_slice(line, 5, string_len(line))
+        end
+        i += 1
+    end
+    return ""
+end
+
+;; ── Style CSS loader ──────────────────────────────────────────────────────────
+
+pub fn load_styles(file: string, c: Colors) -> Colors is
+    if !file_exists(file) is return c end
+    let content: string = file_read(file)
+    let start:   int    = string_find(content, ":root")
+    if start < 0 is return c end
+    let brace: int = string_find(string_slice(content, start, string_len(content)), "{")
+    if brace < 0 is return c end
+    let from:  int = start + brace + 1
+    let close: int = string_find(string_slice(content, from, string_len(content)), "}")
+    if close < 0 is return c end
+    let css: string = string_slice(content, from, from + close)
+
+    let mut result: Colors = c
+    let decls: [string] = string_split(css, ";")
+    let nd: int = array_len(decls)
+    let mut i: int = 0
+    while i < nd is
+        let decl: string = string_trim(decls[i])
+        if decl == "" is i += 1 continue end
+        let colon: int = string_find(decl, ":")
+        if colon < 0 is i += 1 continue end
+        let var_name: string = string_lower(string_trim(string_replace(
+            string_slice(decl, 0, colon), "--", "")))
+        let hex_val: string  = string_trim(string_slice(decl, colon + 1, string_len(decl)))
+        if string_len(hex_val) != 7 || string_at(hex_val, 0) != "#" is i += 1 continue end
+        let ansi: string = hex_to_ansi(hex_val)
+        match var_name is
+            "red"     => is result.red     = ansi end
+            "yellow"  => is result.yellow  = ansi end
+            "green"   => is result.green   = ansi end
+            "magenta" => is result.magenta = ansi end
+            "gray"    => is result.gray    = ansi end
+            _         => is end
+        end
+        i += 1
+    end
+    return result
+end
+
+;; ── look.json loader ─────────────────────────────────────────────────────────
+
+pub fn load_look_from_file(look_file: string, c: Colors) -> Colors is
+    if !file_exists(look_file) is return c end
+    let content: string = file_read(look_file)
+    let mut result: Colors = c
+
+    fn extract_hex(json: string, key: string) -> string is
+        let search: string = "\"" + key + "\":\""
+        let idx:    int    = string_find(json, search)
+        if idx < 0 is return "" end
+        let start: int = idx + string_len(search)
+        let rest:  string = string_slice(json, start, string_len(json))
+        let end_q: int    = string_find(rest, "\"")
+        if end_q < 0 is return "" end
+        return string_slice(rest, 0, end_q)
+    end
+
+    let accent_hex: string  = extract_hex(content, "accent")
+    let success_hex: string = extract_hex(content, "success")
+    let error_hex:   string = extract_hex(content, "error")
+    let warning_hex: string = extract_hex(content, "warning")
+    let info_hex:    string = extract_hex(content, "info")
+    let dim_hex:     string = extract_hex(content, "dim")
+
+    if accent_hex  != "" is result.magenta = hex_to_ansi(accent_hex)  end
+    if success_hex != "" is result.green   = hex_to_ansi(success_hex) end
+    if error_hex   != "" is result.red     = hex_to_ansi(error_hex)   end
+    if warning_hex != "" is result.yellow  = hex_to_ansi(warning_hex) end
+    if info_hex    != "" is result.cyan    = hex_to_ansi(info_hex)    end
+    if dim_hex     != "" is result.gray    = hex_to_ansi(dim_hex)     end
+
+    return result
+end
+
+;; ── Language load/save ────────────────────────────────────────────────────────
+
+pub fn load_lang(c: Colors) -> string is
+    let file: string = get_config_path("language.json")
+    if !file_exists(file) is
+        save_language("pl")
+        return "pl"
+    end
+    let content: string = file_read(file)
+    let idx:     int    = string_find(content, "\"language\"")
+    if idx < 0 is save_language("pl") return "pl" end
+    let rest: string = string_slice(content, idx + 10, string_len(content))
+    let colon: int   = string_find(rest, ":")
+    if colon < 0 is save_language("pl") return "pl" end
+    let rest:  string = string_slice(rest, colon + 1, string_len(rest))
+    let open:  int    = string_find(rest, "\"")
+    if open < 0 is save_language("pl") return "pl" end
+    let rest:  string = string_slice(rest, open + 1, string_len(rest))
+    let close: int    = string_find(rest, "\"")
+    if close < 0 is save_language("pl") return "pl" end
+    let raw: string   = string_lower(string_trim(string_slice(rest, 0, close)))
+
+    ;; Tylko litery
+    let mut cleaned: string = ""
+    let mut ci: int = 0
+    while ci < string_len(raw) is
+        let ch: string = string_at(raw, ci)
+        if (ch >= "a" && ch <= "z") is
+            cleaned = cleaned + ch
+        end
+        ci += 1
+    end
+
+    let valid: [string] = ["pl","en","de","fr","es","it","ru","zh","ja","ko","pt","ar","hi"]
+    let vn:    int      = array_len(valid)
+    let mut vi: int = 0
+    while vi < vn is
+        if valid[vi] == cleaned is return cleaned end
+        vi += 1
+    end
+    save_language("pl")
+    return "pl"
+end
+
+pub fn save_language(lang: string) is
+    let file: string = get_config_path("language.json")
+    let dir:  string = get_config_path("")
+    system("mkdir -p " + dir)
+    file_write(file, "{\"language\":\"" + lang + "\"}")
+end
