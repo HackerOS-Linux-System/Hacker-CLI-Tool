@@ -1,1 +1,876 @@
+mod helpers
+mod translations
+mod unpack
+mod pack
+mod env
+mod run_commands
+mod game
 
+extern dynamic [c] is
+    fn system(cmd: string) -> int
+    fn exit(code: int)
+    fn getenv(name: string) -> string
+end
+
+;; ── Arg helpers ──────────────────────────────────────────────────────────────
+
+fn arg_at(args: [string], argc: int, idx: int) -> string is
+    if idx < argc is return args[idx] end
+    return ""
+end
+
+fn args_from(args: [string], argc: int, from: int) -> [string] is
+    let mut result: [string] = []
+    let mut i: int = from
+    while i < argc is
+        result = array_push(result, args[i])
+        i += 1
+    end
+    return result
+end
+
+fn args_join(args: [string], argc: int) -> string is
+    let mut s: string = ""
+    let mut i: int = 0
+    while i < argc is
+        if i > 0 is s = s + " " end
+        s = s + args[i]
+        i += 1
+    end
+    return s
+end
+
+fn detect_de() -> string is
+    let xdg: string = getenv("XDG_CURRENT_DESKTOP")
+    let ds:  string = getenv("DESKTOP_SESSION")
+    let env_str: string = string_lower(xdg + " " + ds)
+    if string_contains(env_str, "plasma") || string_contains(env_str, "kde") is
+        return "plasma-desktop"
+    end
+    if string_contains(env_str, "gnome") is return "gnome"    end
+    if string_contains(env_str, "xfce")  is return "xfce4"   end
+    return ""
+end
+
+fn kill_de(de: string, c: helpers::Colors) is
+    match de is
+        "plasma-desktop" => is helpers::safe_run("killall -9 plasmashell kwin_wayland kwin_x11 krunner kded5", c) end
+        "gnome"          => is helpers::safe_run("killall -9 gnome-shell", c) end
+        "xfce4"          => is helpers::safe_run("killall -9 xfce4-session xfwm4 xfdesktop", c) end
+        _                => is end
+    end
+end
+
+;; ── doctor ───────────────────────────────────────────────────────────────────
+
+fn handle_doctor(lang: string, c: helpers::Colors) is
+    let t: translations::Trans = translations::get_translations(lang)
+
+    write(c.bold + c.magenta + "╔══════════════════════════════════════╗" + c.reset)
+    write("║   " + c.cyan + "HackerOS Doctor" + c.magenta + " — Diagnoza systemu    ║" + c.reset)
+    write(c.magenta + "╚══════════════════════════════════════╝" + c.reset)
+    write("")
+    write(c.yellow + translations::trans_get(t, "doctor_intro") + c.reset)
+    write("")
+
+    write(c.cyan + "[1/4]" + c.reset + " " + translations::trans_get(t, "doctor_check_dpkg"))
+    let ok1: bool = helpers::safe_run("dpkg --audit 2>&1 | head -5", c)
+    if ok1 is write("      " + c.green + "✓ dpkg OK" + c.reset)
+    else is    write("      " + c.yellow + "⚠ Wykryto problemy dpkg" + c.reset) end
+
+    write(c.cyan + "[2/4]" + c.reset + " " + translations::trans_get(t, "doctor_check_disk"))
+    helpers::safe_run("df -h / | tail -1", c)
+
+    write(c.cyan + "[3/4]" + c.reset + " " + translations::trans_get(t, "doctor_check_net"))
+    let ok3: bool = helpers::safe_run("ping -c 1 -W 2 8.8.8.8 > /dev/null 2>&1", c)
+    if ok3 is write("      " + c.green + "✓ Sieć OK" + c.reset)
+    else is    write("      " + c.yellow + "⚠ Brak połączenia z internetem" + c.reset) end
+
+    write(c.cyan + "[4/4]" + c.reset + " " + translations::trans_get(t, "doctor_check_services"))
+    helpers::safe_run("systemctl list-units --state=failed --no-pager 2>/dev/null | head -5 || echo 'Brak awarii usług'", c)
+
+    write("")
+    write(c.bold + translations::trans_get(t, "doctor_prompt") + c.reset)
+    write(c.green + "  y / t" + c.reset + " — " + translations::trans_get(t, "doctor_yes"))
+    write(c.red   + "  n / q" + c.reset + " — " + translations::trans_get(t, "doctor_no"))
+    write(c.magenta + "❯ " + c.reset)
+
+    let answer: string = string_lower(string_trim(io_readline()))
+
+    if answer == "y" || answer == "t" || answer == "yes" || answer == "tak" is
+        let repair_bin: string = helpers::get_home_path(".hackeros/hacker/hacker-repair")
+        if helpers::path_exists(repair_bin) is
+            write(c.green + translations::trans_get(t, "doctor_launching_repair") + c.reset)
+            helpers::safe_run(repair_bin, c)
+        else is
+            helpers::print_error(c, translations::trans_get(t, "repair_not_found"))
+            write(c.yellow + translations::trans_get(t, "repair_install_hint") + c.reset)
+        end
+    else is
+        write(c.gray + translations::trans_get(t, "doctor_cancelled") + c.reset)
+    end
+end
+
+;; ── switch ────────────────────────────────────────────────────────────────────
+
+fn switch_session(session_file: string, mode_name: string, c: helpers::Colors) is
+    if !helpers::path_exists(session_file) is
+        helpers::print_error(c, "Plik " + session_file + " nie został znaleziony!")
+        helpers::print_warning(c, "Zainstaluj przez: hacker unpack " + mode_name)
+        exit(1)
+    end
+    let de: string = detect_de()
+    if de == "" is
+        helpers::print_error(c, "Nie wykryto obsługiwanego środowiska.")
+        exit(1)
+    end
+    write(c.yellow + "Wykryto środowisko: " + de + ". Wyłączam..." + c.reset)
+    kill_de(de, c)
+
+    let dm: string = helpers::detect_display_manager()
+    if string_contains(dm, "lightdm") || string_contains(dm, "sddm") ||
+       string_contains(dm, "gdm") || string_contains(dm, "gdm3") is
+        write(c.green + "Wykryto DM: " + dm + ". Uruchamiam sesję " + mode_name + "..." + c.reset)
+        let exec_cmd: string = helpers::get_desktop_exec(session_file)
+        if exec_cmd != "" is
+            helpers::safe_run(exec_cmd, c)
+        else is
+            helpers::print_error(c, "Nie znaleziono linii Exec= w pliku .desktop.")
+        end
+    else is
+        helpers::print_warning(c, "DM (" + dm + ") nie jest lightdm/sddm/gdm. Zaloguj się ręcznie.")
+    end
+end
+
+fn handle_switch(args: [string], argc: int, lang: string, c: helpers::Colors) is
+    let t: translations::Trans = translations::get_translations(lang)
+    if argc == 0 is
+        write(c.bold + c.magenta + translations::trans_get(t, "switch_subcommands") + c.reset)
+        write(" " + c.gray + "hacker-mode      " + c.reset + "- " + translations::trans_get(t, "hacker_mode_desc"))
+        write(" " + c.gray + "steam-gamemode   " + c.reset + "- " + translations::trans_get(t, "steam_gamemode_desc"))
+        return
+    end
+    match args[0] is
+        "hacker-mode"      => is switch_session("/usr/share/wayland-sessions/Hacker-Mode.desktop", "hacker-mode", c) end
+        "steam-gamemode"   => is switch_session("/usr/share/wayland-sessions/gamescope-session-steam.desktop", "steam-gamemode", c) end
+        _ => is
+            helpers::print_error(c, "Unknown switch: " + args[0])
+            exit(1)
+        end
+    end
+end
+
+;; ── system / update ───────────────────────────────────────────────────────────
+
+fn handle_system(args: [string], argc: int, lang: string, c: helpers::Colors) is
+    let t: translations::Trans = translations::get_translations(lang)
+    if argc == 0 is
+        write(c.bold + c.magenta + translations::trans_get(t, "system_subcommands") + c.reset)
+        write(" " + c.gray + "logs" + c.reset + " - " + translations::trans_get(t, "logs_desc"))
+        return
+    end
+    match args[0] is
+        "logs" => is helpers::safe_run("journalctl -xe", c) end
+        _ => is
+            helpers::print_error(c, "Unknown system subcommand: " + args[0])
+            exit(1)
+        end
+    end
+end
+
+fn handle_update(args: [string], argc: int, lang: string, c: helpers::Colors) is
+    let t: translations::Trans = translations::get_translations(lang)
+    helpers::run_plugin_update_hooks("pre_update", c)
+    if argc == 0 is
+        helpers::safe_run("~/.hackeros/hacker/HackerOS-Updater", c)
+    else is
+        match args[0] is
+            "--with-gui" => is helpers::safe_run("~/.hackeros/hacker/HackerOS-Updater --with-gui", c) end
+            _ => is
+                helpers::print_error(c, translations::trans_get(t, "available_flags") + " --with-gui")
+                exit(1)
+            end
+        end
+    end
+    helpers::run_plugin_update_hooks("post_update", c)
+end
+
+;; ── languages ─────────────────────────────────────────────────────────────────
+
+fn handle_languages(lang: string, c: helpers::Colors) is
+    let t: translations::Trans = translations::get_translations(lang)
+    write(c.bold + c.magenta + "╔══════════════════════════════════════════════╗" + c.reset)
+    write(c.bold + c.magenta + "║   HackerOS — Języki programowania ekosystemu  ║" + c.reset)
+    write(c.bold + c.magenta + "╚══════════════════════════════════════════════╝" + c.reset)
+    write("")
+
+    let langs: [[string]] = [
+        ["H# (H-Sharp)",     "Własny język HackerOS — silnie typowany, LLVM backend"],
+        ["Odin",             "Systemowy — narzędzia CLI HackerOS (dotąd)"],
+        ["Go",               "Infrastruktura, narzędzia sieciowe"],
+        ["Rust",             "Biblioteki systemowe, analiza"],
+        ["Python",           "Skrypty, automatyzacja, HL interpreter"],
+        ["Zig",              "Niskopoziomowy, kernelowy"],
+        ["Crystal",          "Ruby-like, wydajny"],
+        ["C",                "Niskopoziomowy, runtime H#"],
+        ["C++",              "Biblioteki systemowe"],
+        ["Lua",              "Skrypty, konfiguracje"],
+    ]
+    let n: int = array_len(langs)
+    let mut i: int = 0
+    while i < n is
+        write(" " + c.green + "* " + langs[i][0] + c.reset + " — " + langs[i][1])
+        i += 1
+    end
+    write("")
+end
+
+fn handle_lang_set(lang: string, c: helpers::Colors) is
+    let valid: [string] = ["pl","en","de","fr","es","it","ru","zh","ja","ko","pt","ar","hi"]
+    let n: int = array_len(valid)
+    let mut found: bool = false
+    let mut i: int = 0
+    while i < n is
+        if valid[i] == lang is found = true end
+        i += 1
+    end
+    if !found is
+        write("Nieznany język: " + lang + ". Dostępne: pl en de fr es it ru zh ja ko")
+        exit(1)
+    end
+    helpers::save_language(lang)
+    write("Język ustawiony na: " + lang)
+end
+
+;; ── index / tools ─────────────────────────────────────────────────────────────
+
+fn show_hackeros_tools(lang: string, c: helpers::Colors) is
+    let t: translations::Trans = translations::get_translations(lang)
+    write(c.bold + c.magenta + translations::trans_get(t, "tools_index") + c.reset)
+    let tools: [[string]] = [
+        ["bit",                 "tool_bit"],
+        ["virus",               "tool_virus"],
+        ["bytes",               "tool_bytes"],
+        ["hl",                  "tool_hl"],
+        ["hackerc",             "tool_hackerc"],
+        ["hacker",              "tool_hacker"],
+        ["Hacker Kernel",       "tool_kernel"],
+        ["HackerOS Steam",      "tool_steam"],
+        ["HackerOS Welcome",    "tool_welcome"],
+        ["HackerOS App",        "tool_app"],
+        ["Hacker Mode",         "tool_hacker_mode"],
+        ["isolator",            "tool_isolator"],
+        ["hpm",                 "tool_hpm"],
+        ["HackerOS Game Mode",  "tool_game_mode"],
+        ["hup",                 "tool_hup"],
+        ["hammer",              "tool_hammer"],
+        ["HackerOS Games",      "tool_games"],
+        ["Hacker Launcher",     "tool_launcher"],
+        ["lpm",                 "tool_lpm"],
+        ["hedit",               "tool_hedit"],
+        ["ngt",                 "tool_ngt"],
+        ["hbuild",              "tool_hbuild"],
+        ["HackerDeck",          "tool_hackerdeck"],
+        ["Hacker Term",         "tool_hackerterm"],
+        ["HackerOS Store",      "tool_store"],
+        ["hsh",                 "tool_hsh"],
+        ["getit",               "tool_getit"],
+        ["HackerOS Builder",    "tool_builder"],
+        ["HexAi",               "tool_hexai"],
+        ["chker",               "tool_chker"],
+        ["anvil",               "tool_anvil"],
+        ["H# (H-Sharp)",        "tool_hsharp"],
+    ]
+    let n: int = array_len(tools)
+    let mut i: int = 0
+    while i < n is
+        write(" " + c.green + "* " + tools[i][0] + c.reset + " - " +
+              translations::trans_get(t, tools[i][1]))
+        i += 1
+    end
+end
+
+;; ── plugin ────────────────────────────────────────────────────────────────────
+
+fn handle_plugin(args: [string], argc: int, lang: string, c: helpers::Colors) is
+    let t: translations::Trans = translations::get_translations(lang)
+    if argc == 0 is
+        show_plugin_help(t, c)
+        return
+    end
+    let sub: string = args[0]
+
+    match sub is
+        "list" => is
+            let files: [string] = helpers::glob_dir(helpers::get_plugin_dir(), ".hacker")
+            let n: int = array_len(files)
+            if n == 0 is
+                write(c.gray + translations::trans_get(t, "no_plugins_found") + c.reset)
+                return
+            end
+            write(c.bold + c.magenta + translations::trans_get(t, "plugins") + c.reset)
+            write("")
+            let mut i: int = 0
+            while i < n is
+                let cfg: helpers::HackerConfig = helpers::parse_hacker_file(files[i])
+                let name:    string = helpers::hcfg_get(cfg, "name")
+                let ver:     string = helpers::hcfg_get(cfg, "version")
+                let desc:    string = helpers::hcfg_get(cfg, "description")
+                let author:  string = helpers::hcfg_get(cfg, "author")
+                let enabled: bool   = helpers::hcfg_get(cfg, "enabled") == "true"
+                let sym: string = if enabled then c.green + "✓" else c.red + "✗" end
+                write("  " + sym + c.reset + " " + c.cyan + name + c.reset +
+                      if ver != "" then " v" + ver else "" end)
+                if desc   != "" is write("     " + desc)              end
+                if author != "" is write("     " + c.gray + "[" + author + "]" + c.reset) end
+                write("")
+                i += 1
+            end
+        end
+        "enable" => is
+            if argc < 2 is helpers::print_error(c, translations::trans_get(t, "usage_plugin_enable")) return end
+            let pf: string = helpers::get_plugin_dir() + "/" + args[1] + ".hacker"
+            if !helpers::path_exists(pf) is helpers::print_error(c, "Plugin nie znaleziony: " + args[1]) return end
+            let mut cfg: helpers::HackerConfig = helpers::parse_hacker_file(pf)
+            if !helpers::check_plugin_deps(cfg) is
+                write(c.yellow + "⚠ Brakuje zależności" + c.reset)
+            end
+            cfg = helpers::hcfg_set(cfg, "enabled", "true")
+            helpers::write_hacker_file(pf, cfg)
+            write(c.green + "Włączono plugin: " + args[1] + c.reset)
+            let hook: string = helpers::hcfg_get(cfg, "hooks.on_enable")
+            if hook != "" is helpers::safe_run(hook, c) end
+        end
+        "disable" => is
+            if argc < 2 is helpers::print_error(c, translations::trans_get(t, "usage_plugin_disable")) return end
+            let pf: string = helpers::get_plugin_dir() + "/" + args[1] + ".hacker"
+            if !helpers::path_exists(pf) is helpers::print_error(c, "Plugin nie znaleziony: " + args[1]) return end
+            let mut cfg: helpers::HackerConfig = helpers::parse_hacker_file(pf)
+            cfg = helpers::hcfg_set(cfg, "enabled", "false")
+            helpers::write_hacker_file(pf, cfg)
+            write(c.green + "Wyłączono plugin: " + args[1] + c.reset)
+            let hook: string = helpers::hcfg_get(cfg, "hooks.on_disable")
+            if hook != "" is helpers::safe_run(hook, c) end
+        end
+        "info" => is
+            if argc < 2 is helpers::print_error(c, translations::trans_get(t, "usage_plugin_info")) return end
+            let pf: string = helpers::get_plugin_dir() + "/" + args[1] + ".hacker"
+            if !helpers::path_exists(pf) is helpers::print_error(c, "Plugin nie znaleziony: " + args[1]) return end
+            let cfg: helpers::HackerConfig = helpers::parse_hacker_file(pf)
+            write(c.bold + c.magenta + "╔══ Plugin: " + args[1] + " ══" + c.reset)
+            let fields: [[string]] = [
+                ["name","Nazwa"], ["version","Wersja"], ["description","Opis"],
+                ["author","Autor"], ["license","Licencja"],
+            ]
+            let fn_count: int = array_len(fields)
+            let mut fi: int = 0
+            while fi < fn_count is
+                let val: string = helpers::hcfg_get(cfg, fields[fi][0])
+                if val != "" is
+                    write("  " + c.cyan + string_pad_right(fields[fi][1] + ":", 14) + c.reset + val)
+                end
+                fi += 1
+            end
+            let enabled: bool = helpers::hcfg_get(cfg, "enabled") == "true"
+            let scol:  string = if enabled then c.green else c.red end
+            let sstr:  string = if enabled then "włączony" else "wyłączony" end
+            write("  " + c.cyan + "Status:       " + c.reset + scol + sstr + c.reset)
+            let deps: string = helpers::hcfg_get(cfg, "depends")
+            if deps != "" is
+                let dok: bool = helpers::check_plugin_deps(cfg)
+                let dc: string = if dok then c.green else c.yellow end
+                write("  " + c.cyan + "Zależności:   " + c.reset + dc + deps + c.reset)
+            end
+        end
+        "install" => is
+            if argc < 2 is helpers::print_error(c, "Użycie: hacker plugin install <nazwa>") return end
+            let pf: string = helpers::get_plugin_dir() + "/" + args[1] + ".hacker"
+            if !helpers::path_exists(pf) is helpers::print_error(c, "Plugin nie znaleziony: " + args[1]) return end
+            let cfg: helpers::HackerConfig = helpers::parse_hacker_file(pf)
+            let inst: string = helpers::hcfg_get(cfg, "install")
+            if inst != "" is
+                write(c.yellow + "Instalowanie " + args[1] + "..." + c.reset)
+                if helpers::safe_run(inst, c) is
+                    write(c.green + translations::trans_get(t, "plugin_install_done") + c.reset)
+                else is
+                    helpers::print_error(c, translations::trans_get(t, "plugin_install_failed"))
+                end
+            else is
+                write(c.gray + translations::trans_get(t, "plugin_no_install_script") + c.reset)
+            end
+        end
+        "uninstall" => is
+            if argc < 2 is helpers::print_error(c, "Użycie: hacker plugin uninstall <nazwa>") return end
+            let pf: string = helpers::get_plugin_dir() + "/" + args[1] + ".hacker"
+            if !helpers::path_exists(pf) is helpers::print_error(c, "Plugin nie znaleziony: " + args[1]) return end
+            let cfg: helpers::HackerConfig = helpers::parse_hacker_file(pf)
+            let uni: string = helpers::hcfg_get(cfg, "uninstall")
+            if uni != "" is
+                if helpers::hcfg_get(cfg, "enabled") == "true" is
+                    let hook: string = helpers::hcfg_get(cfg, "hooks.on_disable")
+                    if hook != "" is helpers::safe_run(hook, c) end
+                end
+                write(c.yellow + "Odinstalowywanie " + args[1] + "..." + c.reset)
+                if helpers::safe_run(uni, c) is
+                    write(c.green + translations::trans_get(t, "plugin_uninstall_done") + c.reset)
+                else is
+                    helpers::print_error(c, translations::trans_get(t, "plugin_uninstall_failed"))
+                end
+            else is
+                write(c.gray + translations::trans_get(t, "plugin_no_uninstall_script") + c.reset)
+            end
+        end
+        "run" => is
+            if argc < 3 is helpers::print_error(c, "Użycie: hacker plugin run <plugin> <komenda> [args]") return end
+            let pf:  string = helpers::get_plugin_dir() + "/" + args[1] + ".hacker"
+            let cfg: helpers::HackerConfig = helpers::parse_hacker_file(pf)
+            if helpers::hcfg_get(cfg, "enabled") != "true" is
+                helpers::print_error(c, translations::trans_get(t, "plugin_not_enabled"))
+                return
+            end
+            let cmd_name: string = args[2]
+            let exec_cmd: string = helpers::hcfg_get(cfg, "commands." + cmd_name + ".exec")
+            if exec_cmd != "" is
+                let arg_str: string = args_join(args_from(args, argc, 3), argc - 3)
+                let sudo_f:  string = helpers::hcfg_get(cfg, "commands." + cmd_name + ".sudo")
+                let prefix:  string = if sudo_f == "true" then "sudo " else "" end
+                helpers::safe_run(prefix + exec_cmd + " " + arg_str, c)
+            else is
+                helpers::print_error(c, "Komenda '" + cmd_name + "' nie znaleziona w pluginie '" + args[1] + "'")
+            end
+        end
+        "new" => is
+            if argc < 2 is helpers::print_error(c, "Użycie: hacker plugin new <nazwa>") return end
+            let pdir: string = helpers::get_plugin_dir()
+            let pf:   string = pdir + "/" + args[1] + ".hacker"
+            if helpers::path_exists(pf) is
+                helpers::print_error(c, "Plugin już istnieje: " + args[1])
+                return
+            end
+            system("mkdir -p " + pdir)
+            let tpl: string = "[\n" +
+                "name > " + args[1] + "\n" +
+                "version > 1.0.0\n" +
+                "description > Opis pluginu\n" +
+                "author > Autor\n" +
+                "license > MIT\n" +
+                "enabled > false\n\n" +
+                "commands.example.exec > /bin/echo\n" +
+                "commands.example.description > Przykładowa komenda\n" +
+                "commands.example.help > Uruchom przykładową komendę\n" +
+                "commands.example.args > <tekst>\n" +
+                "commands.example.sudo > false\n\n" +
+                "hooks.pre_update >\nhooks.post_update >\nhooks.on_enable >\nhooks.on_disable >\n\n" +
+                "depends >\ninstall >\nuninstall >\n]\n"
+            file_write(pf, tpl)
+            write(c.green + translations::trans_get(t, "plugin_new_created") + " " + pf + c.reset)
+            write(c.gray + translations::trans_get(t, "plugin_new_hint") + c.reset)
+        end
+        "run-hooks" => is
+            if argc < 2 is helpers::print_error(c, "Użycie: hacker plugin run-hooks <typ>") return end
+            helpers::run_plugin_update_hooks(args[1], c)
+            write(c.green + translations::trans_get(t, "plugin_hooks_ran") + " " + args[1] + c.reset)
+        end
+        _ => is
+            helpers::print_error(c, "Unknown plugin subcommand: " + sub)
+            show_plugin_help(t, c)
+        end
+    end
+end
+
+fn show_plugin_help(t: translations::Trans, c: helpers::Colors) is
+    write(c.bold + c.magenta + translations::trans_get(t, "plugin_subcommands") + c.reset)
+    let cmds: [[string]] = [
+        ["list",               "list_desc"],
+        ["enable  <nazwa>",    "enable_desc"],
+        ["disable <nazwa>",    "disable_desc"],
+        ["info    <nazwa>",    "plugin_info_desc"],
+        ["install <nazwa>",    "plugin_install_desc"],
+        ["uninstall <nazwa>",  "plugin_uninstall_desc"],
+        ["run <p> <komenda>",  "plugin_run_desc"],
+        ["new <nazwa>",        "plugin_new_desc"],
+        ["run-hooks <typ>",    "plugin_run_hooks_desc"],
+    ]
+    let n: int = array_len(cmds)
+    let mut i: int = 0
+    while i < n is
+        write(" " + c.gray + string_pad_right(cmds[i][0], 22) + c.reset + "- " +
+              translations::trans_get(t, cmds[i][1]))
+        i += 1
+    end
+end
+
+;; ── enable / disable ─────────────────────────────────────────────────────────
+
+fn handle_enable(args: [string], argc: int, lang: string, c: helpers::Colors) is
+    let t: translations::Trans = translations::get_translations(lang)
+    if argc == 0 is
+        write(c.bold + c.magenta + translations::trans_get(t, "enable_subcommands") + c.reset)
+        write(" " + c.gray + "motd         " + c.reset + "- " + translations::trans_get(t, "motd_desc"))
+        write(" " + c.gray + "special-motd " + c.reset + "- " + translations::trans_get(t, "special_motd_desc"))
+        return
+    end
+    match args[0] is
+        "motd" => is
+            helpers::safe_run("sudo cp -r /usr/share/HackerOS/Archived/hackeros-motd /usr/libexec/", c)
+            helpers::safe_run("sudo chmod a+x /usr/libexec/hackeros-motd", c)
+            write(c.green + translations::trans_get(t, "enabled_motd") + c.reset)
+        end
+        "special-motd" => is
+            helpers::safe_run("sudo cp -r /usr/share/HackerOS/Archived/hackeros-special-motd /usr/libexec/hackeros-motd", c)
+            helpers::safe_run("sudo chmod a+x /usr/libexec/hackeros-motd", c)
+            write(c.green + translations::trans_get(t, "enabled_special_motd") + c.reset)
+        end
+        _ => is helpers::print_error(c, "Unknown enable subcommand: " + args[0]) exit(1) end
+    end
+end
+
+fn handle_disable(args: [string], argc: int, lang: string, c: helpers::Colors) is
+    let t: translations::Trans = translations::get_translations(lang)
+    if argc == 0 is
+        write(c.bold + c.magenta + translations::trans_get(t, "disable_subcommands") + c.reset)
+        write(" " + c.gray + "motd         " + c.reset + "- " + translations::trans_get(t, "motd_desc"))
+        write(" " + c.gray + "special-motd " + c.reset + "- " + translations::trans_get(t, "special_motd_desc"))
+        return
+    end
+    match args[0] is
+        "motd" | "special-motd" => is
+            helpers::safe_run("sudo rm -rf /usr/libexec/hackeros-motd", c)
+            write(c.green + translations::trans_get(t, "disabled_motd") + c.reset)
+        end
+        _ => is helpers::print_error(c, "Unknown disable subcommand: " + args[0]) exit(1) end
+    end
+end
+
+;; ── settings / look ───────────────────────────────────────────────────────────
+
+fn handle_settings(args: [string], argc: int, lang: string, c: helpers::Colors) is
+    let t: translations::Trans = translations::get_translations(lang)
+    if argc == 0 is
+        write(c.bold + c.magenta + translations::trans_get(t, "settings_subcommands") + c.reset)
+        write(" " + c.gray + "look" + c.reset + " - " + translations::trans_get(t, "look_desc"))
+        write(" " + c.gray + "lang <kod>" + c.reset + " - Ustaw język (pl/en/de/fr/es...)")
+        return
+    end
+    match args[0] is
+        "look" => is
+            let rest: [string] = args_from(args, argc, 1)
+            handle_settings_look(rest, argc - 1, lang, c)
+        end
+        "lang" => is
+            if argc < 2 is helpers::print_error(c, "Użycie: hacker settings lang <kod>") return end
+            handle_lang_set(args[1], c)
+        end
+        _ => is helpers::print_error(c, "Unknown settings subcommand: " + args[0]) end
+    end
+end
+
+fn handle_settings_look(args: [string], argc: int, lang: string, c: helpers::Colors) is
+    let t:         translations::Trans = translations::get_translations(lang)
+    let look_file: string = helpers::get_config_path("look.json")
+
+    if argc == 0 is
+        ;; Show current look
+        write(c.bold + c.magenta + translations::trans_get(t, "look_subcommands") + c.reset)
+        write(" " + c.gray + "status            " + c.reset + "- " + translations::trans_get(t, "look_status_desc"))
+        write(" " + c.gray + "set-accent <hex>  " + c.reset + "- " + translations::trans_get(t, "look_set_accent_desc"))
+        write(" " + c.gray + "reset             " + c.reset + "- " + translations::trans_get(t, "look_reset_desc"))
+        return
+    end
+
+    match args[0] is
+        "status" => is
+            if !helpers::path_exists(look_file) is
+                write(c.gray + "Brak look.json — używane kolory domyślne." + c.reset)
+                return
+            end
+            let content: string = file_read(look_file)
+            write(c.bold + "Aktualny look.json:" + c.reset)
+            write(content)
+        end
+        "set-accent" => is
+            if argc < 2 is
+                helpers::print_error(c, "Użycie: hacker settings look set-accent <#RRGGBB>")
+                return
+            end
+            let hex: string = args[1]
+            if string_len(hex) != 7 || string_at(hex, 0) != "#" is
+                helpers::print_error(c, "Nieprawidłowy kolor HEX: " + hex)
+                return
+            end
+            ;; Read or create look.json
+            let current: string = if helpers::path_exists(look_file) then file_read(look_file) else "{}" end
+            let new_json: string = "{\"accent\":\"" + hex + "\"}"
+            system("mkdir -p " + helpers::get_config_path(""))
+            file_write(look_file, new_json)
+            write(c.green + "Accent ustawiony na: " + hex + c.reset)
+        end
+        "reset" => is
+            if helpers::path_exists(look_file) is
+                system("rm -f " + look_file)
+                write(c.green + translations::trans_get(t, "look_reset_done") + c.reset)
+            else is
+                write(c.gray + "look.json nie istnieje — brak czego resetować." + c.reset)
+            end
+        end
+        _ => is helpers::print_error(c, "Unknown look subcommand: " + args[0]) end
+    end
+end
+
+;; ── help ─────────────────────────────────────────────────────────────────────
+
+fn show_main_help(lang: string, c: helpers::Colors) is
+    let t: translations::Trans = translations::get_translations(lang)
+    write("")
+    write(c.bold + c.magenta + "╔══════════════════════════════════════════════════╗" + c.reset)
+    write(c.bold + c.magenta + "║   hacker — HackerOS CLI Tool  v2.4.1  (H#)      ║" + c.reset)
+    write(c.bold + c.magenta + "╚══════════════════════════════════════════════════╝" + c.reset)
+    write("")
+
+    let cmds: [[string]] = [
+        ["unpack   <co>",           "help_unpack"],
+        ["pack     <co>",           "help_pack"],
+        ["install  <paczka>",       "help_install"],
+        ["remove   <paczka>",       "help_remove"],
+        ["flatpak-install <id>",    "help_flatpak_install"],
+        ["flatpak-remove  <id>",    "help_flatpak_remove"],
+        ["run      <narzędzie>",    "help_run"],
+        ["system   <sub>",          "help_system"],
+        ["update   [--with-gui]",   "help_update"],
+        ["env      <sub>",          "help_env"],
+        ["switch   <sesja>",        "help_switch"],
+        ["plugin   <sub>",          "help_plugin"],
+        ["enable   <co>",           "help_enable"],
+        ["disable  <co>",           "help_disable"],
+        ["settings <sub>",          "help_settings"],
+        ["doctor",                  "help_doctor"],
+        ["network",                 "help_network"],
+        ["game",                    "help_game"],
+        ["languages",               "help_languages"],
+        ["index",                   "help_index"],
+        ["ascii",                   "help_ascii"],
+        ["shell",                   "help_shell"],
+        ["enter   <kontener>",      "help_enter"],
+        ["how-to-create-commands",  "help_how_to"],
+        ["issue",                   "help_issue"],
+        ["--version",               "help_version"],
+    ]
+
+    let n: int = array_len(cmds)
+    let mut i: int = 0
+    while i < n is
+        write(" " + c.gray + string_pad_right(cmds[i][0], 28) + c.reset + "- " +
+              translations::trans_get(t, cmds[i][1]))
+        i += 1
+    end
+    write("")
+    write(c.gray + translations::trans_get(t, "help_footer") + c.reset)
+    write("")
+end
+
+;; ── main ─────────────────────────────────────────────────────────────────────
+
+fn main() is
+    ;; Load language and colors
+    let mut c: helpers::Colors = helpers::default_colors()
+
+    ;; Load look.json
+    let look_file: string = helpers::get_config_path("look.json")
+    if helpers::path_exists(look_file) is
+        c = helpers::load_look_from_file(look_file, c)
+    end
+
+    ;; Load CSS styles
+    let css_path: string = "/usr/share/HackerOS/Config-Files/styles.css"
+    if helpers::path_exists(css_path) is
+        c = helpers::load_styles(css_path, c)
+    end
+
+    let lang: string = helpers::load_lang(c)
+
+    ;; Parse args
+    let args:  [string] = env::args()
+    let argc:  int      = array_len(args)
+
+    if argc <= 1 is
+        show_main_help(lang, c)
+        return
+    end
+
+    let command: string = args[1]
+    let rest:    [string] = args_from(args, argc, 2)
+    let rest_c:  int      = array_len(rest)
+
+    match command is
+        "unpack"                => is unpack::handle_unpack(rest, rest_c, lang, c) end
+        "pack"                  => is pack::handle_pack(rest, rest_c, lang, c) end
+        "env"                   => is env::handle_env(rest, rest_c, lang, c) end
+        "run"                   => is run_commands::handle_run(rest, rest_c, lang, c) end
+        "game"                  => is game::play_text_game(c) end
+        "system"                => is handle_system(rest, rest_c, lang, c) end
+        "update"                => is handle_update(rest, rest_c, lang, c) end
+        "switch"                => is handle_switch(rest, rest_c, lang, c) end
+        "plugin"                => is handle_plugin(rest, rest_c, lang, c) end
+        "enable"                => is handle_enable(rest, rest_c, lang, c) end
+        "disable"               => is handle_disable(rest, rest_c, lang, c) end
+        "settings"              => is handle_settings(rest, rest_c, lang, c) end
+        "languages" | "hacker-lang" => is handle_languages(lang, c) end
+        "index"                 => is show_hackeros_tools(lang, c) end
+        "doctor"                => is handle_doctor(lang, c) end
+        "repair" => is
+            let t: translations::Trans = translations::get_translations(lang)
+            write(c.yellow + translations::trans_get(t, "repair_use_doctor") + c.reset)
+            write(c.cyan   + translations::trans_get(t, "repair_doctor_hint") + c.reset)
+        end
+        "network" => is
+            let net_bin: string = helpers::get_home_path(".hackeros/hacker/hacker-network")
+            if helpers::path_exists(net_bin) is
+                helpers::safe_run(net_bin, c)
+            else is
+                let t: translations::Trans = translations::get_translations(lang)
+                helpers::print_error(c, translations::trans_get(t, "network_not_found"))
+                write(c.yellow + translations::trans_get(t, "network_hint") + c.reset)
+                exit(1)
+            end
+        end
+        "install" => is
+            if rest_c == 0 is
+                let t: translations::Trans = translations::get_translations(lang)
+                helpers::print_error(c, translations::trans_get(t, "usage_install"))
+                exit(1)
+            end
+            let pkg: string = args_join(rest, rest_c)
+            helpers::safe_run("sudo apt install -y " + pkg, c)
+        end
+        "remove" => is
+            if rest_c == 0 is
+                let t: translations::Trans = translations::get_translations(lang)
+                helpers::print_error(c, translations::trans_get(t, "usage_remove"))
+                exit(1)
+            end
+            let pkg: string = args_join(rest, rest_c)
+            helpers::safe_run("sudo apt remove -y " + pkg, c)
+        end
+        "flatpak-install" => is
+            if rest_c == 0 is
+                let t: translations::Trans = translations::get_translations(lang)
+                helpers::print_error(c, translations::trans_get(t, "usage_flatpak_install"))
+                exit(1)
+            end
+            helpers::safe_run("flatpak install -y --noninteractive flathub " + rest[0], c)
+        end
+        "flatpak-remove" => is
+            if rest_c == 0 is
+                let t: translations::Trans = translations::get_translations(lang)
+                helpers::print_error(c, translations::trans_get(t, "usage_flatpak_remove"))
+                exit(1)
+            end
+            helpers::safe_run("flatpak uninstall -y flathub " + rest[0], c)
+        end
+        "enter" => is
+            if rest_c == 0 is
+                let t: translations::Trans = translations::get_translations(lang)
+                helpers::print_error(c, translations::trans_get(t, "usage_enter"))
+                exit(1)
+            end
+            helpers::safe_run("distrobox enter " + rest[0], c)
+        end
+        "remove-container" => is
+            if rest_c == 0 is
+                let t: translations::Trans = translations::get_translations(lang)
+                helpers::print_error(c, translations::trans_get(t, "usage_remove_container"))
+                exit(1)
+            end
+            helpers::safe_run("distrobox rm " + rest[0], c)
+        end
+        "restart" => is
+            if rest_c == 0 is
+                let t: translations::Trans = translations::get_translations(lang)
+                helpers::print_error(c, translations::trans_get(t, "usage_restart"))
+                exit(1)
+            end
+            helpers::safe_run("sudo systemctl restart " + rest[0], c)
+        end
+        "ascii" => is
+            helpers::safe_run("cat /usr/share/HackerOS/Config-Files/HackerOS-Ascii", c)
+        end
+        "shell" => is
+            helpers::safe_run("source /usr/lib/HackerOS/venv/bin/activate && ~/.hackeros/hacker/hacker-shell", c)
+        end
+        "interactive" => is
+            let ibin: string = helpers::get_home_path(".hackeros/hacker/hacker-interactive")
+            if helpers::path_exists(ibin) is
+                helpers::safe_run(ibin, c)
+            else is
+                let t: translations::Trans = translations::get_translations(lang)
+                helpers::print_error(c, translations::trans_get(t, "interactive_not_found"))
+            end
+        end
+        "help-ui" => is
+            helpers::safe_run("~/.hackeros/hacker/hacker-help", c)
+        end
+        "docs" => is
+            helpers::safe_run("~/.hackeros/hacker/hacker-docs", c)
+        end
+        "how-to-create-commands" => is
+            let t: translations::Trans = translations::get_translations(lang)
+            write(c.yellow + translations::trans_get(t, "how_to_create1") + c.reset)
+            write(translations::trans_get(t, "how_to_create2"))
+            write(translations::trans_get(t, "how_to_create3"))
+        end
+        "--version" | "info" => is
+            let t: translations::Trans = translations::get_translations(lang)
+            write(c.green + translations::trans_get(t, "version_tool") + c.reset)
+            write(c.green + helpers::read_hackeros_version() + c.reset)
+        end
+        "--hackeros" => is
+            write(c.green + helpers::read_hackeros_version() + c.reset)
+        end
+        "--edition" => is
+            let edition_file: string = "/etc/xdg/kcm-about-distrorc"
+            if helpers::path_exists(edition_file) is
+                let content: string = file_read(edition_file)
+                let idx:     int    = string_find(content, "LogoVersion=")
+                if idx >= 0 is
+                    let rest_s: string = string_slice(content, idx + 12, string_len(content))
+                    let nl:     int    = string_find(rest_s, "\n")
+                    let edition: string = if nl >= 0 then string_slice(rest_s, 0, nl) else rest_s end
+                    write(c.green + string_trim(edition) + c.reset)
+                end
+            else is
+                let t: translations::Trans = translations::get_translations(lang)
+                helpers::print_error(c, translations::trans_get(t, "file_not_found") + " " + edition_file)
+            end
+        end
+        "issue" => is
+            let browser: string = if helpers::path_exists("/usr/bin/vivaldi") then "vivaldi" else "xdg-open" end
+            helpers::safe_run(browser + " https://github.com/HackerOS-Linux-System/HackerOS-Website/issues/new", c)
+        end
+        "help" | "--help" | "-h" => is
+            show_main_help(lang, c)
+        end
+        _ => is
+            ;; Try custom command
+            let custom_file: string = helpers::get_custom_command_path(command)
+            if helpers::path_exists(custom_file) is
+                let cfg: helpers::HackerConfig = helpers::parse_hacker_file(custom_file)
+                let exec_cmd: string = helpers::hcfg_get(cfg, "exec")
+                if exec_cmd != "" is
+                    let arg_str: string = args_join(rest, rest_c)
+                    helpers::safe_run(exec_cmd + " " + arg_str, c)
+                    return
+                end
+            end
+
+            ;; Try plugin command
+            if helpers::try_plugin_command(command, rest, rest_c, c) is
+                return
+            end
+
+            let t: translations::Trans = translations::get_translations(lang)
+            helpers::print_error(c, translations::trans_get(t, "unknown_command") + " '" + command + "'")
+            write(c.gray + translations::trans_get(t, "use_help") + c.reset)
+            exit(1)
+        end
+    end
+end
