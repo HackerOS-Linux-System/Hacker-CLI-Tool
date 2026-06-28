@@ -1,0 +1,371 @@
+mod helpers
+
+extern dynamic [c] is
+    fn system(cmd: string) -> int
+end
+
+struct Room is
+    pub name:      string
+    pub desc:      string
+    pub north:     int    ;; room index (-1 = blocked)
+    pub south:     int
+    pub east:      int
+    pub west:      int
+    pub items:     [string]
+    pub item_count: int
+    pub has_trap:  bool
+    pub puzzle:    string
+end
+
+struct GameState is
+    pub current_room: int
+    pub inventory:    [string]
+    pub inv_count:    int
+    pub firewall_open: bool
+    pub core_open:     bool
+    pub data_extracted: bool
+    pub game_over:     bool
+    pub hints_used:    int
+    pub max_hints:     int
+end
+
+fn make_rooms() -> [Room] is
+    let r0: Room = Room {
+        name: "Wejście do sieci", desc: "Punkt wejścia do cyfrowej twierdzy. Terminale migoczą zielonym światłem.",
+        north: 1, south: -1, east: -1, west: -1,
+        items: ["keycard"], item_count: 1,
+        has_trap: false, puzzle: "",
+    }
+    let r1: Room = Room {
+        name: "Korytarz danych", desc: "Strumienie danych przepływają przez ściany. Czujesz obecność firewalla na wschodzie.",
+        north: 2, south: 0, east: 3, west: -1,
+        items: ["decryption-tool"], item_count: 1,
+        has_trap: false, puzzle: "",
+    }
+    let r2: Room = Room {
+        name: "Węzeł proxy", desc: "Zaawansowany węzeł proxy. Hasło: H4CK3R. Na południe korytarz, na zachód serwer kopii.",
+        north: -1, south: 1, east: -1, west: 4,
+        items: [], item_count: 0,
+        has_trap: false, puzzle: "Hasło: H4CK3R",
+    }
+    let r3: Room = Room {
+        name: "Firewall", desc: "Masywna ściana ognia blokuje przejście. Karta kluczowa może otworzyć drogę.",
+        north: -1, south: -1, east: 5, west: 1,
+        items: [], item_count: 0,
+        has_trap: false, puzzle: "",
+    }
+    let r4: Room = Room {
+        name: "Serwer kopii zapasowych", desc: "Stary serwer pełen danych. Uwaga — pułapka bezpieczeństwa!",
+        north: -1, south: -1, east: 2, west: -1,
+        items: ["password-fragment"], item_count: 1,
+        has_trap: true, puzzle: "",
+    }
+    let r5: Room = Room {
+        name: "Rdzeń systemu", desc: "Centrum dowodzenia. Główny komputer jest tutaj. Potrzebujesz narzędzia deszyfrującego.",
+        north: -1, south: -1, east: -1, west: 3,
+        items: ["classified-data"], item_count: 1,
+        has_trap: false, puzzle: "",
+    }
+    return [r0, r1, r2, r3, r4, r5]
+end
+
+fn inv_has(state: GameState, item: string) -> bool is
+    let mut i: int = 0
+    while i < state.inv_count is
+        if state.inventory[i] == item is return true end
+        i += 1
+    end
+    return false
+end
+
+fn room_has_item(room: Room, item: string) -> bool is
+    let mut i: int = 0
+    while i < room.item_count is
+        if room.items[i] == item is return true end
+        i += 1
+    end
+    return false
+end
+
+pub fn play_text_game(c: helpers::Colors) is
+    write("")
+    write(c.bold + c.magenta + "╔══════════════════════════════════════════════╗" + c.reset)
+    write(c.bold + c.magenta + "║   HackerOS Text Adventure                    ║" + c.reset)
+    write(c.bold + c.magenta + "╚══════════════════════════════════════════════╝" + c.reset)
+    write("")
+    write(c.cyan + "Jesteś elitarnym hakerem w cyfrowej fortecy." + c.reset)
+    write("Twoja misja: włam się do głównego komputera i wyodrębnij poufne dane.")
+    write("")
+
+    ;; Tryb gry
+    write("Wybierz tryb: 1=Easy  2=Normal  3=Hard")
+    write(c.gray + "❯ " + c.reset)
+    let mode_input: string = string_trim(io_readline())
+    let mut max_hints: int = 3
+    if mode_input == "1" is max_hints = 5 end
+    if mode_input == "3" is max_hints = 1 end
+
+    write("")
+    write("Komendy: north south east west take <item> use <item> inventory hack hint help quit")
+    write("")
+
+    let rooms: [Room] = make_rooms()
+    let mut state: GameState = GameState {
+        current_room:   0,
+        inventory:      [],
+        inv_count:      0,
+        firewall_open:  false,
+        core_open:      false,
+        data_extracted: false,
+        game_over:      false,
+        hints_used:     0,
+        max_hints:      max_hints,
+    }
+
+    ;; Print first room
+    print_room(rooms[state.current_room], state, c)
+
+    loop is
+        if state.game_over is break end
+        if state.data_extracted is
+            write("")
+            write(c.green + c.bold + "★ ZWYCIĘSTWO! Wyodrębniono poufne dane. Misja zakończona sukcesem!" + c.reset)
+            break
+        end
+
+        write(c.magenta + "❯ " + c.reset)
+        let input: string = string_lower(string_trim(io_readline()))
+        if input == "" is continue end
+
+        let parts:   [string] = string_split(input, " ")
+        let nparts:  int      = array_len(parts)
+        let cmd:     string   = parts[0]
+        let arg:     string   = if nparts > 1 then parts[1] else "" end
+
+        match cmd is
+            "quit" | "exit" | "q" => is
+                write(c.gray + "Zakończono grę." + c.reset)
+                break
+            end
+            "help" => is
+                write("Komendy: north south east west take <item> use <item> inventory hack hint quit")
+            end
+            "hint" => is
+                if state.hints_used >= state.max_hints is
+                    write(c.red + "Brak dostępnych podpowiedzi." + c.reset)
+                else is
+                    state.hints_used += 1
+                    give_hint(state, rooms, c)
+                end
+            end
+            "inventory" | "inv" | "i" => is
+                if state.inv_count == 0 is
+                    write("  Ekwipunek jest pusty.")
+                else is
+                    let mut inv_str: string = "  Ekwipunek: "
+                    let mut ii: int = 0
+                    while ii < state.inv_count is
+                        if ii > 0 is inv_str = inv_str + ", " end
+                        inv_str = inv_str + state.inventory[ii]
+                        ii += 1
+                    end
+                    write(inv_str)
+                end
+            end
+            "north" | "n" => is
+                state = try_move(state, rooms, "north", c)
+                if !state.game_over is print_room(rooms[state.current_room], state, c) end
+            end
+            "south" | "s" => is
+                state = try_move(state, rooms, "south", c)
+                if !state.game_over is print_room(rooms[state.current_room], state, c) end
+            end
+            "east" | "e" => is
+                state = try_move(state, rooms, "east", c)
+                if !state.game_over is print_room(rooms[state.current_room], state, c) end
+            end
+            "west" | "w" => is
+                state = try_move(state, rooms, "west", c)
+                if !state.game_over is print_room(rooms[state.current_room], state, c) end
+            end
+            "take" | "pick" => is
+                if arg == "" is
+                    write("Użycie: take <przedmiot>")
+                else is
+                    state = try_take(state, rooms, arg, c)
+                end
+            end
+            "use" => is
+                if arg == "" is
+                    write("Użycie: use <przedmiot>")
+                else is
+                    state = try_use(state, rooms, arg, c)
+                end
+            end
+            "hack" => is
+                let room: Room = rooms[state.current_room]
+                if state.current_room == 5 is
+                    if inv_has(state, "decryption-tool") is
+                        if room_has_item(room, "classified-data") || inv_has(state, "classified-data") is
+                            write(c.green + "Hakujesz rdzeń systemu..." + c.reset)
+                            write(c.green + "Dane zostają wyodrębnione!" + c.reset)
+                            state.data_extracted = true
+                        else is
+                            write(c.yellow + "Nie ma tu czego hakować." + c.reset)
+                        end
+                    else is
+                        write(c.red + "Potrzebujesz narzędzia deszyfrującego." + c.reset)
+                    end
+                else if state.current_room == 2 is
+                    write(c.cyan + "Włamujesz się do węzła proxy..." + c.reset)
+                    write(c.green + "Dostęp uzyskany! Rdzeń systemu odblokowany." + c.reset)
+                    state.core_open = true
+                else is
+                    write(c.yellow + "Tutaj nie ma nic do zhakowania." + c.reset)
+                end
+            end
+            "sabotage" => is
+                write(c.red + "Sabotaż uruchomił alarm! Systemy ochrony aktywowane." + c.reset)
+                write(c.red + "Gra skończona." + c.reset)
+                state.game_over = true
+            end
+            _ => is
+                write(c.gray + "Nieznana komenda: " + cmd + ". Wpisz 'help' po listę komend." + c.reset)
+            end
+        end
+    end
+    write("")
+end
+
+fn print_room(room: Room, state: GameState, c: helpers::Colors) is
+    write("")
+    write(c.bold + c.cyan + "[ " + room.name + " ]" + c.reset)
+    write("  " + room.desc)
+    if room.puzzle != "" is
+        write(c.yellow + "  Zagadka: " + room.puzzle + c.reset)
+    end
+    if room.item_count > 0 is
+        let mut item_str: string = "  Przedmioty: "
+        let mut i: int = 0
+        while i < room.item_count is
+            if i > 0 is item_str = item_str + ", " end
+            item_str = item_str + room.items[i]
+            i += 1
+        end
+        write(c.green + item_str + c.reset)
+    end
+    ;; Exits
+    let mut exits: string = "  Wyjścia:"
+    if room.north >= 0 is exits = exits + " north" end
+    if room.south >= 0 is exits = exits + " south" end
+    if room.east  >= 0 is exits = exits + " east"  end
+    if room.west  >= 0 is exits = exits + " west"  end
+    write(c.gray + exits + c.reset)
+    write("")
+end
+
+fn try_move(state: GameState, rooms: [Room], dir: string, c: helpers::Colors) -> GameState is
+    let room: Room = rooms[state.current_room]
+    let mut next: int = -1
+
+    match dir is
+        "north" => is next = room.north end
+        "south" => is next = room.south end
+        "east"  => is
+            ;; Firewall check
+            if state.current_room == 3 is
+                if !state.firewall_open is
+                    write(c.red + "Firewall blokuje przejście. Potrzebujesz karty kluczowej." + c.reset)
+                    return state
+                end
+            end
+            ;; Core check
+            if state.current_room == 3 && state.firewall_open is
+                next = room.east
+            else is
+                next = room.east
+            end
+        end
+        "west"  => is next = room.west end
+        _       => is end
+    end
+
+    if next < 0 is
+        write(c.gray + "Nie możesz iść w tym kierunku." + c.reset)
+        return state
+    end
+
+    ;; Trap check
+    let next_room: Room = rooms[next]
+    if next_room.has_trap is
+        write(c.red + "Uruchomiłeś pułapkę bezpieczeństwa! Gra skończona." + c.reset)
+        let mut s: GameState = state
+        s.game_over = true
+        return s
+    end
+
+    let mut s: GameState = state
+    s.current_room = next
+    return s
+end
+
+fn try_take(state: GameState, rooms: [Room], item: string, c: helpers::Colors) -> GameState is
+    let room: Room = rooms[state.current_room]
+    if room_has_item(room, item) is
+        let mut s: GameState = state
+        s.inventory  = array_push(s.inventory, item)
+        s.inv_count  += 1
+        write(c.green + "Wziąłeś: " + item + c.reset)
+        ;; Note: in real impl we'd remove from room — for demo just add to inventory
+        return s
+    end
+    write(c.yellow + "Brak takiego przedmiotu tutaj." + c.reset)
+    return state
+end
+
+fn try_use(state: GameState, rooms: [Room], item: string, c: helpers::Colors) -> GameState is
+    if !inv_has(state, item) is
+        write(c.yellow + "Nie masz: " + item + c.reset)
+        return state
+    end
+    let mut s: GameState = state
+    match item is
+        "keycard" => is
+            if state.current_room == 3 is
+                write(c.green + "Użyłeś karty kluczowej. Firewall otwarty — ścieżka na wschód otwarta!" + c.reset)
+                s.firewall_open = true
+            else is
+                write(c.yellow + "Karta nie działa tutaj." + c.reset)
+            end
+        end
+        "decryption-tool" => is
+            write(c.cyan + "Aktywowałeś narzędzie deszyfrujące." + c.reset)
+            if state.current_room == 5 is
+                write(c.green + "Dane zostają odszyfrowane!" + c.reset)
+                s.data_extracted = true
+            end
+        end
+        "password-fragment" => is
+            write(c.cyan + "Fragment hasła: 'H4CK3R' — użyj w węźle proxy." + c.reset)
+        end
+        _ => is
+            write(c.gray + "Brak użycia dla tego tutaj." + c.reset)
+        end
+    end
+    return s
+end
+
+fn give_hint(state: GameState, rooms: [Room], c: helpers::Colors) is
+    write(c.cyan + "Podpowiedź: " + c.reset)
+    if !inv_has(state, "keycard") is
+        write("  Szukaj karty kluczowej w pokoju startowym.")
+    else if !state.firewall_open is
+        write("  Masz kartę — użyj 'use keycard' przy ścianie firewalla (pokój Firewall).")
+    else if !inv_has(state, "decryption-tool") is
+        write("  Narzędzie deszyfrujące jest w Korytarzu danych.")
+    else if state.current_room != 5 is
+        write("  Idź do Rdzenia systemu i użyj 'hack' lub 'use decryption-tool'.")
+    else is
+        write("  Jesteś blisko! Wpisz 'hack' aby wyodrębnić dane.")
+    end
+end
