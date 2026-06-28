@@ -1,0 +1,174 @@
+mod helpers
+mod translations
+
+pub fn handle_pack(args: [string], argc: int, lang: string, c: helpers::Colors) is
+    let t: translations::Trans = translations::get_translations(lang)
+    if argc == 0 || args[0] == "help" is
+        show_pack_help(t, c)
+        return
+    end
+    let sub: string = args[0]
+
+    match sub is
+        "add-ons" => is
+            helpers::safe_run("sudo apt remove -y wine winetricks", c)
+            helpers::safe_run("flatpak uninstall -y flathub io.github.dvlv.boxbuddyrs", c)
+            helpers::safe_run("flatpak uninstall -y flathub it.mijorus.winezgui", c)
+            helpers::safe_run("flatpak uninstall -y flathub it.mijorus.gearlever", c)
+        end
+        "gs" => is
+            let sa: [string] = ["gaming"]
+            handle_pack(sa, 1, lang, c)
+            let sa2: [string] = ["cybersecurity"]
+            handle_pack(sa2, 1, lang, c)
+        end
+        "devtools" => is
+            helpers::safe_run("flatpak uninstall -y flathub com.visualstudio.code", c)
+            helpers::safe_run("sudo apt remove -y crystal shards", c)
+            helpers::safe_run("sudo apt remove -y npm nodejs", c)
+            helpers::safe_run("rustup self uninstall -y || true", c)
+            helpers::safe_run("sudo apt remove -y golang", c)
+            helpers::safe_run("sudo apt remove -y lua5.4", c)
+            helpers::safe_run("sudo snap remove zig", c)
+        end
+        "emulators" => is
+            helpers::safe_run("flatpak uninstall -y flathub org.shadps4.shadPS4", c)
+            helpers::safe_run("flatpak uninstall -y flathub io.ryujinx.Ryujinx", c)
+            helpers::safe_run("flatpak uninstall -y flathub com.dosbox_x.DOSBox-X", c)
+            helpers::safe_run("sudo snap remove rpcs3-emu", c)
+        end
+        "cybersecurity" => is
+            helpers::safe_run("distrobox rm -f blackarch", c)
+        end
+        "select" => is
+            helpers::safe_run("~/.hackeros/hacker/hacker-select --pack", c)
+        end
+        "gaming" => is
+            helpers::safe_run("flatpak uninstall -y flathub com.valvesoftware.Steam", c)
+            helpers::safe_run("flatpak uninstall -y flathub com.github.Matoking.protontricks", c)
+            helpers::safe_run("flatpak uninstall -y flathub net.lutris.Lutris", c)
+            helpers::safe_run("flatpak uninstall -y flathub com.heroicgameslauncher.hgl", c)
+            helpers::safe_run("flatpak uninstall -y flathub io.github.antimicrox.antimicrox", c)
+            helpers::safe_run("flatpak uninstall -y flathub net.davidotek.pupgui2", c)
+        end
+        "hacker-mode" => is
+            helpers::safe_run("git clone https://github.com/HackerOS-Linux-System/Hacker-Mode.git /tmp/Hacker-Mode || true", c)
+            helpers::safe_run("hl run /tmp/Hacker-Mode/remove.hl", c)
+            helpers::safe_run("rm -rf /tmp/Hacker-Mode", c)
+        end
+        "gamescope-session-steam" => is
+            helpers::safe_run("flatpak uninstall -y flathub com.valvesoftware.Steam", c)
+            helpers::safe_run("flatpak uninstall -y flathub org.freedesktop.Platform.VulkanLayer.gamescope", c)
+            helpers::safe_run("git clone https://github.com/HackerOS-Linux-System/gamescope-session-steam.git /tmp/gamescope-session-steam || true", c)
+            helpers::safe_run("hl run /tmp/gamescope-session-steam/remove.hl", c)
+            helpers::safe_run("rm -rf /tmp/gamescope-session-steam", c)
+        end
+        "automatic-updates" => is
+            helpers::safe_run("sudo systemctl disable --now hup.service || true", c)
+            helpers::safe_run("sudo rm -f /etc/systemd/system/hup.service", c)
+            helpers::safe_run("sudo systemctl daemon-reload", c)
+        end
+        "alacritty-config" => is
+            helpers::safe_run("rm -f ~/.config/alacritty/alacritty.toml", c)
+            write(c.green + translations::trans_get(t, "pack_alacritty_done") + c.reset)
+        end
+        "hackeros-tv" => is
+            helpers::safe_run("git clone https://github.com/HackerOS-Linux-System/HackerOS-TV.git /tmp/HackerOS-TV || true", c)
+            helpers::safe_run("hl run /tmp/HackerOS-TV/remove.hl", c)
+            helpers::safe_run("rm -rf /tmp/HackerOS-TV", c)
+        end
+        "winboat" => is
+            helpers::safe_run("sudo apt remove -y winboat || true", c)
+        end
+        "nvidia-drivers" => is
+            helpers::safe_run("/usr/share/HackerOS/Scripts/Bin/remove-nvidia-drivers.sh", c)
+        end
+        "hackeros-containers" => is
+            write(c.yellow + translations::trans_get(t, "pack_downloading") + " hackeros-containers..." + c.reset)
+            helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/HackerOS-Containers/main/remove.hl -o /tmp/remove-containers.hl", c)
+            helpers::safe_run("hl run /tmp/remove-containers.hl", c)
+            write(c.green + translations::trans_get(t, "pack_done") + c.reset)
+        end
+        "h#" | "hl-utils" => is
+            write(c.yellow + translations::trans_get(t, "pack_downloading") + " H# (H-Sharp)..." + c.reset)
+            helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/H-Sharp/main/install-remove/HackerOS/remove.hl -o /tmp/hsharp-remove.hl", c)
+            helpers::safe_run("hl run /tmp/hsharp-remove.hl", c)
+        end
+        "h#-utils" => is
+            write(c.yellow + translations::trans_get(t, "pack_downloading") + " H# Utils..." + c.reset)
+            helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/H-Sharp/main/install-remove/HackerOS/remove-utils.hl -o /tmp/hsharp-utils-remove.hl", c)
+            helpers::safe_run("hl run /tmp/hsharp-utils-remove.hl", c)
+        end
+        "flox" => is
+            helpers::safe_run("sudo apt remove -y flox || true", c)
+        end
+        "hackeros-builder" => is
+            helpers::safe_run("sudo rm -f /usr/bin/hackeros-builder", c)
+        end
+        "isolator" => is
+            helpers::safe_run("sudo rm -f /usr/bin/isolator", c)
+        end
+        "hammer" => is
+            write(c.yellow + translations::trans_get(t, "pack_downloading") + " hammer..." + c.reset)
+            helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/hammer/main/remove.hl -o /tmp/remove-hammer.hl", c)
+            helpers::safe_run("hl run /tmp/remove-hammer.hl", c)
+        end
+        "lpm" => is
+            write(c.yellow + translations::trans_get(t, "pack_downloading") + " lpm..." + c.reset)
+            helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/lpm/main/remove.hl -o /tmp/remove-lpm.hl", c)
+            helpers::safe_run("hl run /tmp/remove-lpm.hl", c)
+        end
+        "hackeros-games" | "hackeros-games-addons" => is
+            write(c.yellow + translations::trans_get(t, "pack_downloading") + " hackeros-games..." + c.reset)
+            helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/HackerOS-Games/main/addons-remove.hl -o /tmp/addons-remove.hl", c)
+            helpers::safe_run("hl run /tmp/addons-remove.hl", c)
+        end
+        "hexai" => is
+            helpers::safe_run("sudo rm -f /usr/bin/hexai", c)
+        end
+        "hackerdeck" => is
+            helpers::safe_run("sudo rm -f /usr/bin/hackerdeck", c)
+        end
+        _ => is
+            helpers::print_error(c, translations::trans_get(t, "pack_unknown") + " " + sub)
+            show_pack_help(t, c)
+        end
+    end
+end
+
+fn show_pack_help(t: translations::Trans, c: helpers::Colors) is
+    write(c.bold + c.magenta + translations::trans_get(t, "pack_title") + c.reset)
+    let cmds: [[string]] = [
+        ["add-ons",              translations::trans_get(t, "pack_add_ons")],
+        ["gs",                   translations::trans_get(t, "pack_gs")],
+        ["devtools",             translations::trans_get(t, "pack_devtools")],
+        ["emulators",            translations::trans_get(t, "pack_emulators")],
+        ["cybersecurity",        translations::trans_get(t, "pack_cybersecurity")],
+        ["select",               translations::trans_get(t, "pack_select")],
+        ["gaming",               translations::trans_get(t, "pack_gaming")],
+        ["hacker-mode",          translations::trans_get(t, "pack_hacker_mode")],
+        ["gamescope-session-steam", translations::trans_get(t, "pack_gamescope")],
+        ["automatic-updates",    translations::trans_get(t, "pack_auto_updates")],
+        ["alacritty-config",     translations::trans_get(t, "pack_alacritty")],
+        ["hackeros-tv",          translations::trans_get(t, "pack_hackeros_tv")],
+        ["winboat",              translations::trans_get(t, "pack_winboat")],
+        ["nvidia-drivers",       translations::trans_get(t, "pack_nvidia")],
+        ["hackeros-containers",  translations::trans_get(t, "pack_hackeros_containers")],
+        ["h#",                   translations::trans_get(t, "pack_hsharp")],
+        ["h#-utils",             translations::trans_get(t, "pack_hsharp_utils")],
+        ["flox",                 translations::trans_get(t, "pack_flox")],
+        ["hackeros-builder",     translations::trans_get(t, "pack_builder")],
+        ["isolator",             translations::trans_get(t, "pack_isolator")],
+        ["hammer",               translations::trans_get(t, "pack_hammer")],
+        ["hackeros-games",       translations::trans_get(t, "pack_hackeros_games")],
+        ["lpm",                  translations::trans_get(t, "pack_lpm")],
+        ["hexai",                translations::trans_get(t, "pack_hexai")],
+        ["hackerdeck",           translations::trans_get(t, "pack_hackerdeck")],
+    ]
+    let n: int = array_len(cmds)
+    let mut i: int = 0
+    while i < n is
+        write(" " + c.gray + string_pad_right(cmds[i][0], 30) + c.reset + "- " + cmds[i][1])
+        i += 1
+    end
+end
