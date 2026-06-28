@@ -1,0 +1,54 @@
+mod helpers
+mod translations
+
+pub fn handle_run(args: [string], argc: int, lang: string, c: helpers::Colors) is
+    let t: translations::Trans = translations::get_translations(lang)
+    if argc == 0 || args[0] == "help" is
+        show_run_help(t, c)
+        return
+    end
+    match args[0] is
+        "update-system"        => is helpers::safe_run("/usr/share/HackerOS/Scripts/Bin/update-system.sh", c) end
+        "check-updates"        => is helpers::safe_run("/usr/share/HackerOS/Scripts/Bin/check_updates_notify.sh", c) end
+        "steam"                => is helpers::safe_run("/usr/share/HackerOS/Scripts/Steam/HackerOS-Steam.sh", c) end
+        "hacker-launcher"      => is helpers::safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker_Launcher", c) end
+        "hackeros-game-mode"   => is helpers::safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Game-Mode.AppImage", c) end
+        "update-hackeros"      => is helpers::safe_run("/usr/share/HackerOS/Scripts/Bin/update-hackeros.sh", c) end
+        "update-wallpapers"    => is helpers::safe_run("/usr/share/HackerOS/Scripts/Bin/update-wallpapers.sh", c) end
+        "remove-debian-kernel" => is helpers::safe_run("/usr/share/HackerOS/Scripts/Bin/remove-debian-kernel.sh", c) end
+        "HackerOS-Store"       => is helpers::safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerOS-Store", c) end
+        "HackerOS-Steam"       => is helpers::safe_run("HackerOS-Steam run", c) end
+        "HackerDeck"           => is helpers::safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/HackerDeck", c) end
+        "Hacker-Term"          => is helpers::safe_run("/usr/share/HackerOS/Scripts/HackerOS-Apps/Hacker-Term", c) end
+        "build-hackeros"       => is helpers::safe_run("sudo /usr/share/HackerOS/Archived/build-hackeros", c) end
+        _ => is
+            helpers::print_error(c, "Unknown run subcommand -> " + args[0])
+            show_run_help(t, c)
+        end
+    end
+end
+
+fn show_run_help(t: translations::Trans, c: helpers::Colors) is
+    write(c.bold + c.magenta + translations::trans_get(t, "run_title") + c.reset)
+    let cmds: [[string]] = [
+        ["update-system",        translations::trans_get(t, "run_update_system")],
+        ["check-updates",        translations::trans_get(t, "run_check_updates")],
+        ["steam",                translations::trans_get(t, "run_steam")],
+        ["hacker-launcher",      translations::trans_get(t, "run_hacker_launcher")],
+        ["hackeros-game-mode",   translations::trans_get(t, "run_game_mode")],
+        ["update-hackeros",      translations::trans_get(t, "run_update_hackeros")],
+        ["update-wallpapers",    translations::trans_get(t, "run_update_wallpapers")],
+        ["remove-debian-kernel", translations::trans_get(t, "run_remove_debian_kernel")],
+        ["HackerOS-Store",       translations::trans_get(t, "run_hackeros_store")],
+        ["HackerOS-Steam",       translations::trans_get(t, "run_hackeros_steam")],
+        ["HackerDeck",           translations::trans_get(t, "run_hackerdeck")],
+        ["Hacker-Term",          translations::trans_get(t, "run_hacker_term")],
+        ["build-hackeros",       translations::trans_get(t, "run_build_hackeros")],
+    ]
+    let n: int = array_len(cmds)
+    let mut i: int = 0
+    while i < n is
+        write(" " + c.gray + string_pad_right(cmds[i][0], 28) + c.reset + "- " + cmds[i][1])
+        i += 1
+    end
+end
