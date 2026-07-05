@@ -140,7 +140,7 @@ pub fn play_text_game(c: helpers::Colors) is
         let parts:   [string] = string_split(input, " ")
         let nparts:  int      = array_len(parts)
         let cmd:     string   = parts[0]
-        let arg:     string   = if nparts > 1 then parts[1] else "" end
+        let arg:     string   = if nparts > 1 then parts[1] else "" 
 
         match cmd is
             "quit" | "exit" | "q" => is
