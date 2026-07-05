@@ -2,7 +2,7 @@ mod helpers
 mod translations
 
 pub fn handle_run(args: [string], argc: int, lang: string, c: helpers::Colors) is
-    let t: translations::Trans = translations::get_translations(lang)
+    let t: translations::Trans = translations::load(lang)
     if argc == 0 || args[0] == "help" is
         show_run_help(t, c)
         return
@@ -29,21 +29,21 @@ pub fn handle_run(args: [string], argc: int, lang: string, c: helpers::Colors) i
 end
 
 fn show_run_help(t: translations::Trans, c: helpers::Colors) is
-    write(c.bold + c.magenta + translations::trans_get(t, "run_title") + c.reset)
+    write(c.bold + c.magenta + translations::get(t, "run_title") + c.reset)
     let cmds: [[string]] = [
-        ["update-system",        translations::trans_get(t, "run_update_system")],
-        ["check-updates",        translations::trans_get(t, "run_check_updates")],
-        ["steam",                translations::trans_get(t, "run_steam")],
-        ["hacker-launcher",      translations::trans_get(t, "run_hacker_launcher")],
-        ["hackeros-game-mode",   translations::trans_get(t, "run_game_mode")],
-        ["update-hackeros",      translations::trans_get(t, "run_update_hackeros")],
-        ["update-wallpapers",    translations::trans_get(t, "run_update_wallpapers")],
-        ["remove-debian-kernel", translations::trans_get(t, "run_remove_debian_kernel")],
-        ["HackerOS-Store",       translations::trans_get(t, "run_hackeros_store")],
-        ["HackerOS-Steam",       translations::trans_get(t, "run_hackeros_steam")],
-        ["HackerDeck",           translations::trans_get(t, "run_hackerdeck")],
-        ["Hacker-Term",          translations::trans_get(t, "run_hacker_term")],
-        ["build-hackeros",       translations::trans_get(t, "run_build_hackeros")],
+        ["update-system",        translations::get(t, "run_update_system")],
+        ["check-updates",        translations::get(t, "run_check_updates")],
+        ["steam",                translations::get(t, "run_steam")],
+        ["hacker-launcher",      translations::get(t, "run_hacker_launcher")],
+        ["hackeros-game-mode",   translations::get(t, "run_game_mode")],
+        ["update-hackeros",      translations::get(t, "run_update_hackeros")],
+        ["update-wallpapers",    translations::get(t, "run_update_wallpapers")],
+        ["remove-debian-kernel", translations::get(t, "run_remove_debian_kernel")],
+        ["HackerOS-Store",       translations::get(t, "run_hackeros_store")],
+        ["HackerOS-Steam",       translations::get(t, "run_hackeros_steam")],
+        ["HackerDeck",           translations::get(t, "run_hackerdeck")],
+        ["Hacker-Term",          translations::get(t, "run_hacker_term")],
+        ["build-hackeros",       translations::get(t, "run_build_hackeros")],
     ]
     let n: int = array_len(cmds)
     let mut i: int = 0
