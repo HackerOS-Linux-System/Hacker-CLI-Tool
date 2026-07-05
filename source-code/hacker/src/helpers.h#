@@ -229,8 +229,8 @@ pub fn parse_hacker_file(path: string) -> HackerConfig is
         let line: string = string_trim(string_slice(line, li, string_len(line)))
 
         let arrow: int    = string_find(line, ">")
-        let key:   string = if arrow >= 0 then string_trim(string_slice(line, 0, arrow)) else line end
-        let val:   string = if arrow >= 0 then string_trim(string_slice(line, arrow + 1, string_len(line))) else "" end
+        let key:   string = if arrow >= 0 then string_trim(string_slice(line, 0, arrow)) else line 
+        let val:   string = if arrow >= 0 then string_trim(string_slice(line, arrow + 1, string_len(line))) else "" 
 
         ;; Trim path_stack to current level
         while stack_depth > level is
