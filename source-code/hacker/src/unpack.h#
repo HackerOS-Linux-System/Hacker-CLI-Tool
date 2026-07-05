@@ -2,7 +2,7 @@ mod helpers
 mod translations
 
 pub fn handle_unpack(args: [string], argc: int, lang: string, c: helpers::Colors) is
-    let t: translations::Trans = translations::get_translations(lang)
+    let t: translations::Trans = translations::load(lang)
     if argc == 0 || args[0] == "help" is
         show_unpack_help(t, c)
         return
@@ -39,8 +39,8 @@ pub fn handle_unpack(args: [string], argc: int, lang: string, c: helpers::Colors
         end
         "cybersecurity" => is
             helpers::safe_run("distrobox create --name blackarch --image docker.io/blackarchlinux/blackarch:latest --additional-flags \"--privileged\" || true", c)
-            write(c.yellow + translations::trans_get(t, "unpack_blackarch_info1") + c.reset)
-            write(translations::trans_get(t, "unpack_blackarch_info2"))
+            write(c.yellow + translations::get(t, "unpack_blackarch_info1") + c.reset)
+            write(translations::get(t, "unpack_blackarch_info2"))
         end
         "select" => is
             helpers::safe_run("~/.hackeros/hacker/hacker-select", c)
@@ -57,7 +57,7 @@ pub fn handle_unpack(args: [string], argc: int, lang: string, c: helpers::Colors
             let sub_args: [string] = ["gaming"]
             handle_unpack(sub_args, 1, lang, c)
             helpers::safe_run("flatpak install -y --noninteractive flathub org.vinegarhq.Sober", c)
-            write(c.green + translations::trans_get(t, "unpack_roblox_done") + c.reset)
+            write(c.green + translations::get(t, "unpack_roblox_done") + c.reset)
         end
         "hacker-mode" => is
             helpers::safe_run("git clone https://github.com/HackerOS-Linux-System/Hacker-Mode.git /tmp/Hacker-Mode || true", c)
@@ -78,7 +78,7 @@ pub fn handle_unpack(args: [string], argc: int, lang: string, c: helpers::Colors
         "alacritty-config" => is
             helpers::safe_run("mkdir -p ~/.config/alacritty", c)
             helpers::safe_run("cp /usr/share/HackerOS/Archived/alacritty.toml ~/.config/alacritty/alacritty.toml", c)
-            write(c.green + translations::trans_get(t, "unpack_alacritty_done") + c.reset)
+            write(c.green + translations::get(t, "unpack_alacritty_done") + c.reset)
         end
         "hackeros-tv" => is
             helpers::safe_run("git clone https://github.com/HackerOS-Linux-System/HackerOS-TV.git /tmp/HackerOS-TV || true", c)
@@ -92,18 +92,18 @@ pub fn handle_unpack(args: [string], argc: int, lang: string, c: helpers::Colors
             helpers::safe_run("/usr/share/HackerOS/Scripts/Bin/unpack-nvidia-drivers.sh", c)
         end
         "hackeros-containers" => is
-            write(c.yellow + translations::trans_get(t, "unpack_downloading") + " hackeros-containers..." + c.reset)
+            write(c.yellow + translations::get(t, "unpack_downloading") + " hackeros-containers..." + c.reset)
             helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/HackerOS-Containers/main/install.hl -o /tmp/install-containers.hl", c)
             helpers::safe_run("hl run /tmp/install-containers.hl", c)
-            write(c.green + translations::trans_get(t, "unpack_done") + c.reset)
+            write(c.green + translations::get(t, "unpack_done") + c.reset)
         end
         "h#" | "hl-utils" => is
-            write(c.yellow + translations::trans_get(t, "unpack_downloading") + " H# (H-Sharp)..." + c.reset)
+            write(c.yellow + translations::get(t, "unpack_downloading") + " H# (H-Sharp)..." + c.reset)
             helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/H-Sharp/main/install-remove/HackerOS/install.hl -o /tmp/hsharp-install.hl", c)
             helpers::safe_run("hl run /tmp/hsharp-install.hl", c)
         end
         "h#-utils" => is
-            write(c.yellow + translations::trans_get(t, "unpack_downloading") + " H# Utils..." + c.reset)
+            write(c.yellow + translations::get(t, "unpack_downloading") + " H# Utils..." + c.reset)
             helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/H-Sharp/main/install-remove/HackerOS/install-utils.hl -o /tmp/hsharp-utils-install.hl", c)
             helpers::safe_run("hl run /tmp/hsharp-utils-install.hl", c)
         end
@@ -120,10 +120,10 @@ pub fn handle_unpack(args: [string], argc: int, lang: string, c: helpers::Colors
             helpers::safe_run("hl run /tmp/install-isolator.hl", c)
         end
         "hydra" => is
-            write(c.yellow + translations::trans_get(t, "unpack_downloading") + " hydra-look-and-feel..." + c.reset)
+            write(c.yellow + translations::get(t, "unpack_downloading") + " hydra-look-and-feel..." + c.reset)
             helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/HackerOS-Hydra/main/install.hl -o /tmp/install-hydra.hl", c)
             helpers::safe_run("hl run /tmp/install-hydra.hl", c)
-            write(c.yellow + translations::trans_get(t, "unpack_hydra_warning") + c.reset)
+            write(c.yellow + translations::get(t, "unpack_hydra_warning") + c.reset)
         end
         "hammer" => is
             helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/Hammer/main/install.hl -o /tmp/install-hammer.hl", c)
@@ -146,42 +146,42 @@ pub fn handle_unpack(args: [string], argc: int, lang: string, c: helpers::Colors
             helpers::safe_run("hl run /tmp/install-hackerdeck.hl", c)
         end
         _ => is
-            helpers::print_error(c, translations::trans_get(t, "unpack_unknown") + " " + sub)
+            helpers::print_error(c, translations::get(t, "unpack_unknown") + " " + sub)
             show_unpack_help(t, c)
         end
     end
 end
 
 fn show_unpack_help(t: translations::Trans, c: helpers::Colors) is
-    write(c.bold + c.magenta + translations::trans_get(t, "unpack_title") + c.reset)
+    write(c.bold + c.magenta + translations::get(t, "unpack_title") + c.reset)
     let cmds: [[string]] = [
-        ["add-ons",               translations::trans_get(t, "unpack_add_ons")],
-        ["gs",                    translations::trans_get(t, "unpack_gs")],
-        ["devtools",              translations::trans_get(t, "unpack_devtools")],
-        ["emulators",             translations::trans_get(t, "unpack_emulators")],
-        ["cybersecurity",         translations::trans_get(t, "unpack_cybersecurity")],
-        ["select",                translations::trans_get(t, "unpack_select")],
-        ["gaming",                translations::trans_get(t, "unpack_gaming")],
-        ["gaming-roblox",         translations::trans_get(t, "unpack_gaming_roblox")],
-        ["hacker-mode",           translations::trans_get(t, "unpack_hacker_mode")],
-        ["gamescope-session-steam", translations::trans_get(t, "unpack_gamescope")],
-        ["automatic-updates",     translations::trans_get(t, "unpack_auto_updates")],
-        ["alacritty-config",      translations::trans_get(t, "unpack_alacritty")],
-        ["hackeros-tv",           translations::trans_get(t, "unpack_hackeros_tv")],
-        ["winboat",               translations::trans_get(t, "unpack_winboat")],
-        ["nvidia-drivers",        translations::trans_get(t, "unpack_nvidia")],
-        ["hackeros-containers",   translations::trans_get(t, "unpack_hackeros_containers")],
-        ["h#",                    translations::trans_get(t, "unpack_hsharp")],
-        ["h#-utils",              translations::trans_get(t, "unpack_hsharp_utils")],
-        ["flox",                  translations::trans_get(t, "unpack_flox")],
-        ["hackeros-builder",      translations::trans_get(t, "unpack_builder")],
-        ["isolator",              translations::trans_get(t, "unpack_isolator")],
-        ["hydra",                 translations::trans_get(t, "unpack_hydra")],
-        ["hammer",                translations::trans_get(t, "unpack_hammer")],
-        ["hackeros-games",        translations::trans_get(t, "unpack_hackeros_games")],
-        ["lpm",                   translations::trans_get(t, "unpack_lpm")],
-        ["hexai",                 translations::trans_get(t, "unpack_hexai")],
-        ["hackerdeck",            translations::trans_get(t, "unpack_hackerdeck")],
+        ["add-ons",               translations::get(t, "unpack_add_ons")],
+        ["gs",                    translations::get(t, "unpack_gs")],
+        ["devtools",              translations::get(t, "unpack_devtools")],
+        ["emulators",             translations::get(t, "unpack_emulators")],
+        ["cybersecurity",         translations::get(t, "unpack_cybersecurity")],
+        ["select",                translations::get(t, "unpack_select")],
+        ["gaming",                translations::get(t, "unpack_gaming")],
+        ["gaming-roblox",         translations::get(t, "unpack_gaming_roblox")],
+        ["hacker-mode",           translations::get(t, "unpack_hacker_mode")],
+        ["gamescope-session-steam", translations::get(t, "unpack_gamescope")],
+        ["automatic-updates",     translations::get(t, "unpack_auto_updates")],
+        ["alacritty-config",      translations::get(t, "unpack_alacritty")],
+        ["hackeros-tv",           translations::get(t, "unpack_hackeros_tv")],
+        ["winboat",               translations::get(t, "unpack_winboat")],
+        ["nvidia-drivers",        translations::get(t, "unpack_nvidia")],
+        ["hackeros-containers",   translations::get(t, "unpack_hackeros_containers")],
+        ["h#",                    translations::get(t, "unpack_hsharp")],
+        ["h#-utils",              translations::get(t, "unpack_hsharp_utils")],
+        ["flox",                  translations::get(t, "unpack_flox")],
+        ["hackeros-builder",      translations::get(t, "unpack_builder")],
+        ["isolator",              translations::get(t, "unpack_isolator")],
+        ["hydra",                 translations::get(t, "unpack_hydra")],
+        ["hammer",                translations::get(t, "unpack_hammer")],
+        ["hackeros-games",        translations::get(t, "unpack_hackeros_games")],
+        ["lpm",                   translations::get(t, "unpack_lpm")],
+        ["hexai",                 translations::get(t, "unpack_hexai")],
+        ["hackerdeck",            translations::get(t, "unpack_hackerdeck")],
     ]
     let n: int = array_len(cmds)
     let mut i: int = 0
