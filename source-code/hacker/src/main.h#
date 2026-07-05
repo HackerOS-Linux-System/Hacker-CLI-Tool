@@ -19,9 +19,9 @@ fn arg_at(args: [string], argc: int, idx: int) -> string is
     return ""
 end
 
-fn args_from(args: [string], argc: int, from: int) -> [string] is
+fn args_from(args: [string], argc: int, start_idx: int) -> [string] is
     let mut result: [string] = []
-    let mut i: int = from
+    let mut i: int = start_idx
     while i < argc is
         result = array_push(result, args[i])
         i += 1
@@ -64,35 +64,35 @@ end
 ;; ── doctor ───────────────────────────────────────────────────────────────────
 
 fn handle_doctor(lang: string, c: helpers::Colors) is
-    let t: translations::Trans = translations::get_translations(lang)
+    let t: translations::Trans = translations::load(lang)
 
     write(c.bold + c.magenta + "╔══════════════════════════════════════╗" + c.reset)
     write("║   " + c.cyan + "HackerOS Doctor" + c.magenta + " — Diagnoza systemu    ║" + c.reset)
     write(c.magenta + "╚══════════════════════════════════════╝" + c.reset)
     write("")
-    write(c.yellow + translations::trans_get(t, "doctor_intro") + c.reset)
+    write(c.yellow + translations::get(t, "doctor_intro") + c.reset)
     write("")
 
-    write(c.cyan + "[1/4]" + c.reset + " " + translations::trans_get(t, "doctor_check_dpkg"))
+    write(c.cyan + "[1/4]" + c.reset + " " + translations::get(t, "doctor_check_dpkg"))
     let ok1: bool = helpers::safe_run("dpkg --audit 2>&1 | head -5", c)
     if ok1 is write("      " + c.green + "✓ dpkg OK" + c.reset)
     else is    write("      " + c.yellow + "⚠ Wykryto problemy dpkg" + c.reset) end
 
-    write(c.cyan + "[2/4]" + c.reset + " " + translations::trans_get(t, "doctor_check_disk"))
+    write(c.cyan + "[2/4]" + c.reset + " " + translations::get(t, "doctor_check_disk"))
     helpers::safe_run("df -h / | tail -1", c)
 
-    write(c.cyan + "[3/4]" + c.reset + " " + translations::trans_get(t, "doctor_check_net"))
+    write(c.cyan + "[3/4]" + c.reset + " " + translations::get(t, "doctor_check_net"))
     let ok3: bool = helpers::safe_run("ping -c 1 -W 2 8.8.8.8 > /dev/null 2>&1", c)
     if ok3 is write("      " + c.green + "✓ Sieć OK" + c.reset)
     else is    write("      " + c.yellow + "⚠ Brak połączenia z internetem" + c.reset) end
 
-    write(c.cyan + "[4/4]" + c.reset + " " + translations::trans_get(t, "doctor_check_services"))
+    write(c.cyan + "[4/4]" + c.reset + " " + translations::get(t, "doctor_check_services"))
     helpers::safe_run("systemctl list-units --state=failed --no-pager 2>/dev/null | head -5 || echo 'Brak awarii usług'", c)
 
     write("")
-    write(c.bold + translations::trans_get(t, "doctor_prompt") + c.reset)
-    write(c.green + "  y / t" + c.reset + " — " + translations::trans_get(t, "doctor_yes"))
-    write(c.red   + "  n / q" + c.reset + " — " + translations::trans_get(t, "doctor_no"))
+    write(c.bold + translations::get(t, "doctor_prompt") + c.reset)
+    write(c.green + "  y / t" + c.reset + " — " + translations::get(t, "doctor_yes"))
+    write(c.red   + "  n / q" + c.reset + " — " + translations::get(t, "doctor_no"))
     write(c.magenta + "❯ " + c.reset)
 
     let answer: string = string_lower(string_trim(io_readline()))
@@ -100,14 +100,14 @@ fn handle_doctor(lang: string, c: helpers::Colors) is
     if answer == "y" || answer == "t" || answer == "yes" || answer == "tak" is
         let repair_bin: string = helpers::get_home_path(".hackeros/hacker/hacker-repair")
         if helpers::path_exists(repair_bin) is
-            write(c.green + translations::trans_get(t, "doctor_launching_repair") + c.reset)
+            write(c.green + translations::get(t, "doctor_launching_repair") + c.reset)
             helpers::safe_run(repair_bin, c)
         else is
-            helpers::print_error(c, translations::trans_get(t, "repair_not_found"))
-            write(c.yellow + translations::trans_get(t, "repair_install_hint") + c.reset)
+            helpers::print_error(c, translations::get(t, "repair_not_found"))
+            write(c.yellow + translations::get(t, "repair_install_hint") + c.reset)
         end
     else is
-        write(c.gray + translations::trans_get(t, "doctor_cancelled") + c.reset)
+        write(c.gray + translations::get(t, "doctor_cancelled") + c.reset)
     end
 end
 
@@ -143,11 +143,11 @@ fn switch_session(session_file: string, mode_name: string, c: helpers::Colors) i
 end
 
 fn handle_switch(args: [string], argc: int, lang: string, c: helpers::Colors) is
-    let t: translations::Trans = translations::get_translations(lang)
+    let t: translations::Trans = translations::load(lang)
     if argc == 0 is
-        write(c.bold + c.magenta + translations::trans_get(t, "switch_subcommands") + c.reset)
-        write(" " + c.gray + "hacker-mode      " + c.reset + "- " + translations::trans_get(t, "hacker_mode_desc"))
-        write(" " + c.gray + "steam-gamemode   " + c.reset + "- " + translations::trans_get(t, "steam_gamemode_desc"))
+        write(c.bold + c.magenta + translations::get(t, "switch_subcommands") + c.reset)
+        write(" " + c.gray + "hacker-mode      " + c.reset + "- " + translations::get(t, "hacker_mode_desc"))
+        write(" " + c.gray + "steam-gamemode   " + c.reset + "- " + translations::get(t, "steam_gamemode_desc"))
         return
     end
     match args[0] is
@@ -163,10 +163,10 @@ end
 ;; ── system / update ───────────────────────────────────────────────────────────
 
 fn handle_system(args: [string], argc: int, lang: string, c: helpers::Colors) is
-    let t: translations::Trans = translations::get_translations(lang)
+    let t: translations::Trans = translations::load(lang)
     if argc == 0 is
-        write(c.bold + c.magenta + translations::trans_get(t, "system_subcommands") + c.reset)
-        write(" " + c.gray + "logs" + c.reset + " - " + translations::trans_get(t, "logs_desc"))
+        write(c.bold + c.magenta + translations::get(t, "system_subcommands") + c.reset)
+        write(" " + c.gray + "logs" + c.reset + " - " + translations::get(t, "logs_desc"))
         return
     end
     match args[0] is
@@ -179,7 +179,7 @@ fn handle_system(args: [string], argc: int, lang: string, c: helpers::Colors) is
 end
 
 fn handle_update(args: [string], argc: int, lang: string, c: helpers::Colors) is
-    let t: translations::Trans = translations::get_translations(lang)
+    let t: translations::Trans = translations::load(lang)
     helpers::run_plugin_update_hooks("pre_update", c)
     if argc == 0 is
         helpers::safe_run("~/.hackeros/hacker/HackerOS-Updater", c)
@@ -187,7 +187,7 @@ fn handle_update(args: [string], argc: int, lang: string, c: helpers::Colors) is
         match args[0] is
             "--with-gui" => is helpers::safe_run("~/.hackeros/hacker/HackerOS-Updater --with-gui", c) end
             _ => is
-                helpers::print_error(c, translations::trans_get(t, "available_flags") + " --with-gui")
+                helpers::print_error(c, translations::get(t, "available_flags") + " --with-gui")
                 exit(1)
             end
         end
@@ -198,7 +198,7 @@ end
 ;; ── languages ─────────────────────────────────────────────────────────────────
 
 fn handle_languages(lang: string, c: helpers::Colors) is
-    let t: translations::Trans = translations::get_translations(lang)
+    let t: translations::Trans = translations::load(lang)
     write(c.bold + c.magenta + "╔══════════════════════════════════════════════╗" + c.reset)
     write(c.bold + c.magenta + "║   HackerOS — Języki programowania ekosystemu  ║" + c.reset)
     write(c.bold + c.magenta + "╚══════════════════════════════════════════════╝" + c.reset)
@@ -245,8 +245,8 @@ end
 ;; ── index / tools ─────────────────────────────────────────────────────────────
 
 fn show_hackeros_tools(lang: string, c: helpers::Colors) is
-    let t: translations::Trans = translations::get_translations(lang)
-    write(c.bold + c.magenta + translations::trans_get(t, "tools_index") + c.reset)
+    let t: translations::Trans = translations::load(lang)
+    write(c.bold + c.magenta + translations::get(t, "tools_index") + c.reset)
     let tools: [[string]] = [
         ["bit",                 "tool_bit"],
         ["virus",               "tool_virus"],
@@ -285,7 +285,7 @@ fn show_hackeros_tools(lang: string, c: helpers::Colors) is
     let mut i: int = 0
     while i < n is
         write(" " + c.green + "* " + tools[i][0] + c.reset + " - " +
-              translations::trans_get(t, tools[i][1]))
+              translations::get(t, tools[i][1]))
         i += 1
     end
 end
@@ -293,7 +293,7 @@ end
 ;; ── plugin ────────────────────────────────────────────────────────────────────
 
 fn handle_plugin(args: [string], argc: int, lang: string, c: helpers::Colors) is
-    let t: translations::Trans = translations::get_translations(lang)
+    let t: translations::Trans = translations::load(lang)
     if argc == 0 is
         show_plugin_help(t, c)
         return
@@ -305,10 +305,10 @@ fn handle_plugin(args: [string], argc: int, lang: string, c: helpers::Colors) is
             let files: [string] = helpers::glob_dir(helpers::get_plugin_dir(), ".hacker")
             let n: int = array_len(files)
             if n == 0 is
-                write(c.gray + translations::trans_get(t, "no_plugins_found") + c.reset)
+                write(c.gray + translations::get(t, "no_plugins_found") + c.reset)
                 return
             end
-            write(c.bold + c.magenta + translations::trans_get(t, "plugins") + c.reset)
+            write(c.bold + c.magenta + translations::get(t, "plugins") + c.reset)
             write("")
             let mut i: int = 0
             while i < n is
@@ -318,9 +318,9 @@ fn handle_plugin(args: [string], argc: int, lang: string, c: helpers::Colors) is
                 let desc:    string = helpers::hcfg_get(cfg, "description")
                 let author:  string = helpers::hcfg_get(cfg, "author")
                 let enabled: bool   = helpers::hcfg_get(cfg, "enabled") == "true"
-                let sym: string = if enabled then c.green + "✓" else c.red + "✗" end
+                let sym: string = if enabled then c.green + "✓" else c.red + "✗" 
                 write("  " + sym + c.reset + " " + c.cyan + name + c.reset +
-                      if ver != "" then " v" + ver else "" end)
+                      if ver != "" then " v" + ver else "" )
                 if desc   != "" is write("     " + desc)              end
                 if author != "" is write("     " + c.gray + "[" + author + "]" + c.reset) end
                 write("")
@@ -328,9 +328,15 @@ fn handle_plugin(args: [string], argc: int, lang: string, c: helpers::Colors) is
             end
         end
         "enable" => is
-            if argc < 2 is helpers::print_error(c, translations::trans_get(t, "usage_plugin_enable")) return end
+            if argc < 2 is
+                helpers::print_error(c, translations::get(t, "usage_plugin_enable"))
+                return
+            end
             let pf: string = helpers::get_plugin_dir() + "/" + args[1] + ".hacker"
-            if !helpers::path_exists(pf) is helpers::print_error(c, "Plugin nie znaleziony: " + args[1]) return end
+            if !helpers::path_exists(pf) is
+                helpers::print_error(c, "Plugin nie znaleziony: " + args[1])
+                return
+            end
             let mut cfg: helpers::HackerConfig = helpers::parse_hacker_file(pf)
             if !helpers::check_plugin_deps(cfg) is
                 write(c.yellow + "⚠ Brakuje zależności" + c.reset)
@@ -342,9 +348,15 @@ fn handle_plugin(args: [string], argc: int, lang: string, c: helpers::Colors) is
             if hook != "" is helpers::safe_run(hook, c) end
         end
         "disable" => is
-            if argc < 2 is helpers::print_error(c, translations::trans_get(t, "usage_plugin_disable")) return end
+            if argc < 2 is
+                helpers::print_error(c, translations::get(t, "usage_plugin_disable"))
+                return
+            end
             let pf: string = helpers::get_plugin_dir() + "/" + args[1] + ".hacker"
-            if !helpers::path_exists(pf) is helpers::print_error(c, "Plugin nie znaleziony: " + args[1]) return end
+            if !helpers::path_exists(pf) is
+                helpers::print_error(c, "Plugin nie znaleziony: " + args[1])
+                return
+            end
             let mut cfg: helpers::HackerConfig = helpers::parse_hacker_file(pf)
             cfg = helpers::hcfg_set(cfg, "enabled", "false")
             helpers::write_hacker_file(pf, cfg)
@@ -353,9 +365,15 @@ fn handle_plugin(args: [string], argc: int, lang: string, c: helpers::Colors) is
             if hook != "" is helpers::safe_run(hook, c) end
         end
         "info" => is
-            if argc < 2 is helpers::print_error(c, translations::trans_get(t, "usage_plugin_info")) return end
+            if argc < 2 is
+                helpers::print_error(c, translations::get(t, "usage_plugin_info"))
+                return
+            end
             let pf: string = helpers::get_plugin_dir() + "/" + args[1] + ".hacker"
-            if !helpers::path_exists(pf) is helpers::print_error(c, "Plugin nie znaleziony: " + args[1]) return end
+            if !helpers::path_exists(pf) is
+                helpers::print_error(c, "Plugin nie znaleziony: " + args[1])
+                return
+            end
             let cfg: helpers::HackerConfig = helpers::parse_hacker_file(pf)
             write(c.bold + c.magenta + "╔══ Plugin: " + args[1] + " ══" + c.reset)
             let fields: [[string]] = [
@@ -372,37 +390,49 @@ fn handle_plugin(args: [string], argc: int, lang: string, c: helpers::Colors) is
                 fi += 1
             end
             let enabled: bool = helpers::hcfg_get(cfg, "enabled") == "true"
-            let scol:  string = if enabled then c.green else c.red end
-            let sstr:  string = if enabled then "włączony" else "wyłączony" end
+            let scol:  string = if enabled then c.green else c.red 
+            let sstr:  string = if enabled then "włączony" else "wyłączony" 
             write("  " + c.cyan + "Status:       " + c.reset + scol + sstr + c.reset)
             let deps: string = helpers::hcfg_get(cfg, "depends")
             if deps != "" is
                 let dok: bool = helpers::check_plugin_deps(cfg)
-                let dc: string = if dok then c.green else c.yellow end
+                let dc: string = if dok then c.green else c.yellow 
                 write("  " + c.cyan + "Zależności:   " + c.reset + dc + deps + c.reset)
             end
         end
         "install" => is
-            if argc < 2 is helpers::print_error(c, "Użycie: hacker plugin install <nazwa>") return end
+            if argc < 2 is
+                helpers::print_error(c, "Użycie: hacker plugin install <nazwa>")
+                return
+            end
             let pf: string = helpers::get_plugin_dir() + "/" + args[1] + ".hacker"
-            if !helpers::path_exists(pf) is helpers::print_error(c, "Plugin nie znaleziony: " + args[1]) return end
+            if !helpers::path_exists(pf) is
+                helpers::print_error(c, "Plugin nie znaleziony: " + args[1])
+                return
+            end
             let cfg: helpers::HackerConfig = helpers::parse_hacker_file(pf)
             let inst: string = helpers::hcfg_get(cfg, "install")
             if inst != "" is
                 write(c.yellow + "Instalowanie " + args[1] + "..." + c.reset)
                 if helpers::safe_run(inst, c) is
-                    write(c.green + translations::trans_get(t, "plugin_install_done") + c.reset)
+                    write(c.green + translations::get(t, "plugin_install_done") + c.reset)
                 else is
-                    helpers::print_error(c, translations::trans_get(t, "plugin_install_failed"))
+                    helpers::print_error(c, translations::get(t, "plugin_install_failed"))
                 end
             else is
-                write(c.gray + translations::trans_get(t, "plugin_no_install_script") + c.reset)
+                write(c.gray + translations::get(t, "plugin_no_install_script") + c.reset)
             end
         end
         "uninstall" => is
-            if argc < 2 is helpers::print_error(c, "Użycie: hacker plugin uninstall <nazwa>") return end
+            if argc < 2 is
+                helpers::print_error(c, "Użycie: hacker plugin uninstall <nazwa>")
+                return
+            end
             let pf: string = helpers::get_plugin_dir() + "/" + args[1] + ".hacker"
-            if !helpers::path_exists(pf) is helpers::print_error(c, "Plugin nie znaleziony: " + args[1]) return end
+            if !helpers::path_exists(pf) is
+                helpers::print_error(c, "Plugin nie znaleziony: " + args[1])
+                return
+            end
             let cfg: helpers::HackerConfig = helpers::parse_hacker_file(pf)
             let uni: string = helpers::hcfg_get(cfg, "uninstall")
             if uni != "" is
@@ -412,20 +442,23 @@ fn handle_plugin(args: [string], argc: int, lang: string, c: helpers::Colors) is
                 end
                 write(c.yellow + "Odinstalowywanie " + args[1] + "..." + c.reset)
                 if helpers::safe_run(uni, c) is
-                    write(c.green + translations::trans_get(t, "plugin_uninstall_done") + c.reset)
+                    write(c.green + translations::get(t, "plugin_uninstall_done") + c.reset)
                 else is
-                    helpers::print_error(c, translations::trans_get(t, "plugin_uninstall_failed"))
+                    helpers::print_error(c, translations::get(t, "plugin_uninstall_failed"))
                 end
             else is
-                write(c.gray + translations::trans_get(t, "plugin_no_uninstall_script") + c.reset)
+                write(c.gray + translations::get(t, "plugin_no_uninstall_script") + c.reset)
             end
         end
         "run" => is
-            if argc < 3 is helpers::print_error(c, "Użycie: hacker plugin run <plugin> <komenda> [args]") return end
+            if argc < 3 is
+                helpers::print_error(c, "Użycie: hacker plugin run <plugin> <komenda> [args]")
+                return
+            end
             let pf:  string = helpers::get_plugin_dir() + "/" + args[1] + ".hacker"
             let cfg: helpers::HackerConfig = helpers::parse_hacker_file(pf)
             if helpers::hcfg_get(cfg, "enabled") != "true" is
-                helpers::print_error(c, translations::trans_get(t, "plugin_not_enabled"))
+                helpers::print_error(c, translations::get(t, "plugin_not_enabled"))
                 return
             end
             let cmd_name: string = args[2]
@@ -433,14 +466,17 @@ fn handle_plugin(args: [string], argc: int, lang: string, c: helpers::Colors) is
             if exec_cmd != "" is
                 let arg_str: string = args_join(args_from(args, argc, 3), argc - 3)
                 let sudo_f:  string = helpers::hcfg_get(cfg, "commands." + cmd_name + ".sudo")
-                let prefix:  string = if sudo_f == "true" then "sudo " else "" end
+                let prefix:  string = if sudo_f == "true" then "sudo " else "" 
                 helpers::safe_run(prefix + exec_cmd + " " + arg_str, c)
             else is
                 helpers::print_error(c, "Komenda '" + cmd_name + "' nie znaleziona w pluginie '" + args[1] + "'")
             end
         end
         "new" => is
-            if argc < 2 is helpers::print_error(c, "Użycie: hacker plugin new <nazwa>") return end
+            if argc < 2 is
+                helpers::print_error(c, "Użycie: hacker plugin new <nazwa>")
+                return
+            end
             let pdir: string = helpers::get_plugin_dir()
             let pf:   string = pdir + "/" + args[1] + ".hacker"
             if helpers::path_exists(pf) is
@@ -463,13 +499,16 @@ fn handle_plugin(args: [string], argc: int, lang: string, c: helpers::Colors) is
                 "hooks.pre_update >\nhooks.post_update >\nhooks.on_enable >\nhooks.on_disable >\n\n" +
                 "depends >\ninstall >\nuninstall >\n]\n"
             file_write(pf, tpl)
-            write(c.green + translations::trans_get(t, "plugin_new_created") + " " + pf + c.reset)
-            write(c.gray + translations::trans_get(t, "plugin_new_hint") + c.reset)
+            write(c.green + translations::get(t, "plugin_new_created") + " " + pf + c.reset)
+            write(c.gray + translations::get(t, "plugin_new_hint") + c.reset)
         end
         "run-hooks" => is
-            if argc < 2 is helpers::print_error(c, "Użycie: hacker plugin run-hooks <typ>") return end
+            if argc < 2 is
+                helpers::print_error(c, "Użycie: hacker plugin run-hooks <typ>")
+                return
+            end
             helpers::run_plugin_update_hooks(args[1], c)
-            write(c.green + translations::trans_get(t, "plugin_hooks_ran") + " " + args[1] + c.reset)
+            write(c.green + translations::get(t, "plugin_hooks_ran") + " " + args[1] + c.reset)
         end
         _ => is
             helpers::print_error(c, "Unknown plugin subcommand: " + sub)
@@ -479,7 +518,7 @@ fn handle_plugin(args: [string], argc: int, lang: string, c: helpers::Colors) is
 end
 
 fn show_plugin_help(t: translations::Trans, c: helpers::Colors) is
-    write(c.bold + c.magenta + translations::trans_get(t, "plugin_subcommands") + c.reset)
+    write(c.bold + c.magenta + translations::get(t, "plugin_subcommands") + c.reset)
     let cmds: [[string]] = [
         ["list",               "list_desc"],
         ["enable  <nazwa>",    "enable_desc"],
@@ -495,7 +534,7 @@ fn show_plugin_help(t: translations::Trans, c: helpers::Colors) is
     let mut i: int = 0
     while i < n is
         write(" " + c.gray + string_pad_right(cmds[i][0], 22) + c.reset + "- " +
-              translations::trans_get(t, cmds[i][1]))
+              translations::get(t, cmds[i][1]))
         i += 1
     end
 end
@@ -503,40 +542,40 @@ end
 ;; ── enable / disable ─────────────────────────────────────────────────────────
 
 fn handle_enable(args: [string], argc: int, lang: string, c: helpers::Colors) is
-    let t: translations::Trans = translations::get_translations(lang)
+    let t: translations::Trans = translations::load(lang)
     if argc == 0 is
-        write(c.bold + c.magenta + translations::trans_get(t, "enable_subcommands") + c.reset)
-        write(" " + c.gray + "motd         " + c.reset + "- " + translations::trans_get(t, "motd_desc"))
-        write(" " + c.gray + "special-motd " + c.reset + "- " + translations::trans_get(t, "special_motd_desc"))
+        write(c.bold + c.magenta + translations::get(t, "enable_subcommands") + c.reset)
+        write(" " + c.gray + "motd         " + c.reset + "- " + translations::get(t, "motd_desc"))
+        write(" " + c.gray + "special-motd " + c.reset + "- " + translations::get(t, "special_motd_desc"))
         return
     end
     match args[0] is
         "motd" => is
             helpers::safe_run("sudo cp -r /usr/share/HackerOS/Archived/hackeros-motd /usr/libexec/", c)
             helpers::safe_run("sudo chmod a+x /usr/libexec/hackeros-motd", c)
-            write(c.green + translations::trans_get(t, "enabled_motd") + c.reset)
+            write(c.green + translations::get(t, "enabled_motd") + c.reset)
         end
         "special-motd" => is
             helpers::safe_run("sudo cp -r /usr/share/HackerOS/Archived/hackeros-special-motd /usr/libexec/hackeros-motd", c)
             helpers::safe_run("sudo chmod a+x /usr/libexec/hackeros-motd", c)
-            write(c.green + translations::trans_get(t, "enabled_special_motd") + c.reset)
+            write(c.green + translations::get(t, "enabled_special_motd") + c.reset)
         end
         _ => is helpers::print_error(c, "Unknown enable subcommand: " + args[0]) exit(1) end
     end
 end
 
 fn handle_disable(args: [string], argc: int, lang: string, c: helpers::Colors) is
-    let t: translations::Trans = translations::get_translations(lang)
+    let t: translations::Trans = translations::load(lang)
     if argc == 0 is
-        write(c.bold + c.magenta + translations::trans_get(t, "disable_subcommands") + c.reset)
-        write(" " + c.gray + "motd         " + c.reset + "- " + translations::trans_get(t, "motd_desc"))
-        write(" " + c.gray + "special-motd " + c.reset + "- " + translations::trans_get(t, "special_motd_desc"))
+        write(c.bold + c.magenta + translations::get(t, "disable_subcommands") + c.reset)
+        write(" " + c.gray + "motd         " + c.reset + "- " + translations::get(t, "motd_desc"))
+        write(" " + c.gray + "special-motd " + c.reset + "- " + translations::get(t, "special_motd_desc"))
         return
     end
     match args[0] is
         "motd" | "special-motd" => is
             helpers::safe_run("sudo rm -rf /usr/libexec/hackeros-motd", c)
-            write(c.green + translations::trans_get(t, "disabled_motd") + c.reset)
+            write(c.green + translations::get(t, "disabled_motd") + c.reset)
         end
         _ => is helpers::print_error(c, "Unknown disable subcommand: " + args[0]) exit(1) end
     end
@@ -545,10 +584,10 @@ end
 ;; ── settings / look ───────────────────────────────────────────────────────────
 
 fn handle_settings(args: [string], argc: int, lang: string, c: helpers::Colors) is
-    let t: translations::Trans = translations::get_translations(lang)
+    let t: translations::Trans = translations::load(lang)
     if argc == 0 is
-        write(c.bold + c.magenta + translations::trans_get(t, "settings_subcommands") + c.reset)
-        write(" " + c.gray + "look" + c.reset + " - " + translations::trans_get(t, "look_desc"))
+        write(c.bold + c.magenta + translations::get(t, "settings_subcommands") + c.reset)
+        write(" " + c.gray + "look" + c.reset + " - " + translations::get(t, "look_desc"))
         write(" " + c.gray + "lang <kod>" + c.reset + " - Ustaw język (pl/en/de/fr/es...)")
         return
     end
@@ -558,7 +597,10 @@ fn handle_settings(args: [string], argc: int, lang: string, c: helpers::Colors) 
             handle_settings_look(rest, argc - 1, lang, c)
         end
         "lang" => is
-            if argc < 2 is helpers::print_error(c, "Użycie: hacker settings lang <kod>") return end
+            if argc < 2 is
+                helpers::print_error(c, "Użycie: hacker settings lang <kod>")
+                return
+            end
             handle_lang_set(args[1], c)
         end
         _ => is helpers::print_error(c, "Unknown settings subcommand: " + args[0]) end
@@ -566,15 +608,15 @@ fn handle_settings(args: [string], argc: int, lang: string, c: helpers::Colors) 
 end
 
 fn handle_settings_look(args: [string], argc: int, lang: string, c: helpers::Colors) is
-    let t:         translations::Trans = translations::get_translations(lang)
+    let t:         translations::Trans = translations::load(lang)
     let look_file: string = helpers::get_config_path("look.json")
 
     if argc == 0 is
         ;; Show current look
-        write(c.bold + c.magenta + translations::trans_get(t, "look_subcommands") + c.reset)
-        write(" " + c.gray + "status            " + c.reset + "- " + translations::trans_get(t, "look_status_desc"))
-        write(" " + c.gray + "set-accent <hex>  " + c.reset + "- " + translations::trans_get(t, "look_set_accent_desc"))
-        write(" " + c.gray + "reset             " + c.reset + "- " + translations::trans_get(t, "look_reset_desc"))
+        write(c.bold + c.magenta + translations::get(t, "look_subcommands") + c.reset)
+        write(" " + c.gray + "status            " + c.reset + "- " + translations::get(t, "look_status_desc"))
+        write(" " + c.gray + "set-accent <hex>  " + c.reset + "- " + translations::get(t, "look_set_accent_desc"))
+        write(" " + c.gray + "reset             " + c.reset + "- " + translations::get(t, "look_reset_desc"))
         return
     end
 
@@ -599,7 +641,7 @@ fn handle_settings_look(args: [string], argc: int, lang: string, c: helpers::Col
                 return
             end
             ;; Read or create look.json
-            let current: string = if helpers::path_exists(look_file) then file_read(look_file) else "{}" end
+            let current: string = if helpers::path_exists(look_file) then file_read(look_file) else "{}" 
             let new_json: string = "{\"accent\":\"" + hex + "\"}"
             system("mkdir -p " + helpers::get_config_path(""))
             file_write(look_file, new_json)
@@ -608,7 +650,7 @@ fn handle_settings_look(args: [string], argc: int, lang: string, c: helpers::Col
         "reset" => is
             if helpers::path_exists(look_file) is
                 system("rm -f " + look_file)
-                write(c.green + translations::trans_get(t, "look_reset_done") + c.reset)
+                write(c.green + translations::get(t, "look_reset_done") + c.reset)
             else is
                 write(c.gray + "look.json nie istnieje — brak czego resetować." + c.reset)
             end
@@ -620,7 +662,7 @@ end
 ;; ── help ─────────────────────────────────────────────────────────────────────
 
 fn show_main_help(lang: string, c: helpers::Colors) is
-    let t: translations::Trans = translations::get_translations(lang)
+    let t: translations::Trans = translations::load(lang)
     write("")
     write(c.bold + c.magenta + "╔══════════════════════════════════════════════════╗" + c.reset)
     write(c.bold + c.magenta + "║   hacker — HackerOS CLI Tool  v2.4.1  (H#)      ║" + c.reset)
@@ -660,11 +702,11 @@ fn show_main_help(lang: string, c: helpers::Colors) is
     let mut i: int = 0
     while i < n is
         write(" " + c.gray + string_pad_right(cmds[i][0], 28) + c.reset + "- " +
-              translations::trans_get(t, cmds[i][1]))
+              translations::get(t, cmds[i][1]))
         i += 1
     end
     write("")
-    write(c.gray + translations::trans_get(t, "help_footer") + c.reset)
+    write(c.gray + translations::get(t, "help_footer") + c.reset)
     write("")
 end
 
@@ -718,25 +760,25 @@ fn main() is
         "index"                 => is show_hackeros_tools(lang, c) end
         "doctor"                => is handle_doctor(lang, c) end
         "repair" => is
-            let t: translations::Trans = translations::get_translations(lang)
-            write(c.yellow + translations::trans_get(t, "repair_use_doctor") + c.reset)
-            write(c.cyan   + translations::trans_get(t, "repair_doctor_hint") + c.reset)
+            let t: translations::Trans = translations::load(lang)
+            write(c.yellow + translations::get(t, "repair_use_doctor") + c.reset)
+            write(c.cyan   + translations::get(t, "repair_doctor_hint") + c.reset)
         end
         "network" => is
             let net_bin: string = helpers::get_home_path(".hackeros/hacker/hacker-network")
             if helpers::path_exists(net_bin) is
                 helpers::safe_run(net_bin, c)
             else is
-                let t: translations::Trans = translations::get_translations(lang)
-                helpers::print_error(c, translations::trans_get(t, "network_not_found"))
-                write(c.yellow + translations::trans_get(t, "network_hint") + c.reset)
+                let t: translations::Trans = translations::load(lang)
+                helpers::print_error(c, translations::get(t, "network_not_found"))
+                write(c.yellow + translations::get(t, "network_hint") + c.reset)
                 exit(1)
             end
         end
         "install" => is
             if rest_c == 0 is
-                let t: translations::Trans = translations::get_translations(lang)
-                helpers::print_error(c, translations::trans_get(t, "usage_install"))
+                let t: translations::Trans = translations::load(lang)
+                helpers::print_error(c, translations::get(t, "usage_install"))
                 exit(1)
             end
             let pkg: string = args_join(rest, rest_c)
@@ -744,8 +786,8 @@ fn main() is
         end
         "remove" => is
             if rest_c == 0 is
-                let t: translations::Trans = translations::get_translations(lang)
-                helpers::print_error(c, translations::trans_get(t, "usage_remove"))
+                let t: translations::Trans = translations::load(lang)
+                helpers::print_error(c, translations::get(t, "usage_remove"))
                 exit(1)
             end
             let pkg: string = args_join(rest, rest_c)
@@ -753,40 +795,40 @@ fn main() is
         end
         "flatpak-install" => is
             if rest_c == 0 is
-                let t: translations::Trans = translations::get_translations(lang)
-                helpers::print_error(c, translations::trans_get(t, "usage_flatpak_install"))
+                let t: translations::Trans = translations::load(lang)
+                helpers::print_error(c, translations::get(t, "usage_flatpak_install"))
                 exit(1)
             end
             helpers::safe_run("flatpak install -y --noninteractive flathub " + rest[0], c)
         end
         "flatpak-remove" => is
             if rest_c == 0 is
-                let t: translations::Trans = translations::get_translations(lang)
-                helpers::print_error(c, translations::trans_get(t, "usage_flatpak_remove"))
+                let t: translations::Trans = translations::load(lang)
+                helpers::print_error(c, translations::get(t, "usage_flatpak_remove"))
                 exit(1)
             end
             helpers::safe_run("flatpak uninstall -y flathub " + rest[0], c)
         end
         "enter" => is
             if rest_c == 0 is
-                let t: translations::Trans = translations::get_translations(lang)
-                helpers::print_error(c, translations::trans_get(t, "usage_enter"))
+                let t: translations::Trans = translations::load(lang)
+                helpers::print_error(c, translations::get(t, "usage_enter"))
                 exit(1)
             end
             helpers::safe_run("distrobox enter " + rest[0], c)
         end
         "remove-container" => is
             if rest_c == 0 is
-                let t: translations::Trans = translations::get_translations(lang)
-                helpers::print_error(c, translations::trans_get(t, "usage_remove_container"))
+                let t: translations::Trans = translations::load(lang)
+                helpers::print_error(c, translations::get(t, "usage_remove_container"))
                 exit(1)
             end
             helpers::safe_run("distrobox rm " + rest[0], c)
         end
         "restart" => is
             if rest_c == 0 is
-                let t: translations::Trans = translations::get_translations(lang)
-                helpers::print_error(c, translations::trans_get(t, "usage_restart"))
+                let t: translations::Trans = translations::load(lang)
+                helpers::print_error(c, translations::get(t, "usage_restart"))
                 exit(1)
             end
             helpers::safe_run("sudo systemctl restart " + rest[0], c)
@@ -802,8 +844,8 @@ fn main() is
             if helpers::path_exists(ibin) is
                 helpers::safe_run(ibin, c)
             else is
-                let t: translations::Trans = translations::get_translations(lang)
-                helpers::print_error(c, translations::trans_get(t, "interactive_not_found"))
+                let t: translations::Trans = translations::load(lang)
+                helpers::print_error(c, translations::get(t, "interactive_not_found"))
             end
         end
         "help-ui" => is
@@ -813,14 +855,14 @@ fn main() is
             helpers::safe_run("~/.hackeros/hacker/hacker-docs", c)
         end
         "how-to-create-commands" => is
-            let t: translations::Trans = translations::get_translations(lang)
-            write(c.yellow + translations::trans_get(t, "how_to_create1") + c.reset)
-            write(translations::trans_get(t, "how_to_create2"))
-            write(translations::trans_get(t, "how_to_create3"))
+            let t: translations::Trans = translations::load(lang)
+            write(c.yellow + translations::get(t, "how_to_create1") + c.reset)
+            write(translations::get(t, "how_to_create2"))
+            write(translations::get(t, "how_to_create3"))
         end
         "--version" | "info" => is
-            let t: translations::Trans = translations::get_translations(lang)
-            write(c.green + translations::trans_get(t, "version_tool") + c.reset)
+            let t: translations::Trans = translations::load(lang)
+            write(c.green + translations::get(t, "version_tool") + c.reset)
             write(c.green + helpers::read_hackeros_version() + c.reset)
         end
         "--hackeros" => is
@@ -834,16 +876,16 @@ fn main() is
                 if idx >= 0 is
                     let rest_s: string = string_slice(content, idx + 12, string_len(content))
                     let nl:     int    = string_find(rest_s, "\n")
-                    let edition: string = if nl >= 0 then string_slice(rest_s, 0, nl) else rest_s end
+                    let edition: string = if nl >= 0 then string_slice(rest_s, 0, nl) else rest_s 
                     write(c.green + string_trim(edition) + c.reset)
                 end
             else is
-                let t: translations::Trans = translations::get_translations(lang)
-                helpers::print_error(c, translations::trans_get(t, "file_not_found") + " " + edition_file)
+                let t: translations::Trans = translations::load(lang)
+                helpers::print_error(c, translations::get(t, "file_not_found") + " " + edition_file)
             end
         end
         "issue" => is
-            let browser: string = if helpers::path_exists("/usr/bin/vivaldi") then "vivaldi" else "xdg-open" end
+            let browser: string = if helpers::path_exists("/usr/bin/vivaldi") then "vivaldi" else "xdg-open" 
             helpers::safe_run(browser + " https://github.com/HackerOS-Linux-System/HackerOS-Website/issues/new", c)
         end
         "help" | "--help" | "-h" => is
@@ -867,9 +909,9 @@ fn main() is
                 return
             end
 
-            let t: translations::Trans = translations::get_translations(lang)
-            helpers::print_error(c, translations::trans_get(t, "unknown_command") + " '" + command + "'")
-            write(c.gray + translations::trans_get(t, "use_help") + c.reset)
+            let t: translations::Trans = translations::load(lang)
+            helpers::print_error(c, translations::get(t, "unknown_command") + " '" + command + "'")
+            write(c.gray + translations::get(t, "use_help") + c.reset)
             exit(1)
         end
     end
