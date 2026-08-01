@@ -23,7 +23,7 @@ pub fn de_translations() -> [string] is
     data = array_push(data, "usage_remove_container\x00Verwendung: hacker remove-container <container>")
     data = array_push(data, "usage_restart\x00Verwendung: hacker restart <dienst>")
     data = array_push(data, "how_to_create1\x00Um einen benutzerdefinierten Befehl zu erstellen:")
-    data = array_push(data, "how_to_create2\x00Erstelle eine Datei {befehlsname}.hacker in ~/.config/hackeros/hacker/custom-commands/")
+    data = array_push(data, "how_to_create2\x00Erstelle eine Datei {{befehlsname}}.hacker in ~/.config/hackeros/hacker/custom-commands/")
     data = array_push(data, "how_to_create3\x00Eine Beispiel-Datei für einen benutzerdefinierten Befehl findest du unter: <https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker>")
     data = array_push(data, "version_tool\x00Neueste Version des Hacker-Tools: 2.3.1")
     data = array_push(data, "version_os\x00Neueste Version von HackerOS: 4.5")
