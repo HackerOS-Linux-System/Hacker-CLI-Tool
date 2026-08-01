@@ -23,7 +23,7 @@ pub fn pl_translations() -> [string] is
     data = array_push(data, "usage_remove_container\x00Użycie: hacker remove-container <kontener>")
     data = array_push(data, "usage_restart\x00Użycie: hacker restart <usługa>")
     data = array_push(data, "how_to_create1\x00Aby utworzyć niestandardową komendę:")
-    data = array_push(data, "how_to_create2\x00Utwórz plik {nazwa-komendy}.hacker w ~/.config/hackeros/hacker/custom-commands/")
+    data = array_push(data, "how_to_create2\x00Utwórz plik {{nazwa-komendy}}.hacker w ~/.config/hackeros/hacker/custom-commands/")
     data = array_push(data, "how_to_create3\x00Przykładowy plik niestandardowej komendy znajdziesz pod: <https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker>")
     data = array_push(data, "version_tool\x00Najnowsza wersja narzędzia hacker: 2.4.1")
     data = array_push(data, "version_os\x00Najnowsza wersja HackerOS: 4.6")
