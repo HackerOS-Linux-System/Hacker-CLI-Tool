@@ -23,7 +23,7 @@ pub fn ko_translations() -> [string] is
     data = array_push(data, "usage_remove_container\x00사용법: hacker remove-container <컨테이너>")
     data = array_push(data, "usage_restart\x00사용법: hacker restart <서비스>")
     data = array_push(data, "how_to_create1\x00사용자 정의 명령을 만들려면:")
-    data = array_push(data, "how_to_create2\x00~/.config/hackeros/hacker/custom-commands/에 {명령-이름}.hacker 파일을 생성하세요")
+    data = array_push(data, "how_to_create2\x00~/.config/hackeros/hacker/custom-commands/에 {{명령-이름}}.hacker 파일을 생성하세요")
     data = array_push(data, "how_to_create3\x00사용자 정의 명령 예제 파일은 다음 위치에 있습니다: <https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker>")
     data = array_push(data, "version_tool\x00hacker 도구 최신 버전: 2.3.1")
     data = array_push(data, "version_os\x00HackerOS 최신 버전: 4.5")
