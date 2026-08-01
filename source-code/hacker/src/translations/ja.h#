@@ -23,7 +23,7 @@ pub fn ja_translations() -> [string] is
     data = array_push(data, "usage_remove_container\x00使用方法: hacker remove-container <コンテナ>")
     data = array_push(data, "usage_restart\x00使用方法: hacker restart <サービス>")
     data = array_push(data, "how_to_create1\x00カスタムコマンドを作成するには:")
-    data = array_push(data, "how_to_create2\x00~/.config/hackeros/hacker/custom-commands/ に {コマンド名}.hacker ファイルを作成します")
+    data = array_push(data, "how_to_create2\x00~/.config/hackeros/hacker/custom-commands/ に {{コマンド名}}.hacker ファイルを作成します")
     data = array_push(data, "how_to_create3\x00サンプルのカスタムコマンドファイルはこちらにあります: <https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker>")
     data = array_push(data, "version_tool\x00hacker ツールの最新バージョン: 2.3.1")
     data = array_push(data, "version_os\x00HackerOS の最新バージョン: 4.5")
