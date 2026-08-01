@@ -23,7 +23,7 @@ pub fn it_translations() -> [string] is
     data = array_push(data, "usage_remove_container\x00Uso: hacker remove-container <contenitore>")
     data = array_push(data, "usage_restart\x00Uso: hacker restart <servizio>")
     data = array_push(data, "how_to_create1\x00Per creare un comando personalizzato:")
-    data = array_push(data, "how_to_create2\x00Crea un file {nome-comando}.hacker in ~/.config/hackeros/hacker/custom-commands/")
+    data = array_push(data, "how_to_create2\x00Crea un file {{nome-comando}}.hacker in ~/.config/hackeros/hacker/custom-commands/")
     data = array_push(data, "how_to_create3\x00Un file di esempio per comandi personalizzati si trova in: <https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker>")
     data = array_push(data, "version_tool\x00Ultima versione dello strumento hacker: 2.3.1")
     data = array_push(data, "version_os\x00Ultima versione di HackerOS: 4.5")
