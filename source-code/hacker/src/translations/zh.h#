@@ -23,7 +23,7 @@ pub fn zh_translations() -> [string] is
     data = array_push(data, "usage_remove_container\x00用法：hacker remove-container <容器>")
     data = array_push(data, "usage_restart\x00用法：hacker restart <服务>")
     data = array_push(data, "how_to_create1\x00要创建自定义命令：")
-    data = array_push(data, "how_to_create2\x00在 ~/.config/hackeros/hacker/custom-commands/ 中创建文件 {命令名称}.hacker")
+    data = array_push(data, "how_to_create2\x00在 ~/.config/hackeros/hacker/custom-commands/ 中创建文件 {{命令名称}}.hacker")
     data = array_push(data, "how_to_create3\x00示例自定义命令文件位于：<https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/blob/main/hacker/config-files/custom-commands/example.hacker>")
     data = array_push(data, "version_tool\x00hacker 工具的最新版本：2.3.1")
     data = array_push(data, "version_os\x00HackerOS 的最新版本：4.5")
