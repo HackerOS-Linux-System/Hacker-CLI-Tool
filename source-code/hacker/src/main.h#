@@ -641,7 +641,7 @@ fn handle_settings_look(args: [string], argc: int, lang: string, c: helpers::Col
                 return
             end
             ;; Read or create look.json
-            let current: string = if helpers::path_exists(look_file) then file_read(look_file) else "{}" 
+            let current: string = if helpers::path_exists(look_file) then file_read(look_file) else "{{}}" end
             let new_json: string = "{\"accent\":\"" + hex + "\"}"
             system("mkdir -p " + helpers::get_config_path(""))
             file_write(look_file, new_json)
