@@ -19,9 +19,25 @@ pub fn make(raw: [string]) -> Trans is
 end
 
 pub fn get(t: Trans, key: string) -> string is
-    ;; Each entry is "key\x00value" — binary search would be ideal
-    ;; but linear scan is fine for ~277 keys
-    let search: string = key + "\x00"
+    ;; Each entry is "key\x01value". \x01 (not \x00!) is the delimiter on
+    ;; purpose: H# strings are plain null-terminated C strings under the
+    ;; hood (see hsh_strlen/hsh_string_slice in core.c), so a genuine \x00
+    ;; embedded inside one is invisible to every string builtin — string_len,
+    ;; string_slice, and string concatenation (`+`, used to build `search`
+    ;; below) all silently stop at the first \0 they see. The original
+    ;; \x00-delimited scheme could never actually work: `key + "\x00"`
+    ;; always came back as just `key` (concatenating a strlen-0 "\x00"
+    ;; appends nothing), and slicing past a real embedded \0 in `t.entries[i]`
+    ;; always returned an empty string — every lookup silently fell through
+    ;; to `return key` at the bottom, showing the raw translation key
+    ;; instead of the translated text (this is why every menu/help string
+    ;; in this program used to show as e.g. "help_unpack" instead of real
+    ;; text). \x01 (SOH) survives all of that unscathed since it's just an
+    ;; ordinary non-zero byte to strlen/strncmp, while still being safely
+    ;; outside the printable-text range so it can never collide with a
+    ;; real translation value. binary search would be ideal but linear
+    ;; scan is fine for ~277 keys.
+    let search: string = key + "\x01"
     let mut i: int = 0
     while i < t.count is
         if string_starts_with(t.entries[i], search) is
