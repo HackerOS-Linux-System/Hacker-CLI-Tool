@@ -1,7 +1,7 @@
 [package]
 -> name        => hacker
--> version     => 2.4.2
--> description => HackerOS CLI Tool
+-> version     => 2.4.1
+-> description => cli tool for HackerOS
 -> author      => HackerOS Team <hackeros068@gmail.com>
 -> license     => GPL-3.0
 
