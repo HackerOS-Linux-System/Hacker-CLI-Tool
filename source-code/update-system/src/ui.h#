@@ -1,0 +1,74 @@
+use "std -> fmt" from "fmt"
+
+const CODE_DARK_GRAY:  string = "90"
+const CODE_WHITE:      string = "97"
+const CODE_LIGHT_GRAY: string = "37"
+const CODE_YELLOW:     string = "33"
+const CODE_GREEN:      string = "32"
+const CODE_RED:        string = "31"
+const CODE_CYAN:       string = "36"
+
+fn wrap(code: string, s: string) -> string is
+    return "\x1b[" + code + "m" + s + "\x1b[0m"
+end
+
+fn wrap_bold(code: string, s: string) -> string is
+    return "\x1b[" + code + ";1m" + s + "\x1b[0m"
+end
+
+pub fn dark_gray(s: string)   -> string is return wrap(CODE_DARK_GRAY, s) end
+pub fn white(s: string)       -> string is return wrap(CODE_WHITE, s) end
+pub fn white_bold(s: string)  -> string is return wrap_bold(CODE_WHITE, s) end
+pub fn yellow(s: string)      -> string is return wrap(CODE_YELLOW, s) end
+pub fn yellow_bold(s: string) -> string is return wrap_bold(CODE_YELLOW, s) end
+pub fn green(s: string)       -> string is return wrap(CODE_GREEN, s) end
+pub fn green_bold(s: string)  -> string is return wrap_bold(CODE_GREEN, s) end
+pub fn red(s: string)         -> string is return wrap(CODE_RED, s) end
+pub fn red_bold(s: string)    -> string is return wrap_bold(CODE_RED, s) end
+pub fn light_gray(s: string)  -> string is return wrap(CODE_LIGHT_GRAY, s) end
+pub fn cyan_bold(s: string)   -> string is return wrap_bold(CODE_CYAN, s) end
+
+pub fn banner(title: string) is
+    let total_width: int = 52
+    let label: string = " [ " + title + " ] "
+    let mut side: int = (total_width - label.len()) / 2
+    if side < 2 is side = 2 end
+    let mut right_w: int = total_width - side - label.len()
+    if right_w < 0 is right_w = 0 end
+    let left_line: string = fmt::repeat("─", side)
+    let right_line: string = fmt::repeat("─", right_w)
+    write("")
+    ;; Matches the Crystal original exactly: only `left_line` sits
+    ;; inside the (implicit, via the outer dark_gray wrap further up
+    ;; the call chain in the original) dark-gray run, the label is its
+    ;; own white+bold run, and `right_line` — coming after the label's
+    ;; own reset — ends up in the terminal's default color, same as
+    ;; the original's `(left_line + label.colorize(:white).bold.to_s
+    ;; + right_line).colorize(:dark_gray)`.
+    write(dark_gray(left_line) + white_bold(label) + right_line)
+end
+
+pub fn step(msg: string) is
+    write("  " + dark_gray("›") + "  " + white(msg))
+end
+
+pub fn ok(msg: string) is
+    write("  " + green_bold("✓") + "  " + light_gray(msg))
+end
+
+pub fn fail_msg(msg: string) is
+    write("  " + red_bold("✗") + "  " + light_gray(msg))
+end
+
+pub fn warn_msg(msg: string) is
+    write("  " + yellow_bold("⚠") + "  " + light_gray(msg))
+end
+
+pub fn format_duration(seconds: int) -> string is
+    if seconds >= 60 is
+        let m: int = seconds / 60
+        let s: int = seconds % 60
+        return to_string(m) + "m " + to_string(s) + "s"
+    end
+    return to_string(seconds) + "s"
+end
