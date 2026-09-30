@@ -1,0 +1,69 @@
+mod constants
+mod ui
+mod sudo
+mod term_raw
+mod updates
+mod results
+mod menu
+
+use "std -> env" from "env"
+
+;; ── Results record ──────────────────────────────────────────────────
+;; [ADAPTED] Declared here rather than in results.h# — see results.h#'s
+;; header comment for the full reasoning. Every field is `pub` so every
+;; other file (which only ever sees the plain, un-prefixed `Results`
+;; name — see that same comment) can read/construct it freely, the
+;; same way Crystal's `record` grants field access by default.
+pub struct Results is
+    pub apt:           bool
+    pub hammer:        bool
+    pub flatpak:       bool
+    pub snap:          bool
+    pub brew:          bool
+    pub firmware:      bool
+    pub omz:           bool
+    pub distrobox:     bool
+    pub hnm:           bool
+    pub cybersecurity: bool
+    pub blue:          bool
+    pub gaming:        bool
+    pub hackeros:      bool
+    pub wallpapers:    bool
+    pub elapsed:       int
+    pub variant:       string
+end
+
+;; ── Entry point ─────────────────────────────────────────────────────
+fn main() is
+    let args: [string] = env::args()
+    let mut gui_mode: bool = false
+    let mut i: int = 1
+    while i < args.len() is
+        if args[i] == "--gui-mode" is
+            gui_mode = true
+        end
+        i += 1
+    end
+
+    if !gui_mode is
+        ;; Matches the Crystal original's `Process.new("alacritty",
+        ;; args: ["-e", BIN_PATH, "--gui-mode"], input: Close, output:
+        ;; Close, error: Close)`: detached, with none of its three
+        ;; standard streams connected to this terminal. `sh -c '... &'`
+        ;; backgrounds the relaunch (so this returns immediately,
+        ;; without waiting on it, same as the original) and
+        ;; `</dev/null >/dev/null 2>&1` disconnects its stdio the same
+        ;; way the original's closed streams do — see menu.h#'s "T"
+        ;; handler for the identical pattern.
+        let bin: string = constants::bin_path()
+        let launch_cmd: string = "alacritty -e " + sudo::shell_quote(bin) + " --gui-mode </dev/null >/dev/null 2>&1 &"
+        sudo::run_command(launch_cmd)
+        return
+    end
+
+    let variant: string = results::detect_variant()
+    let pwd: string = sudo::prompt_sudo_password()
+    let r: Results = results::perform_updates(pwd, variant)
+    results::show_summary(r)
+    menu::show_gui_menu()
+end
