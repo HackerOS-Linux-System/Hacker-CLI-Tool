@@ -1,6 +1,58 @@
-# ── Paths ────────────────────────────────────────────────────────────────────
-HACKEROS_UPDATE_SCRIPT   = "/usr/bin/hl run /usr/share/HackerOS/Scripts/Bin/update-hackeros.hl"
-WALLPAPERS_UPDATE_SCRIPT = "/usr/bin/hl run /usr/share/HackerOS/Scripts/Bin/update-wallpapers.hl"
-BIN_PATH                 = Process.executable_path.not_nil!
+pub fn hackeros_update_script() -> string is
+    return "/usr/bin/hl run /usr/share/HackerOS/Scripts/Bin/update-hackeros.hl"
+end
 
-DISTRO_RC_PATH = "/etc/xdg/kcm-about-distrorc"
+pub fn wallpapers_update_script() -> string is
+    return "/usr/bin/hl run /usr/share/HackerOS/Scripts/Bin/update-wallpapers.hl"
+end
+
+pub fn distro_rc_path() -> string is
+    return "/etc/xdg/kcm-about-distrorc"
+end
+
+;; ── BIN_PATH — Process.executable_path.not_nil! ──────────────────────
+;; On Linux, Crystal's `Process.executable_path` itself just resolves
+;; the `/proc/self/exe` symlink (that's exactly how Crystal's own
+;; stdlib implements it under the hood). Rather than approximate it
+;; with `argv[0]` — which can be a relative path, or just a bare
+;; command name resolved via `$PATH`, genuinely different information
+;; than "the real absolute path of the running binary" — this does the
+;; exact same `readlink(2)` syscall directly, via libc, through H#'s
+;; C FFI (`extern static [c]`) and raw-memory builtins (`ptr_write_i8`,
+;; gated to `@pointers` — see term_raw.h#'s header comment for the
+;; same pattern). This resolves identically to the Crystal original in
+;; every case, including a relatively-invoked or `$PATH`-found binary.
+;;
+;; `malloc`/`free`/`strdup` are *not* redeclared here — they're already
+;; declared once in term_raw.h#'s own `extern static [c]` block, and
+;; since `mod`-file inlining flattens every file (including `extern`
+;; blocks, which pass through untouched — see the header comment on
+;; `mod term_raw` below) into one merged program, those three names
+;; are already globally available here too. Redeclaring the same C
+;; symbol under two separate `extern` blocks risks the compiler
+;; treating them as two different declarations of the same LLVM
+;; symbol; reusing the one declaration avoids that risk entirely.
+mod term_raw
+
+extern static [c] is
+    fn readlink(path: string, buf: int, bufsiz: int) -> int
+end
+
+const PROC_SELF_EXE: string = "/proc/self/exe"
+const PATH_BUF_SIZE: int = 4096
+
+@pointers
+pub fn bin_path() -> string is
+    let buf: int = malloc(PATH_BUF_SIZE)
+    let n: int = readlink(PROC_SELF_EXE, buf, PATH_BUF_SIZE)
+    let mut result: string = ""
+    if n > 0 is
+        ;; `readlink` returns the byte count but does *not*
+        ;; NUL-terminate the buffer itself — do that manually before
+        ;; treating it as a C string.
+        ptr_write_i8(buf, n, 0)
+        result = strdup(buf)
+    end
+    free(buf)
+    return result
+end
