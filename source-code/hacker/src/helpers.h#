@@ -81,7 +81,20 @@ end
 
 ;; ── safe_run ─────────────────────────────────────────────────────────────────
 
+;; Dodaje zdalne repozytorium flathub, jezeli jeszcze nie jest skonfigurowane.
+;; Bez tego "flatpak install ... flathub ..." konczy sie bledem
+;; "No remote refs found for 'flathub'" (np. w swiezych kontenerach).
+pub fn ensure_flathub() is
+    let rc: int = system("flatpak remotes --columns=name 2>/dev/null | grep -qx flathub")
+    if rc != 0 is
+        system("flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo >/dev/null 2>&1")
+    end
+end
+
 pub fn safe_run(cmd: string, c: Colors) -> bool is
+    if string_starts_with(cmd, "flatpak install") is
+        ensure_flathub()
+    end
     let rc: int = system(cmd)
     if rc != 0 is
         write(c.red + "[ERROR] Command failed (exit " + to_string(rc) + "): " + cmd + c.reset)
