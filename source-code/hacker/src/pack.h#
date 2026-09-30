@@ -108,6 +108,11 @@ pub fn handle_pack(args: [string], argc: int, lang: string, c: helpers::Colors) 
             helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/hammer/main/remove.hl -o /tmp/remove-hammer.hl", c)
             helpers::safe_run("hl run /tmp/remove-hammer.hl", c)
         end
+        "blue-environment" => is
+            write(c.yellow + translations::get(t, "pack_downloading") + " blue-environment..." + c.reset)
+            helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/Blue-Environment/main/packaging/hackeros/remove.hl -o /tmp/remove-blue-environment.hl", c)
+            helpers::safe_run("hl run /tmp/remove-blue-environment.hl", c)
+        end
         "bit" => is
             write(c.yellow + translations::get(t, "pack_downloading") + " bit..." + c.reset)
             helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/bit/main/scripts/installer/remove.hl -o /tmp/remove-bit.hl", c)
@@ -156,6 +161,7 @@ fn show_pack_help(t: translations::Trans, c: helpers::Colors) is
         ["hammer",               translations::get(t, "pack_hammer")],
         ["hackeros-games",       translations::get(t, "pack_hackeros_games")],
         ["bit",                  translations::get(t, "pack_bit")],
+        ["blue-environment",         translations::get(t, "pack_blue_environment")],
         ["hexai",                translations::get(t, "pack_hexai")],
         ["hackerdeck",           translations::get(t, "pack_hackerdeck")],
     ]
