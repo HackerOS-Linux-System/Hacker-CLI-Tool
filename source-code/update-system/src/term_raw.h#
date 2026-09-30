@@ -1,0 +1,85 @@
+extern static [c] is
+    fn malloc(size: int) -> int
+    fn free(ptr: int)
+    fn read(fd: int, buf: int, count: int) -> int
+    fn tcgetattr(fd: int, termios_ptr: int) -> int
+    fn tcsetattr(fd: int, actions: int, termios_ptr: int) -> int
+    ;; Used only to turn a raw malloc'd byte buffer into a genuine H#
+    ;; `string` (see `char_from_byte` below) — H#'s own runtime
+    ;; strings *are* plain malloc'd, NUL-terminated `char*` buffers
+    ;; (see the compiler's `htype_to_llvm`: `string` compiles straight
+    ;; down to a bare pointer, no length/refcount header), so a
+    ;; `char*` that libc itself handed back is already a valid,
+    ;; ordinary H# string with zero conversion needed.
+    fn strdup(s: int) -> string
+end
+
+const TERMIOS_SIZE: int = 64 ;; sizeof(struct termios) is 60; rounded up
+const LFLAG_OFFSET:  int = 12
+const VMIN_OFFSET:   int = 23
+const VTIME_OFFSET:  int = 22
+const ICANON:        int = 2
+const ECHO:          int = 8
+const TCSANOW:       int = 0
+
+;; Puts fd 0 (stdin) into non-canonical, no-echo, one-byte-at-a-time
+;; mode. Returns an opaque handle — really a pointer to the *original*
+;; termios settings, saved so they can be put back exactly — pass it
+;; to `restore_terminal` when done reading.
+@pointers
+pub fn enable_raw_noecho() -> int is
+    let saved: int = malloc(TERMIOS_SIZE)
+    tcgetattr(0, saved)
+
+    let working: int = malloc(TERMIOS_SIZE)
+    tcgetattr(0, working)
+    let lflag: int = ptr_read_i32(working, LFLAG_OFFSET)
+    ptr_write_i32(working, LFLAG_OFFSET, lflag & ~(ICANON | ECHO))
+    ptr_write_i8(working, VMIN_OFFSET, 1)
+    ptr_write_i8(working, VTIME_OFFSET, 0)
+    tcsetattr(0, TCSANOW, working)
+    free(working)
+
+    return saved
+end
+
+;; Restores whatever `enable_raw_noecho` saved, and frees the handle.
+;; Always call this before returning to normal line-based I/O — the
+;; terminal stays in raw/no-echo mode for the whole process otherwise.
+@pointers
+pub fn restore_terminal(saved: int) is
+    tcsetattr(0, TCSANOW, saved)
+    free(saved)
+end
+
+;; Reads exactly one raw byte from stdin, returning its value (0-255),
+;; or -1 on EOF/error. Only behaves like a single keystroke — instead
+;; of blocking for a full line — right after `enable_raw_noecho()`.
+@pointers
+pub fn read_byte() -> int is
+    let mut result: int = -1
+    let buf: int = malloc(8)
+    let n: int = read(0, buf, 1)
+    if n == 1 is
+        let b: int = ptr_read_i8(buf, 0)
+        if b < 0 is
+            result = b + 256 ;; ptr_read_i8 sign-extends; normalize to 0-255
+        else is
+            result = b
+        end
+    end
+    free(buf)
+    return result
+end
+
+;; Turns a byte value (0-255) into a length-1 H# string — the
+;; equivalent of Crystal's `byte.chr.to_s`.
+@pointers
+pub fn char_from_byte(b: int) -> string is
+    let buf: int = malloc(2)
+    ptr_write_i8(buf, 0, b)
+    ptr_write_i8(buf, 1, 0)
+    let result: string = strdup(buf)
+    free(buf)
+    return result
+end
