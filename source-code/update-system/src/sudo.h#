@@ -1,0 +1,138 @@
+mod ui
+mod term_raw
+
+use "std -> io" from "io"
+
+extern static [c] is
+    ;; `system()`'s return value is the raw wait-status, not a plain
+    ;; exit code — but that status is *exactly* 0 if and only if the
+    ;; command ran to completion and exited with code 0 (any other
+    ;; exit code shifts into higher bits; any signal death sets low
+    ;; bits), so `status == 0` below is precisely Crystal's
+    ;; `Process::Status#success?`.
+    fn system(cmd: string) -> int
+
+    ;; ── Sudo state (module SudoState / @@password) ───────────────
+    ;; Real process-wide mutable state, exactly like Crystal's class
+    ;; variable — implemented via `setenv`/`getenv` rather than an
+    ;; H#-level global, because H#'s top-level `let`/`const` are
+    ;; lowered to read-only, evaluate-once thunks (see
+    ;; compiler/src/const_lowering.rs), with no reassignment story.
+    ;; The process's own environment block *is* genuine OS-level
+    ;; mutable storage that persists across function calls without
+    ;; needing anything H#-specific: set once (see `set_password`),
+    ;; read implicitly by every later `sudo_run`, exactly mirroring
+    ;; `SudoState.password=` / `SudoState.password`.
+    ;;
+    ;; This is no less safe than the original: the plaintext password
+    ;; already appears on the command line of every single `sudo -S`
+    ;; invocation this tool makes (`echo <password> | sudo -S ...`,
+    ;; both here and in the Crystal original) — which `ps` exposes to
+    ;; any local observer far more readily than an environment
+    ;; variable does (env vars are only readable via
+    ;; `/proc/<pid>/environ`, gated by the same user/root permission
+    ;; `ps` output already needs anyway).
+    fn setenv(name: string, value: string, overwrite: int) -> int
+    fn getenv(name: string) -> string
+end
+
+const SUDO_STATE_ENV: string = "__HSHARP_UPDATE_SYSTEM_SUDO_PW"
+
+pub fn set_password(pwd: string) is
+    setenv(SUDO_STATE_ENV, pwd, 1)
+end
+
+pub fn get_password() -> string is
+    return getenv(SUDO_STATE_ENV)
+end
+
+;; POSIX single-quote shell escaping — the H# equivalent of Crystal's
+;; `Process.quote`. Wraps `s` in single quotes, turning any literal
+;; `'` into `'\''` (close quote, escaped quote, reopen quote), which
+;; is safe for arbitrary bytes including the sudo password itself.
+pub fn shell_quote(s: string) -> string is
+    return "'" + s.replace("'", "'\\''") + "'"
+end
+
+;; Runs `cmd` with stdin/stdout/stderr inherited from this process —
+;; output streams to the terminal live, exactly like the Crystal
+;; original's `Process.run(cmd, shell: true, input/output/error:
+;; Process::Redirect::Inherit)`.
+pub fn run_command(cmd: string) -> bool is
+    let status: int = system(cmd)
+    return status == 0
+end
+
+;; Captures output instead of streaming it — matches the Crystal
+;; original's own `capture_command`, which never streamed live either
+;; (it always ran with `output`/`error` pointed at an `IO::Memory`
+;; buffer).
+pub fn capture_command(cmd: string) -> (bool, string) is
+    let result: ProcResult = proc_run_cmd(cmd, 0)
+    return (result.exit_code == 0, result.stdout + result.stderr)
+end
+
+;; Run a command under sudo with the password piped via stdin —
+;; bypasses TTY sudo-cache prompts, exactly like the Crystal original
+;; — with output inherited/live, same as `run_command` above. Reads
+;; the password from the sudo state set by `set_password`, exactly
+;; like the original's implicit `SudoState.password` read.
+pub fn sudo_run(cmd: string) -> bool is
+    let full: string = "echo " + shell_quote(get_password()) + " | sudo -S sh -c " + shell_quote(cmd) + " 2>/dev/null"
+    let status: int = system(full)
+    return status == 0
+end
+
+;; ── Sudo password prompt ────────────────────────────────────────────
+;; Real byte-at-a-time, no-echo password entry — the same algorithm as
+;; the Crystal original's `STDIN.raw do |io| ... end` loop: put the
+;; terminal in raw/no-echo mode (see term_raw.h#), read one byte at a
+;; time, stop on CR/LF, handle Backspace/DEL by erasing the last
+;; asterisk, otherwise mask every typed character with `*`.
+pub fn prompt_sudo_password() -> string is
+    write("")
+    write("  " + ui::dark_gray("┌") + " " + ui::white_bold("Sudo authentication"))
+    write("  " + ui::dark_gray("│") + "  " + ui::dark_gray("Password is piped directly to each sudo call — no repeated prompts."))
+    io::write_no_nl("  " + ui::dark_gray("└") + "  " + ui::white("password") + " › ")
+    io::flush()
+
+    let mut password: string = ""
+    let handle: int = term_raw::enable_raw_noecho()
+
+    let mut reading: bool = true
+    while reading is
+        let b: int = term_raw::read_byte()
+        if b < 0 is
+            reading = false ;; EOF
+        elsif b == 13 || b == 10 is
+            reading = false ;; Enter (\r or \n)
+        elsif b == 127 || b == 8 is
+            ;; Backspace / DEL
+            if password.len() > 0 is
+                password = password[0..password.len() - 1]
+                io::write_no_nl("\b \b")
+                io::flush()
+            end
+        else is
+            password = password + term_raw::char_from_byte(b)
+            io::write_no_nl("*")
+            io::flush()
+        end
+    end
+
+    term_raw::restore_terminal(handle)
+    write("")
+
+    let check_cmd: string = "echo " + shell_quote(password) + " | sudo -S true 2>/dev/null"
+    let check: ProcResult = proc_run_cmd(check_cmd, 0)
+
+    if check.exit_code != 0 is
+        write("")
+        write("  " + ui::red_bold("✗") + "  " + ui::red("Incorrect password — aborting."))
+        exit(1)
+    end
+
+    write("  " + ui::green_bold("✓") + "  " + ui::light_gray("Authentication successful."))
+    write("")
+    return password
+end
