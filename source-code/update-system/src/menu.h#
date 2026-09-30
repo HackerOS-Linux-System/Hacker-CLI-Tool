@@ -1,0 +1,127 @@
+mod sudo
+mod ui
+mod term_raw
+
+use "std -> io" from "io"
+use "std -> fmt" from "fmt"
+use "std -> strings" from "str"
+
+;; ── Clean section ───────────────────────────────────────────────────
+pub fn do_clean() is
+    ui::banner("System Clean")
+
+    ui::step("APT autoremove")
+    sudo::sudo_run("apt autoremove -y")
+
+    ui::step("APT clean")
+    sudo::sudo_run("apt clean")
+
+    ui::step("Flatpak remove unused runtimes")
+    sudo::run_command("flatpak uninstall --unused -y")
+
+    let (snap_present, _) = sudo::capture_command("command -v snap")
+    if snap_present is
+        ui::step("Snap remove disabled snaps")
+        ;; NOTE: the doubled `{{`/`}}` below are H#'s literal-brace
+        ;; escape (a lone `{...}` in a string is parsed as `#{...}`-
+        ;; style interpolation) — they collapse to a single `{`/`}` in
+        ;; the actual shell command, i.e. this really runs
+        ;; `awk '/disabled/{print $1, $3}'`.
+        let snap_cmd: string = "snap list --all 2>/dev/null | awk '/disabled/{{print $1, $3}}' | while read name rev; do echo " + sudo::shell_quote(sudo::get_password()) + " | sudo -S snap remove \"$name\" --revision=\"$rev\" 2>/dev/null; done"
+        sudo::run_command(snap_cmd)
+    end
+
+    let (brew_present, _) = sudo::capture_command("command -v brew")
+    if brew_present is
+        ui::step("Brew cleanup")
+        sudo::run_command("brew cleanup --prune=all")
+    end
+
+    write("")
+    ui::ok("Clean complete")
+end
+
+;; ── Interactive menu ────────────────────────────────────────────────
+pub fn show_gui_menu() is
+    let mut running: bool = true
+    while running is
+        let key_col_w: int = 17
+        let desc_w: int = 32
+        let box_w: int = 2 + key_col_w + 2 + desc_w
+
+        write(ui::dark_gray("┌" + fmt::repeat("─", box_w) + "┐"))
+
+        let title: string = "HackerOS Update System  ·  What's next?"
+        let mut title_pad: int = box_w - title.len() - 2
+        if title_pad < 0 is title_pad = 0 end
+        write(ui::dark_gray("│  " + ui::yellow_bold(title) + fmt::repeat(" ", title_pad) + "│"))
+
+        write(ui::dark_gray("├" + fmt::repeat("─", box_w) + "┤"))
+
+        let items: [(string, string, string)] = [
+            ("Q", "Quit", "Close this terminal"),
+            ("R", "Reboot", "Reboot the system"),
+            ("S", "Shutdown", "Shutdown the system"),
+            ("L", "Log out", "Log out from current session"),
+            ("T", "Terminal", "Open a new Alacritty terminal"),
+            ("C", "Clean", "Remove unused packages & cache"),
+        ]
+
+        let mut i: int = 0
+        while i < items.len() is
+            let (key, label, desc) = items[i]
+            let key_col: string = fmt::pad_right("[" + key + "]  " + label, key_col_w)
+            let desc_col: string = fmt::pad_right(desc, desc_w)
+            write(ui::dark_gray("│  " + ui::white(key_col) + "  " + ui::dark_gray(desc_col) + "│"))
+            i += 1
+        end
+
+        write(ui::dark_gray("└" + fmt::repeat("─", box_w) + "┘"))
+
+        io::write_no_nl("\n  " + ui::dark_gray("›") + "  " + ui::white("Choice") + ": ")
+        io::flush()
+
+        ;; Real single-keystroke read, no Enter needed: put the terminal
+        ;; in raw/no-echo mode (see term_raw.h#), read exactly one byte,
+        ;; then restore normal terminal mode — the same shape as the
+        ;; Crystal original's `STDIN.raw do |io| byte = io.read_byte ...
+        ;; end`.
+        let mut choice: string = ""
+        let handle: int = term_raw::enable_raw_noecho()
+        let b: int = term_raw::read_byte()
+        term_raw::restore_terminal(handle)
+        if b >= 0 is
+            choice = str::to_upper(term_raw::char_from_byte(b))
+            write(ui::cyan_bold(choice))
+        end
+
+        write("")
+
+        if choice == "Q" is
+            running = false
+        elsif choice == "R" is
+            sudo::sudo_run("reboot")
+        elsif choice == "S" is
+            sudo::sudo_run("shutdown -h now")
+        elsif choice == "L" is
+            sudo::run_command("qdbus org.kde.ksmserver /KSMServer logout 0 0 0")
+        elsif choice == "T" is
+            ;; Matches the Crystal original's `Process.new("alacritty",
+            ;; input: Close, output: Close, error: Close)`: a detached
+            ;; Alacritty with none of its three standard streams
+            ;; connected to this terminal. `sh -c '... &'` backgrounds
+            ;; the launch (so this returns immediately, same as the
+            ;; original not waiting on it) and `</dev/null
+            ;; >/dev/null 2>&1` disconnects its stdio the same way the
+            ;; original's closed streams do — Alacritty can neither
+            ;; read from nor write to this process's terminal.
+            sudo::run_command("alacritty </dev/null >/dev/null 2>&1 &")
+        elsif choice == "C" is
+            do_clean()
+        else is
+            ui::warn_msg("Unknown option '" + choice + "' — try again")
+        end
+
+        write("")
+    end
+end
