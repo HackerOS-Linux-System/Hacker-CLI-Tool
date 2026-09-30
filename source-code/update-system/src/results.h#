@@ -1,0 +1,283 @@
+mod constants
+mod updates
+mod ui
+mod sudo
+
+use "std -> fs" from "fs"
+use "std -> strings" from "str"
+use "std -> fmt" from "fmt"
+use "std -> time" from "t"
+
+;; ── Variant detection ───────────────────────────────────────────────
+pub fn detect_variant() -> string is
+    let path: string = constants::distro_rc_path()
+    if !fs::exists(path) is
+        return "Unknown"
+    end
+    let lines: [string] = fs::read_lines(path)
+    let mut i: int = 0
+    while i < lines.len() is
+        let stripped: string = str::trim(lines[i])
+        if stripped.starts_with("Variant=") is
+            return str::trim(str::remove_prefix(stripped, "Variant="))
+        end
+        i += 1
+    end
+    return "Unknown"
+end
+
+;; ── Update orchestration ────────────────────────────────────────────
+pub fn perform_updates(pwd: string, variant: string) -> Results is
+    ;; Mirrors the Crystal original's `SudoState.password = pwd` — set
+    ;; once here, read implicitly by every `sudo::sudo_run` call inside
+    ;; the `updates::update_*` functions below (see sudo.h#'s header
+    ;; comment for how the state itself is implemented).
+    sudo::set_password(pwd)
+
+    let start_ms: int = t::now_ms()
+
+    let mut apt: bool           = false
+    let mut hammer: bool        = false
+    let mut flatpak: bool       = false
+    let mut snap: bool          = false
+    let mut brew: bool          = false
+    let mut firmware: bool      = false
+    let mut omz: bool           = false
+    let mut distrobox: bool     = false
+    let mut hnm: bool           = false
+    let mut cybersecurity: bool = false
+    let mut blue: bool          = false
+    let mut gaming: bool        = false
+    let mut hackeros: bool      = false
+    let mut wallpapers: bool    = false
+
+    match variant is
+        "Atomic Edition" => is
+            hammer     = updates::update_hammer()
+            flatpak    = updates::update_flatpak()
+            brew       = updates::update_brew()
+            firmware   = updates::update_firmware()
+            omz        = updates::update_omz()
+            distrobox  = updates::update_distrobox()
+            hnm        = updates::update_hnm()
+            hackeros   = updates::update_hackeros()
+            wallpapers = updates::update_wallpapers()
+        end
+        "Cybersecurity Edition" => is
+            apt           = updates::update_apt()
+            flatpak       = updates::update_flatpak()
+            snap          = updates::update_snap()
+            brew          = updates::update_brew()
+            firmware      = updates::update_firmware()
+            omz           = updates::update_omz()
+            distrobox     = updates::update_distrobox()
+            hnm           = updates::update_hnm()
+            cybersecurity = updates::update_cybersecurity()
+            hackeros      = updates::update_hackeros()
+            wallpapers    = updates::update_wallpapers()
+        end
+        "Blue Edition" => is
+            apt        = updates::update_apt()
+            flatpak    = updates::update_flatpak()
+            snap       = updates::update_snap()
+            brew       = updates::update_brew()
+            firmware   = updates::update_firmware()
+            omz        = updates::update_omz()
+            distrobox  = updates::update_distrobox()
+            hnm        = updates::update_hnm()
+            blue       = updates::update_blue()
+            hackeros   = updates::update_hackeros()
+            wallpapers = updates::update_wallpapers()
+        end
+        "Gaming Edition" => is
+            apt        = updates::update_apt()
+            flatpak    = updates::update_flatpak()
+            snap       = updates::update_snap()
+            brew       = updates::update_brew()
+            firmware   = updates::update_firmware()
+            omz        = updates::update_omz()
+            distrobox  = updates::update_distrobox()
+            hnm        = updates::update_hnm()
+            gaming     = updates::update_gaming()
+            hackeros   = updates::update_hackeros()
+            wallpapers = updates::update_wallpapers()
+        end
+        _ => is
+            ;; Official Edition, LTS Edition, Hydra Edition, Gnome
+            ;; Edition, Xfce Edition, NVIDIA Edition, Unknown
+            apt        = updates::update_apt()
+            flatpak    = updates::update_flatpak()
+            snap       = updates::update_snap()
+            brew       = updates::update_brew()
+            firmware   = updates::update_firmware()
+            omz        = updates::update_omz()
+            distrobox  = updates::update_distrobox()
+            hnm        = updates::update_hnm()
+            hackeros   = updates::update_hackeros()
+            wallpapers = updates::update_wallpapers()
+        end
+    end
+
+    let elapsed: int = (t::now_ms() - start_ms) / 1000
+
+    return Results {
+        apt: apt, hammer: hammer, flatpak: flatpak, snap: snap, brew: brew,
+        firmware: firmware, omz: omz, distrobox: distrobox, hnm: hnm,
+        cybersecurity: cybersecurity, blue: blue, gaming: gaming,
+        hackeros: hackeros, wallpapers: wallpapers,
+        elapsed: elapsed, variant: variant,
+    }
+end
+
+;; ── Summary ──────────────────────────────────────────────────────────
+pub fn show_summary(r: Results) is
+    let mut rows: [(string, bool)] = []
+
+    match r.variant is
+        "Atomic Edition" => is
+            rows = [
+                ("System (Hammer)", r.hammer),
+                ("Flatpak", r.flatpak),
+                ("Homebrew", r.brew),
+                ("Firmware", r.firmware),
+                ("Oh My Zsh", r.omz),
+                ("Distrobox", r.distrobox),
+                ("HackerOS Nix (hnm)", r.hnm),
+                ("HackerOS", r.hackeros),
+                ("Wallpapers", r.wallpapers),
+            ]
+        end
+        "Cybersecurity Edition" => is
+            rows = [
+                ("System (APT)", r.apt),
+                ("Flatpak", r.flatpak),
+                ("Snap", r.snap),
+                ("Homebrew", r.brew),
+                ("Firmware", r.firmware),
+                ("Oh My Zsh", r.omz),
+                ("Distrobox", r.distrobox),
+                ("HackerOS Nix (hnm)", r.hnm),
+                ("Cybersecurity", r.cybersecurity),
+                ("HackerOS", r.hackeros),
+                ("Wallpapers", r.wallpapers),
+            ]
+        end
+        "Blue Edition" => is
+            rows = [
+                ("System (APT)", r.apt),
+                ("Flatpak", r.flatpak),
+                ("Snap", r.snap),
+                ("Homebrew", r.brew),
+                ("Firmware", r.firmware),
+                ("Oh My Zsh", r.omz),
+                ("Distrobox", r.distrobox),
+                ("HackerOS Nix (hnm)", r.hnm),
+                ("Blue", r.blue),
+                ("HackerOS", r.hackeros),
+                ("Wallpapers", r.wallpapers),
+            ]
+        end
+        "Gaming Edition" => is
+            rows = [
+                ("System (APT)", r.apt),
+                ("Flatpak", r.flatpak),
+                ("Snap", r.snap),
+                ("Homebrew", r.brew),
+                ("Firmware", r.firmware),
+                ("Oh My Zsh", r.omz),
+                ("Distrobox", r.distrobox),
+                ("HackerOS Nix (hnm)", r.hnm),
+                ("Gaming", r.gaming),
+                ("HackerOS", r.hackeros),
+                ("Wallpapers", r.wallpapers),
+            ]
+        end
+        _ => is
+            rows = [
+                ("System (APT)", r.apt),
+                ("Flatpak", r.flatpak),
+                ("Snap", r.snap),
+                ("Homebrew", r.brew),
+                ("Firmware", r.firmware),
+                ("Oh My Zsh", r.omz),
+                ("Distrobox", r.distrobox),
+                ("HackerOS Nix (hnm)", r.hnm),
+                ("HackerOS", r.hackeros),
+                ("Wallpapers", r.wallpapers),
+            ]
+        end
+    end
+
+    let col_w: int = 26
+    let box_w: int = 2 + col_w + 2 + 8 + 4 ;; 42
+
+    let mut failed_count: int = 0
+    let mut ci: int = 0
+    while ci < rows.len() is
+        let (_, success) = rows[ci]
+        if !success is failed_count = failed_count + 1 end
+        ci += 1
+    end
+    let all_ok: bool = failed_count == 0
+    let duration_str: string = ui::format_duration(r.elapsed)
+
+    write("")
+    write(ui::dark_gray("┌" + fmt::repeat("─", box_w) + "┐"))
+
+    let title_text: string = "Update Summary"
+    let mut title_pad: int = box_w - title_text.len() - 2
+    if title_pad < 0 is title_pad = 0 end
+    write(ui::dark_gray("│  " + ui::yellow_bold(title_text) + fmt::repeat(" ", title_pad) + "│"))
+
+    write(ui::dark_gray("├" + fmt::repeat("─", box_w) + "┤"))
+
+    let mut ri: int = 0
+    while ri < rows.len() is
+        let (label, success) = rows[ri]
+        let mut tag: string = ""
+        let mut tag_vis: int = 0
+        if success is
+            tag = ui::green_bold("✓ OK")
+            tag_vis = 4
+        else is
+            tag = ui::red_bold("✗ FAILED")
+            tag_vis = 8
+        end
+        let mut pad_n: int = box_w - 2 - col_w - 2 - tag_vis - 1
+        if pad_n < 0 is pad_n = 0 end
+        write(ui::dark_gray("│  " + ui::white(fmt::pad_right(label, col_w)) + "  " + tag + fmt::repeat(" ", pad_n) + "│"))
+        ri += 1
+    end
+
+    write(ui::dark_gray("├" + fmt::repeat("─", box_w) + "┤"))
+
+    let time_line: string = "Completed in " + duration_str
+    let mut time_pad: int = box_w - 2 - time_line.len() - 1
+    if time_pad < 0 is time_pad = 0 end
+    let mut duration_colored: string = ""
+    if all_ok is
+        duration_colored = ui::green_bold(duration_str)
+    else is
+        duration_colored = ui::yellow_bold(duration_str)
+    end
+    write(ui::dark_gray("│  " + ui::dark_gray("Completed in") + " " + duration_colored + fmt::repeat(" ", time_pad) + "│"))
+
+    let mut status_text: string = ""
+    if all_ok is
+        status_text = "All updates completed successfully"
+    else is
+        status_text = to_string(failed_count) + " section(s) failed — check output above"
+    end
+    let mut status_pad: int = box_w - 2 - status_text.len() - 1
+    if status_pad < 0 is status_pad = 0 end
+    let mut status_colored: string = ""
+    if all_ok is
+        status_colored = ui::green(status_text)
+    else is
+        status_colored = ui::yellow(status_text)
+    end
+    write(ui::dark_gray("│  " + status_colored + fmt::repeat(" ", status_pad) + "│"))
+
+    write(ui::dark_gray("└" + fmt::repeat("─", box_w) + "┘"))
+    write("")
+end
