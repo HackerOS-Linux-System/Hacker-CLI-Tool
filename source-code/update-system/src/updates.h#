@@ -1,0 +1,178 @@
+mod constants
+mod sudo
+mod ui
+
+use "std -> strings" from "str"
+
+pub fn update_apt() -> bool is
+    ui::banner("System Update · APT")
+    let mut success: bool = true
+
+    ui::step("Refreshing package lists")
+    if !sudo::sudo_run("apt update") is success = false end
+
+    ui::step("Upgrading packages")
+    if !sudo::sudo_run("apt upgrade -y") is success = false end
+
+    ui::step("Cleaning cache")
+    if !sudo::sudo_run("apt autoclean") is success = false end
+
+    return success
+end
+
+pub fn update_hammer() -> bool is
+    ui::banner("System Update · Hammer")
+    let mut success: bool = true
+
+    ui::step("Running hammer update")
+    if !sudo::run_command("hammer update") is success = false end
+
+    ui::step("Running hammer upgrade")
+    if !sudo::run_command("hammer upgrade -y") is success = false end
+
+    return success
+end
+
+pub fn update_flatpak() -> bool is
+    ui::banner("Flatpak Update")
+    ui::step("Updating Flatpak apps")
+    return sudo::run_command("flatpak update -y")
+end
+
+pub fn update_snap() -> bool is
+    ui::banner("Snap Update")
+    ui::step("Refreshing snaps")
+    return sudo::sudo_run("snap refresh")
+end
+
+pub fn update_brew() -> bool is
+    ui::banner("Homebrew Update")
+    let (brew_present, _) = sudo::capture_command("command -v brew")
+    let mut brew_installed: bool = brew_present
+
+    if !brew_installed is
+        ui::step("Brew not found — installing…")
+        let mut install_ok: bool = true
+
+        if !sudo::run_command("NONINTERACTIVE=1 /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"") is
+            install_ok = false
+        end
+        if !sudo::run_command("echo 'eval \"$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"' >> ~/.zshrc") is
+            install_ok = false
+        end
+        if !sudo::run_command("eval \"$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"") is
+            install_ok = false
+        end
+
+        if install_ok is
+            ui::ok("Brew installed successfully")
+            brew_installed = true
+        else is
+            ui::fail_msg("Brew installation failed")
+            return false
+        end
+    else is
+        ui::ok("Brew already installed")
+    end
+
+    if !brew_installed is return false end
+
+    let mut success: bool = true
+    ui::step("Fetching updates")
+    if !sudo::run_command("brew update") is success = false end
+    ui::step("Upgrading formulae")
+    if !sudo::run_command("brew upgrade") is success = false end
+    ui::step("Cleaning up")
+    if !sudo::run_command("brew cleanup") is success = false end
+    return success
+end
+
+pub fn update_firmware() -> bool is
+    ui::banner("Firmware Update · fwupd")
+    ui::step("Checking for firmware updates")
+    return sudo::sudo_run("fwupdmgr update")
+end
+
+pub fn update_omz() -> bool is
+    ui::banner("Oh My Zsh Update")
+    ui::step("Updating Oh My Zsh")
+    return sudo::run_command("zsh -c 'ZSH_DISABLE_COMPFIX=true NONINTERACTIVE=1 \"$HOME/.oh-my-zsh/tools/upgrade.sh\" 2>/dev/null'")
+end
+
+pub fn update_distrobox() -> bool is
+    ui::banner("Distrobox Update")
+    ui::step("Upgrading all containers")
+    return sudo::run_command("distrobox-upgrade --all")
+end
+
+pub fn update_hnm() -> bool is
+    ui::banner("HackerOS Nix Manager · hnm")
+
+    ui::step("Checking Nix installation…")
+    let (check_ok, check_out) = sudo::capture_command("hnm check 2>&1")
+
+    if check_out.contains("not found") && !check_ok is
+        ui::warn_msg("hnm command not found — skipping Nix section")
+        return false
+    end
+
+    let nix_found: bool = check_out.contains("✓ nix") && !check_out.contains("NOT FOUND")
+
+    if !nix_found is
+        ui::warn_msg("Nix not installed — running `hnm unpack`")
+        let unpack_ok: bool = sudo::run_command("hnm unpack")
+        if !unpack_ok is
+            ui::fail_msg("hnm unpack failed — skipping update & upgrade")
+            return false
+        end
+        ui::ok("hnm unpack completed")
+    else is
+        ui::ok("Nix installation verified")
+        let out_lines: [string] = str::split(check_out, "\n")
+        let mut li: int = 0
+        while li < out_lines.len() is
+            write("     " + ui::dark_gray(out_lines[li]))
+            li += 1
+        end
+    end
+
+    ui::step("Running hnm update")
+    let update_ok: bool = sudo::run_command("hnm update")
+    if !update_ok is ui::fail_msg("hnm update failed") end
+
+    ui::step("Running hnm upgrade")
+    let upgrade_ok: bool = sudo::run_command("hnm upgrade")
+    if !upgrade_ok is ui::fail_msg("hnm upgrade failed") end
+
+    return update_ok && upgrade_ok
+end
+
+pub fn update_hackeros() -> bool is
+    ui::banner("HackerOS Update")
+    ui::step("Running HackerOS update script")
+    return sudo::run_command(constants::hackeros_update_script())
+end
+
+pub fn update_wallpapers() -> bool is
+    ui::banner("Wallpaper Updates")
+    ui::step("Fetching latest wallpapers")
+    return sudo::run_command(constants::wallpapers_update_script())
+end
+
+pub fn update_cybersecurity() -> bool is
+    ui::banner("Cybersecurity Updates")
+    ui::step("Running cybersecurity-cli update-all")
+    return sudo::run_command("cybersecurity-cli update-all")
+end
+
+pub fn update_blue() -> bool is
+    ui::banner("Blue Updates")
+    ui::step("Running blue update")
+    return sudo::run_command("blue update")
+end
+
+pub fn update_gaming() -> bool is
+    ui::banner("Gaming Updates")
+    ui::step("Running gaming-cli update")
+    return sudo::run_command("gaming-cli update")
+end
