@@ -1,8 +1,0 @@
-[package]
-name = "apt-frontend"
-version = "2.3.0"
-edition = "2021"
-
-[dependencies]
-indicatif = "0.17"
-colored   = "2.1"
