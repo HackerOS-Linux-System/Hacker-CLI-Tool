@@ -94,11 +94,6 @@ pub fn handle_pack(args: [string], argc: int, lang: string, c: helpers::Colors) 
             helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/H-Sharp/main/install-remove/HackerOS/remove.hl -o /tmp/hsharp-remove.hl", c)
             helpers::safe_run("hl run /tmp/hsharp-remove.hl", c)
         end
-        "h#-utils" => is
-            write(c.yellow + translations::get(t, "pack_downloading") + " H# Utils..." + c.reset)
-            helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/H-Sharp/main/install-remove/HackerOS/remove-utils.hl -o /tmp/hsharp-utils-remove.hl", c)
-            helpers::safe_run("hl run /tmp/hsharp-utils-remove.hl", c)
-        end
         "flox" => is
             helpers::safe_run("sudo apt remove -y flox || true", c)
         end
@@ -113,10 +108,10 @@ pub fn handle_pack(args: [string], argc: int, lang: string, c: helpers::Colors) 
             helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/hammer/main/remove.hl -o /tmp/remove-hammer.hl", c)
             helpers::safe_run("hl run /tmp/remove-hammer.hl", c)
         end
-        "lpm" => is
-            write(c.yellow + translations::get(t, "pack_downloading") + " lpm..." + c.reset)
-            helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/lpm/main/remove.hl -o /tmp/remove-lpm.hl", c)
-            helpers::safe_run("hl run /tmp/remove-lpm.hl", c)
+        "bit" => is
+            write(c.yellow + translations::get(t, "pack_downloading") + " bit..." + c.reset)
+            helpers::safe_run("curl -fsSL https://raw.githubusercontent.com/HackerOS-Linux-System/bit/main/scripts/installer/remove.hl -o /tmp/remove-bit.hl", c)
+            helpers::safe_run("hl run /tmp/remove-bit.hl", c)
         end
         "hackeros-games" | "hackeros-games-addons" => is
             write(c.yellow + translations::get(t, "pack_downloading") + " hackeros-games..." + c.reset)
@@ -155,13 +150,12 @@ fn show_pack_help(t: translations::Trans, c: helpers::Colors) is
         ["nvidia-drivers",       translations::get(t, "pack_nvidia")],
         ["hackeros-containers",  translations::get(t, "pack_hackeros_containers")],
         ["h#",                   translations::get(t, "pack_hsharp")],
-        ["h#-utils",             translations::get(t, "pack_hsharp_utils")],
         ["flox",                 translations::get(t, "pack_flox")],
         ["hackeros-builder",     translations::get(t, "pack_builder")],
         ["isolator",             translations::get(t, "pack_isolator")],
         ["hammer",               translations::get(t, "pack_hammer")],
         ["hackeros-games",       translations::get(t, "pack_hackeros_games")],
-        ["lpm",                  translations::get(t, "pack_lpm")],
+        ["bit",                  translations::get(t, "pack_bit")],
         ["hexai",                translations::get(t, "pack_hexai")],
         ["hackerdeck",           translations::get(t, "pack_hackerdeck")],
     ]
