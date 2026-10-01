@@ -11,10 +11,8 @@
 [build]
 -> link => static
 
-! shared by every member: progress bars / spinners for H# (vendored, pure H#)
 [dependencies]
--> progress-bar
---> path => libs/progress-bar
+-> progress-bar => newest
 
 [commands]
 -> build-apt-frontend
