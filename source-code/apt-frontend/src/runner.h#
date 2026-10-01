@@ -1,0 +1,203 @@
+use "bit -> progress-bar" from "pb"
+
+mod ui
+mod proc
+mod phase
+
+;; runner.h# — uruchamianie apt z paskiem postępu (run_apt / run_autoremove /
+;; run_simple z main.rs).
+;;
+;; Rust czytał stdout/stderr w dwóch wątkach. H# nie ma wątków, więc tu jest
+;; ten sam wzorzec co w bit/src/task.h#: apt działa w tle i pisze do plików
+;; w katalogu tymczasowym, a pętla co 80 ms czyta nowe linie, przesuwa pasek
+;; (biblioteka progress-bar) i czeka na plik z kodem wyjścia.
+
+const BAR_WIDTH: int = 46
+const LABEL_WIDTH: int = 14
+const BAR_THEME: string = "custom:[|]|=|-|>"     ;; progress_chars("=>-")
+const POLL_MS: int = 80
+
+fn read_or_empty(path: string) -> string is
+    if file_exists(path) is return proc::read_file(path) end
+    return ""
+end
+
+;; Zwraca true, jeśli operacja się powiodła.
+pub fn run_apt(apt_args: [string], bar_prefix: string, bar_color: string) -> bool is
+    let code: string = ui::bar_color_code(bar_color)
+    let tty: bool = proc::is_tty()
+
+    ;; "  {prefix:<14}  [{bar:46.<kolor>}]  {pos:>3}%  {msg}"
+    let tpl: string = "  {{label}}  " + ui::seq_on(code) + "{{bar}}" + ui::seq_off() + "  {{msg}}"
+    let mut bar = pb::quick_bar_custom(100, ui::pad_right(bar_prefix, LABEL_WIDTH), BAR_THEME, tpl, BAR_WIDTH, false)
+
+    let dir: string = proc::capture("mktemp -d /tmp/apt-frontend.XXXXXX")
+    if dir == "" is
+        write("")
+        ui::print_sep()
+        write("  " + ui::bright_red_bold("[BLAD]") + " Nie mozna uruchomic apt: brak katalogu tymczasowego")
+        ui::print_sep()
+        write("")
+        return false
+    end
+    let outf: string = dir + "/out"
+    let errf: string = dir + "/err"
+    let rcf: string = dir + "/rc"
+    let rct: string = dir + "/rc.tmp"
+
+    ;; stdbuf -oL wymusza line-buffering, żeby apt nie trzymał buforów.
+    ;; `sudo -n`: nigdy nie pyta o hasło w tle (sudo zostało uwierzytelnione wcześniej).
+    let line_buf: string = if proc::tool_exists("stdbuf") then "stdbuf -oL -eL " else ""
+    let apt_cmd: string = proc::join_quoted(line_buf + "sudo -n apt", apt_args) + " -y"
+    let full: string = "( " + apt_cmd + " </dev/null >" + proc::sq(outf) + " 2>" + proc::sq(errf) +
+                       " ; echo $? >" + proc::sq(rct) + " && mv " + proc::sq(rct) + " " + proc::sq(rcf) +
+                       " ) >/dev/null 2>&1 &"
+    proc::run(full)
+
+    let mut st: phase::Scan = phase::scan_new()
+    if tty is
+        bar = bar.set(0).set_message(ui::bar_msg(0, phase::scan_msg(st)))
+        bar.draw()
+    end
+
+    while !file_exists(rcf) is
+        let lines: [string] = string_split(read_or_empty(outf), "\n")
+        ;; ostatni element to "" (linia kompletna) albo linia w trakcie zapisu — pomijamy go
+        let complete: int = array_len(lines) - 1
+        if complete > phase::scan_seen(st) is
+            st = phase::scan_lines(lines, st, complete)
+        end
+        if tty is
+            bar = bar.set(phase::scan_pos(st)).set_message(ui::bar_msg(phase::scan_pos(st), phase::scan_msg(st)))
+            bar.draw()
+        end
+        sleep_ms(POLL_MS)
+    end
+
+    let rc: int = __builtin_conv_str_to_int(string_trim(proc::read_file(rcf)))
+    let out_text: string = read_or_empty(outf)
+    let err_text: string = read_or_empty(errf)
+    proc::run("rm -rf " + proc::sq(dir))
+
+    let all_lines: [string] = string_split(out_text, "\n")
+    st = phase::scan_lines(all_lines, st, array_len(all_lines))
+    let success: bool = rc == 0
+    if success is st = phase::scan_done(st) end
+
+    if tty is
+        bar = bar.set(phase::scan_pos(st)).set_message(ui::bar_msg(phase::scan_pos(st), phase::scan_msg(st)))
+        bar.draw()
+        sleep_ms(500)
+        bar.clear()
+    end
+
+    ;; ── Wynik / log ──────────────────────────────────────────────────────
+    write("")
+    ui::print_sep()
+    write("  " + ui::bright_black("Wynik:"))
+    write("")
+    let mut i: int = 0
+    while i < array_len(all_lines) is
+        if string_trim(all_lines[i]) != "" is
+            write("    " + phase::colorize(all_lines[i]))
+        end
+        i += 1
+    end
+
+    let err_lines: [string] = string_split(err_text, "\n")
+    let mut errs: [string] = []
+    i = 0
+    while i < array_len(err_lines) is
+        let e: string = string_trim(err_lines[i])
+        if e != "" && !string_contains(e, "apt does not have a stable CLI") is
+            errs = array_push(errs, e)
+        end
+        i += 1
+    end
+    if array_len(errs) > 0 is
+        write("")
+        write("  " + ui::yellow_bold("Szczegoly bledow:"))
+        i = 0
+        while i < array_len(errs) is
+            write("    " + ui::yellow("!") + " " + ui::yellow(errs[i]))
+            i += 1
+        end
+    end
+
+    write("")
+    ui::print_sep()
+    write("")
+
+    if success is
+        let nothing_done: bool = string_contains(out_text, "0 aktualizowanych, 0 instalowanych, 0 usuwanych") ||
+                                 string_contains(out_text, "0 upgraded, 0 newly installed, 0 to remove")
+        if nothing_done is
+            write("  " + ui::badge("100", "[ INFO ]") + "  " +
+                  ui::bright_black_bold("Nic do zrobienia — pakiet juz jest w wymaganym stanie."))
+        else is
+            write("  " + ui::badge("42", "[  OK  ]") + "  " + ui::green_bold("Operacja zakonczona pomyslnie."))
+        end
+        write("")
+        return true
+    end
+
+    write("  " + ui::badge("41", "[ BLAD ]") + "  " +
+          ui::red_bold("Operacja nie powiodla sie (kod wyjscia: " + to_string(rc) + ")."))
+    write("")
+    write("  " + ui::bright_black("Wskazowki:"))
+    write("    - Sprawdz czy pakiet istnieje:  apt-frontend search <nazwa>")
+    write("    - Napraw zaleznosci:             sudo apt --fix-broken install")
+    write("    - Sprawdz logi powyzej")
+    write("")
+    return false
+end
+
+;; ── autoremove — uruchamiany automatycznie po remove ─────────────────
+
+fn has_orphans() -> bool is
+    let text: string = shell("apt-get --dry-run autoremove 2>/dev/null")
+    let lines: [string] = string_split(text, "\n")
+    let mut i: int = 0
+    while i < array_len(lines) is
+        let l: string = lines[i]
+        if string_contains(l, "packages will be removed") || string_contains(l, "pakietow zostanie usunietych") is
+            if !string_starts_with(string_trim(l), "0") is return true end
+        end
+        i += 1
+    end
+    return false
+end
+
+pub fn run_autoremove() is
+    if !has_orphans() is
+        write("  " + ui::bright_black("Brak sierot do wyczyszczenia."))
+        write("")
+        return
+    end
+
+    write("  " + ui::yellow("Znaleziono niepotrzebne pakiety (sieroty)."))
+    write("")
+
+    if !ui::confirm("Wyczysc niepotrzebne pakiety? (autoremove)") is
+        write("")
+        write("  " + ui::bright_black("Pominieto autoremove."))
+        write("")
+        return
+    end
+
+    write("")
+    write("  " + ui::bright_black("Czyszczenie sierot..."))
+    write("")
+
+    run_apt(["autoremove"], "Czyszczenie", "yellow")
+end
+
+;; ── Komendy bez paska (search, show) ─────────────────────────────────
+
+pub fn run_simple(args: [string]) is
+    let rc: int = proc::run(proc::join_quoted("apt", args))
+    if rc != 0 is
+        write("")
+        write("  " + ui::yellow("[!]") + " Komenda zakonczona z kodem: " + to_string(rc))
+    end
+end
