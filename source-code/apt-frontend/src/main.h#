@@ -1,1 +1,148 @@
+mod ui
+mod proc
+mod sudo
+mod phase
+mod runner
 
+use "std -> env" from "env"
+
+extern static [c] is
+    fn exit(code: int)
+end
+
+;; apt-frontend (H# + bit + progress-bar) — przepisane z Rusta (main.rs).
+;; Te same komendy, teksty, potwierdzenia i kolejność kroków.
+
+fn arg_at(args: [string], i: int) -> string is
+    if i < array_len(args) is return args[i] end
+    return ""
+end
+
+fn join_args(args: [string], start: int) -> string is
+    let mut out: string = ""
+    let mut i: int = start
+    while i < array_len(args) is
+        if out != "" is out = out + " " end
+        out = out + args[i]
+        i += 1
+    end
+    return out
+end
+
+fn action(label: string, text: string) is
+    write("  " + ui::bright_black("Akcja:") + "  " + text)
+    write("")
+    ui::print_sep()
+    write("")
+end
+
+fn cancelled() is
+    write("")
+    write("  " + ui::bright_black("Anulowano."))
+    write("")
+end
+
+fn main() is
+    let args: [string] = env::args()
+    let argc: int = array_len(args) - 1        ;; bez nazwy programu
+    let cmd: string = arg_at(args, 1)
+    let param: string = arg_at(args, 2)
+
+    ui::print_banner()
+
+    ;; ── install ──────────────────────────────────────────────────────────
+    if cmd == "install" && argc == 2 is
+        action("install", ui::green_bold("Instalacja  " + param))
+        if !ui::confirm("Czy na pewno chcesz zainstalowac pakiet " + ui::green_bold(param) + "?") is
+            cancelled()
+            return
+        end
+        write("")
+        if !sudo::ensure_sudo() is return end
+        write("")
+        runner::run_apt(["install", param], "Instalacja", "cyan")
+        return
+    end
+
+    ;; ── remove ───────────────────────────────────────────────────────────
+    if cmd == "remove" && argc == 2 is
+        action("remove", ui::red_bold("Usuwanie    " + param))
+        ;; potwierdzenie z ostrzeżeniem — remove jest bardziej destrukcyjne
+        write("  " + ui::bright_red_bold("UWAGA:") + " Pakiet " + ui::red_bold(param) + " zostanie usuniety z systemu.")
+        write("")
+        if !ui::confirm("Czy na pewno chcesz usunac pakiet " + ui::red_bold(param) + "?") is
+            cancelled()
+            return
+        end
+        write("")
+        if !sudo::ensure_sudo() is return end
+        write("")
+        let success: bool = runner::run_apt(["remove", param], "Usuwanie", "red")
+        ;; po udanym remove — autoremove
+        if success is
+            ui::print_sep()
+            write("")
+            write("  " + ui::bright_black("Sprawdzanie sierot po usunieciu..."))
+            write("")
+            runner::run_autoremove()
+        end
+        return
+    end
+
+    ;; ── update ───────────────────────────────────────────────────────────
+    if cmd == "update" && argc == 1 is
+        action("update", ui::yellow_bold("Aktualizacja list pakietow"))
+        if !sudo::ensure_sudo() is return end
+        write("")
+        runner::run_apt(["update"], "Aktualizacja", "yellow")
+        return
+    end
+
+    ;; ── upgrade ──────────────────────────────────────────────────────────
+    if cmd == "upgrade" && argc == 1 is
+        action("upgrade", ui::yellow_bold("Aktualizacja systemu"))
+        if !ui::confirm("Czy na pewno chcesz zaktualizowac system?") is
+            cancelled()
+            return
+        end
+        write("")
+        if !sudo::ensure_sudo() is return end
+        write("")
+        runner::run_apt(["upgrade"], "Uaktualnienie", "yellow")
+        return
+    end
+
+    ;; ── search ───────────────────────────────────────────────────────────
+    if cmd == "search" && argc == 2 is
+        action("search", ui::cyan_bold("Wyszukiwanie: " + param))
+        runner::run_simple(["search", param])
+        return
+    end
+
+    ;; ── show ─────────────────────────────────────────────────────────────
+    if cmd == "show" && argc == 2 is
+        action("show", ui::cyan_bold("Info: " + param))
+        runner::run_simple(["show", param])
+        return
+    end
+
+    ;; ── autoremove ───────────────────────────────────────────────────────
+    if cmd == "autoremove" && argc == 1 is
+        action("autoremove", ui::yellow_bold("Czyszczenie sierot"))
+        if !sudo::ensure_sudo() is return end
+        write("")
+        runner::run_autoremove()
+        return
+    end
+
+    ;; ── help / brak argumentow ───────────────────────────────────────────
+    if argc == 0 || (cmd == "help" && argc == 1) is
+        ui::print_usage()
+        return
+    end
+
+    ;; ── nieznana komenda ─────────────────────────────────────────────────
+    write("  " + ui::yellow_bold("[!]") + " Nieznana komenda: " + ui::white(join_args(args, 1)))
+    ui::print_usage()
+    exit(1)
+end
