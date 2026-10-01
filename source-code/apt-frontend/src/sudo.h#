@@ -1,0 +1,25 @@
+mod ui
+mod proc
+
+;; sudo.h# — uwierzytelnienie sudo (odpowiednik ensure_sudo z main.rs).
+
+;; true, gdy sudo jest już uwierzytelnione albo uda się je uwierzytelnić.
+pub fn ensure_sudo() -> bool is
+    if proc::run("sudo -n true >/dev/null 2>&1") == 0 is
+        return true
+    end
+
+    write("")
+    write("  " + ui::yellow_bold("[sudo] Wymagane uprawnienia administratora."))
+    write("")
+
+    ;; `sudo -v` dziedziczy stdin/stdout/stderr, więc pyta o hasło normalnie.
+    if proc::run("sudo -v") == 0 is
+        write("")
+        return true
+    end
+
+    write("")
+    write("  " + ui::bright_red_bold("[BLAD] Uwierzytelnienie nie powiodlo sie."))
+    return false
+end
