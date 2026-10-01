@@ -1,1 +1,24 @@
+[package]
+-> name        => apt-frontend
+-> version     => 2.4.3
+-> description => "Nakładka na apt z paskiem postępu (H# + bit + progress-bar)"
+-> authors     => ["HackerOS Team <hackeros068@gmail.com>"]
+-> license     => GPL-3.0
+-> lang        => h#
 
+[layout]
+-> src => src
+
+[build]
+-> link => static
+
+[default-build]
+-> profile => release
+
+[dependencies]
+-> progress-bar => newest
+
+[commands]
+-> check
+--> run => find src -name '*.h#' -print0 | xargs -0 h# check
+--> description => Type-check every module
