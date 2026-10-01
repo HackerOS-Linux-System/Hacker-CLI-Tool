@@ -1,0 +1,201 @@
+mod ui
+
+;; phase.h# — fazy pracy apt + analiza linii wyjścia (enum Phase z main.rs).
+;;
+;; Fazy to liczby = docelowa pozycja paska (0..100), dokładnie jak
+;; dyskryminanty oryginalnego `enum Phase`. Stan analizy trzyma struct `Scan`
+;; (pola z prefiksem `sc_` i akcesory w TYM pliku — ten sam wzorzec co
+;; `pj_*` w bit/src/project.h#, żeby nie wpaść na kolizje nazw pól między
+;; structami z różnych modułów).
+
+pub fn ph_init()        -> int is return 0   end
+pub fn ph_reading()     -> int is return 10  end
+pub fn ph_resolving()   -> int is return 25  end
+pub fn ph_downloading() -> int is return 40  end
+pub fn ph_fetched()     -> int is return 62  end
+pub fn ph_unpacking()   -> int is return 70  end
+pub fn ph_setting()     -> int is return 87  end
+pub fn ph_processing()  -> int is return 95  end
+pub fn ph_done()        -> int is return 100 end
+
+pub fn phase_label(p: int) -> string is
+    if p == 0   is return "Inicjalizacja..." end
+    if p == 10  is return "Czytanie list pakietow..." end
+    if p == 25  is return "Rozwiazywanie zaleznosci..." end
+    if p == 40  is return "Pobieranie pakietow..." end
+    if p == 62  is return "Pobieranie zakonczone" end
+    if p == 70  is return "Rozpakowywanie..." end
+    if p == 87  is return "Konfigurowanie..." end
+    if p == 95  is return "Przetwarzanie wyzwalaczy..." end
+    return "Gotowe"
+end
+
+fn starts_any(t: string, prefixes: [string]) -> bool is
+    let mut i: int = 0
+    while i < array_len(prefixes) is
+        if string_starts_with(t, prefixes[i]) is return true end
+        i += 1
+    end
+    return false
+end
+
+;; Faza rozpoznana po początku linii (Phase::from_line), albo -1.
+pub fn phase_from_line(line: string) -> int is
+    let t: string = string_trim(line)
+    if starts_any(t, ["Czytanie", "Budowanie", "Odczyt", "Reading", "Building", "Scanning"]) is
+        return ph_reading()
+    end
+    if starts_any(t, ["Rozwiaz", "Calculating", "The following", "Nastepujace", "Podsumowanie", "After this"]) is
+        return ph_resolving()
+    end
+    if starts_any(t, ["Get:", "Pobieranie:"]) is
+        return ph_downloading()
+    end
+    if starts_any(t, ["Fetched", "Pobrano", "0 upgraded", "0 aktualizowanych"]) is
+        return ph_fetched()
+    end
+    if starts_any(t, ["Unpacking", "Rozpakowywanie", "Removing", "Usuwanie"]) is
+        return ph_unpacking()
+    end
+    if starts_any(t, ["Setting up", "Ustawianie"]) is
+        return ph_setting()
+    end
+    if starts_any(t, ["Processing", "Przetwarzanie"]) is
+        return ph_processing()
+    end
+    return -1
+end
+
+;; ── Kolor linii logu (colorize z main.rs) ────────────────────────────
+
+fn contains_any(t: string, needles: [string]) -> bool is
+    let mut i: int = 0
+    while i < array_len(needles) is
+        if string_contains(t, needles[i]) is return true end
+        i += 1
+    end
+    return false
+end
+
+pub fn colorize(line: string) -> string is
+    let t: string = string_trim(line)
+    let low: string = string_lower(t)
+    if starts_any(t, ["Get:", "Hit:"]) is return ui::bright_cyan(line) end
+    if starts_any(t, ["Fetched", "Pobrano"]) is return ui::bright_green(line) end
+    if starts_any(t, ["Unpacking", "Rozpakowywanie"]) is return ui::bright_yellow(line) end
+    if starts_any(t, ["Setting up", "Ustawianie", "Processing", "Przetwarzanie"]) is
+        return ui::bright_magenta(line)
+    end
+    if starts_any(t, ["Removing", "Usuwanie"]) is return ui::red(line) end
+    if starts_any(t, ["Czytanie", "Budowanie", "Odczyt", "Reading", "Building", "Scanning"]) is
+        return ui::bright_black(line)
+    end
+    if contains_any(low, ["error", "failed", "blad", "nie udalo"]) is
+        return ui::bright_red_bold(line)
+    end
+    if contains_any(low, ["warning", "ostrzez"]) is return ui::yellow(line) end
+    return ui::white(line)
+end
+
+;; ── Stan analizy ─────────────────────────────────────────────────────
+
+pub struct Scan is
+    pub sc_seen:     int      ;; ile linii już przeanalizowano
+    pub sc_phase:    int      ;; bieżąca faza (nigdy nie cofa się)
+    pub sc_get_seen: int      ;; największy numer "Get:N" (get_seen z Rusta)
+    pub sc_pos:      int      ;; pozycja paska 0..100
+    pub sc_msg:      string   ;; komunikat paska
+end
+
+pub fn scan_new() -> Scan is
+    return Scan { sc_seen: 0, sc_phase: 0, sc_get_seen: 0, sc_pos: 0, sc_msg: "czekam..." }
+end
+
+pub fn scan_seen(s: Scan)  -> int    is return s.sc_seen end
+pub fn scan_phase(s: Scan) -> int    is return s.sc_phase end
+pub fn scan_pos(s: Scan)   -> int    is return s.sc_pos end
+pub fn scan_msg(s: Scan)   -> string is return s.sc_msg end
+
+;; Sukces apt: pasek na 100% z napisem "Gotowe".
+pub fn scan_done(s: Scan) -> Scan is
+    return Scan { sc_seen: s.sc_seen, sc_phase: ph_done(), sc_get_seen: s.sc_get_seen,
+                  sc_pos: ph_done(), sc_msg: phase_label(ph_done()) }
+end
+
+fn split_ws(s: string) -> [string] is
+    let parts: [string] = string_split(s, " ")
+    let mut out: [string] = []
+    let mut i: int = 0
+    while i < array_len(parts) is
+        let w: string = string_trim(parts[i])
+        if w != "" is out = array_push(out, w) end
+        i += 1
+    end
+    return out
+end
+
+fn is_arch(w: string) -> bool is
+    return starts_any(w, ["amd64", "arm64", "i386", "armhf", "armel", "ppc64el", "s390x", "riscv64", "all"]) && string_len(w) < 9
+end
+
+fn all_digits(s: string) -> bool is
+    if s == "" is return false end
+    let mut i: int = 0
+    while i < string_len(s) is
+        if !string_contains("0123456789", string_at(s, i)) is return false end
+        i += 1
+    end
+    return true
+end
+
+;; Jedna (już przyciętą, niepustą) linię -> nowy stan.
+fn scan_line(t: string, st: Scan) -> Scan is
+    let mut phase: int = st.sc_phase
+    let mut pos: int = st.sc_pos
+    let mut msg: string = st.sc_msg
+    let mut gs: int = st.sc_get_seen
+
+    ;; faza rośnie tylko w górę
+    let np: int = phase_from_line(t)
+    if np >= 0 && np > phase is
+        phase = np
+        pos = np
+        msg = phase_label(np)
+    end
+
+    ;; płynna interpolacja w fazie pobierania (40..61)
+    if string_starts_with(t, "Get:") is
+        let words: [string] = split_ws(t)
+        let first: string = words[0]
+        let digits: string = string_slice(first, 4, string_len(first))
+        if all_digits(digits) is
+            let n: int = __builtin_conv_str_to_int(digits)
+            if n > gs is gs = n end
+            let denom: int = if gs < 1 then 1 else gs
+            let mut p: int = 40 + (n * 22) / denom
+            if p > 61 is p = 61 end
+            pos = p
+            ;; "Get:1 <url> <dist> <arch> <pakiet> ..." — słowo 3 bywa architekturą
+            ;; (amd64...), wtedy nazwa pakietu / indeksu jest o jedno dalej.
+            let mut pkg: string = "..."
+            if array_len(words) > 3 is pkg = words[3] end
+            if array_len(words) > 4 && is_arch(pkg) is pkg = words[4] end
+            msg = "pobieranie: " + pkg
+        end
+    end
+
+    return Scan { sc_seen: st.sc_seen, sc_phase: phase, sc_get_seen: gs, sc_pos: pos, sc_msg: msg }
+end
+
+;; Analizuje linie [st.sc_seen, upto) i zwraca nowy stan.
+pub fn scan_lines(lines: [string], st: Scan, upto: int) -> Scan is
+    let mut cur: Scan = st
+    let mut i: int = st.sc_seen
+    while i < upto is
+        let t: string = string_trim(lines[i])
+        if t != "" is cur = scan_line(t, cur) end
+        i += 1
+    end
+    return Scan { sc_seen: upto, sc_phase: cur.sc_phase, sc_get_seen: cur.sc_get_seen,
+                  sc_pos: cur.sc_pos, sc_msg: cur.sc_msg }
+end
