@@ -1,0 +1,127 @@
+const RESET: string = "\x1b[0m"
+
+fn ui_color_on() -> bool is
+    return string_len(env_get("NO_COLOR")) == 0
+end
+
+;; Owija tekst w sekwencję SGR (np. "1;94" = jasnoniebieski + pogrubienie).
+pub fn paint(codes: string, s: string) -> string is
+    if !ui_color_on() is return s end
+    return "\x1b[" + codes + "m" + s + RESET
+end
+
+;; Sama sekwencja włączająca / wyłączająca kolor — do wstawienia w szablon
+;; paska postępu (pusta, gdy kolory są wyłączone).
+pub fn seq_on(codes: string) -> string is
+    if !ui_color_on() is return "" end
+    return "\x1b[" + codes + "m"
+end
+
+pub fn seq_off() -> string is
+    if !ui_color_on() is return "" end
+    return RESET
+end
+
+;; Nazwa koloru paska (jak w make_bar) -> kod SGR.
+pub fn bar_color_code(name: string) -> string is
+    if name == "red" is return "31" end
+    if name == "yellow" is return "33" end
+    if name == "green" is return "32" end
+    return "36"
+end
+
+pub fn bright_blue_bold(s: string)   -> string is return paint("1;94", s) end
+pub fn white(s: string)              -> string is return paint("37", s) end
+pub fn white_bold(s: string)         -> string is return paint("37;1", s) end
+pub fn bright_white(s: string)       -> string is return paint("97", s) end
+pub fn bright_white_bold(s: string)  -> string is return paint("97;1", s) end
+pub fn bright_black(s: string)       -> string is return paint("90", s) end
+pub fn bright_black_bold(s: string)  -> string is return paint("90;1", s) end
+pub fn bright_cyan(s: string)        -> string is return paint("96", s) end
+pub fn cyan_bold(s: string)          -> string is return paint("36;1", s) end
+pub fn bright_green(s: string)       -> string is return paint("92", s) end
+pub fn green_bold(s: string)         -> string is return paint("32;1", s) end
+pub fn bright_yellow(s: string)      -> string is return paint("93", s) end
+pub fn bright_yellow_bold(s: string) -> string is return paint("93;1", s) end
+pub fn yellow(s: string)             -> string is return paint("33", s) end
+pub fn yellow_bold(s: string)        -> string is return paint("33;1", s) end
+pub fn bright_magenta(s: string)     -> string is return paint("95", s) end
+pub fn red(s: string)                -> string is return paint("31", s) end
+pub fn red_bold(s: string)           -> string is return paint("31;1", s) end
+pub fn bright_red_bold(s: string)    -> string is return paint("91;1", s) end
+
+;; Plakietka z tłem — [  OK  ] / [ INFO ] / [ BLAD ] (on_green / on_bright_black / on_red).
+pub fn badge(bg_code: string, label: string) -> string is
+    return paint("1;37;" + bg_code, label)
+end
+
+;; ── Elementy układu ──────────────────────────────────────────────────
+
+const FRAME_WIDTH: int = 52
+
+pub fn print_banner() is
+    let title: string = "APT Package Manager v2.3"
+    let left_pad: int = (FRAME_WIDTH - title.len()) / 2
+    let right_pad: int = FRAME_WIDTH - title.len() - left_pad
+    write("")
+    write(bright_blue_bold("  +" + string_repeat("=", FRAME_WIDTH) + "+"))
+    write(bright_blue_bold("  |" + string_repeat(" ", FRAME_WIDTH) + "|"))
+    write("  " + bright_blue_bold("|") + white_bold(string_repeat(" ", left_pad) + title + string_repeat(" ", right_pad)) + bright_blue_bold("|"))
+    write(bright_blue_bold("  |" + string_repeat(" ", FRAME_WIDTH) + "|"))
+    write(bright_blue_bold("  +" + string_repeat("=", FRAME_WIDTH) + "+"))
+    write("")
+end
+
+pub fn print_sep() is
+    write(bright_black("  " + string_repeat("-", FRAME_WIDTH)))
+end
+
+pub fn print_usage() is
+    write("")
+    write(bright_white_bold("  Uzycie:"))
+    write("    apt-frontend install <pakiet>   - zainstaluj pakiet")
+    write("    apt-frontend remove  <pakiet>   - usun pakiet")
+    write("    apt-frontend update             - aktualizuj liste pakietow")
+    write("    apt-frontend upgrade            - aktualizuj system")
+    write("    apt-frontend search  <fraza>    - wyszukaj pakiet")
+    write("    apt-frontend show    <pakiet>   - info o pakiecie")
+    write("    apt-frontend help               - ta pomoc")
+    write("")
+end
+
+;; Dopełnia tekst spacjami z prawej do `width` znaków ({prefix:<14}).
+pub fn pad_right(s: string, width: int) -> string is
+    if s.len() >= width is return s end
+    return s + string_repeat(" ", width - s.len())
+end
+
+;; Dopełnia tekst spacjami z lewej do `width` znaków ({pos:>3}).
+pub fn pad_left(s: string, width: int) -> string is
+    if s.len() >= width is return s end
+    return string_repeat(" ", width - s.len()) + s
+end
+
+;; Tekst wstawiany w `{msg}` paska: "{pos:>3}%  {msg:.bright_black}".
+pub fn bar_msg(pos: int, text: string) -> string is
+    return pad_left(to_string(pos), 3) + "%  " + bright_black(text)
+end
+
+;; ── Potwierdzenie y/n ────────────────────────────────────────────────
+
+;; Pyta o potwierdzenie. true dla 't', 'y', 'tak', 'yes' lub samego Entera.
+pub fn confirm(prompt: string) -> bool is
+    let mut asking: bool = true
+    while asking is
+        io_print("  " + bright_yellow_bold("?") + " " + prompt + " ")
+        io_print(bright_white("[t/n]: "))
+        let answer: string = string_lower(string_trim(io_readline()))
+        if answer == "t" || answer == "y" || answer == "tak" || answer == "yes" || answer == "" is
+            return true
+        end
+        if answer == "n" || answer == "nie" || answer == "no" is
+            return false
+        end
+        write("  " + yellow("!") + " Wpisz " + green_bold("t") + " lub " + red_bold("n") + ".")
+    end
+    return false
+end
