@@ -1,0 +1,46 @@
+extern static [c] is
+    ;; Zwraca surowy wait-status; równy 0 <=> polecenie zakończyło się kodem 0.
+    fn system(cmd: string) -> int
+end
+
+;; Uruchamia polecenie z odziedziczonym stdin/stdout/stderr. Zwraca status (0 = sukces).
+pub fn run(cmd: string) -> int is
+    return system(cmd)
+end
+
+;; stdout polecenia, przycięty.
+pub fn capture(cmd: string) -> string is
+    return string_trim(shell(cmd))
+end
+
+;; Zawartość pliku (pusty string, gdy pliku nie ma) — tak samo jak w bit,
+;; przez `cat`, bo to jedyny sposób odczytu zgodny z backendem LLVM.
+pub fn read_file(path: string) -> string is
+    return shell("cat " + sq(path) + " 2>/dev/null")
+end
+
+;; Cytowanie POSIX w apostrofach — bezpieczne dla dowolnej nazwy pakietu.
+pub fn sq(s: string) -> string is
+    return "'" + string_replace(s, "'", "'\\''") + "'"
+end
+
+pub fn tool_exists(name: string) -> bool is
+    return system("command -v " + sq(name) + " >/dev/null 2>&1") == 0
+end
+
+;; Czy stdout jest terminalem (pasek postępu rysujemy tylko na TTY —
+;; indicatif też ukrywa pasek, gdy wyjście jest przekierowane).
+pub fn is_tty() -> bool is
+    return system("test -t 1") == 0
+end
+
+;; Składa `prefix arg1 arg2 ...` z argumentami zacytowanymi sq().
+pub fn join_quoted(prefix: string, args: [string]) -> string is
+    let mut out: string = prefix
+    let mut i: int = 0
+    while i < array_len(args) is
+        out = out + " " + sq(args[i])
+        i += 1
+    end
+    return out
+end
