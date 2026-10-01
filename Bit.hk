@@ -1,1 +1,40 @@
+[package]
+-> name        => hacker-cli-tool
+-> version     => 2.4.3
+-> description => "Hacker CLI Tools"
+-> authors     => ["HackerOS Team <hackeros068@gmail.com>"]
+-> license     => GPL-3.0
 
+[workspace]
+-> members => [source-code/hacker, source-code/update-system, source-code/apt-fronted]
+
+[build]
+-> link => static
+
+! shared by every member: progress bars / spinners for H# (vendored, pure H#)
+[dependencies]
+-> progress-bar
+--> path => libs/progress-bar
+
+[commands]
+-> build-apt-frontend
+--> run => mkdir -p cache/build/release && h# compile source-code/apt-fronted/src/main.h# -o cache/build/release/apt-frontend --release
+--> description => Build apt-frontend (H# + progress-bar, static)
+-> build-update-system
+--> run => mkdir -p cache/build/release && h# compile source-code/update-system/src/main.h# -o cache/build/release/update-system --release
+--> description => Build update-system (H#, static)
+-> build-hacker
+--> run => mkdir -p cache/build/release && h# compile source-code/hacker/src/main.h# -o cache/build/release/hacker --release --dynamic
+--> description => Build hacker (H#; uses extern dynamic [c], so it is linked dynamically and bit's static-only guard does not apply)
+-> build-h
+--> run => bit build-update-system && bit build-apt-frontend
+--> description => Build every statically linked H# member
+-> build-legacy
+--> run => (cd source-code/hacker-help && go get hacker-help && go build) && (cd source-code/hacker-interactive && go get hacker-interactive && go build) && (cd source-code/hacker-select && go get hacker-select && go build) && (cd source-code/hacker-docs && go get hacker-docs && go build) && (cd source-code/hacker-repair && cargo build --release) && (cd source-code/HackerOS-Updater && cargo build --release) && (cd source-code/hacker-shell && cargo build --release)
+--> description => Build the Go and Rust tools (same steps as build.hl)
+-> build-all
+--> run => bit build-h && bit build-legacy
+--> description => Build everything build.hl builds
+-> check-h
+--> run => find source-code/update-system/src source-code/apt-fronted/src source-code/hacker/src libs/progress-bar/src -name '*.h#' -print0 | xargs -0 h# check
+--> description => Type-check every H# module of the workspace
