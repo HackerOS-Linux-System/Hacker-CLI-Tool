@@ -1,0 +1,33 @@
+pub fn sq(s: string) -> string is
+    return "'" + string_replace(s, "'", "'\\''") + "'"
+end
+
+;; true, gdy polecenie zakończyło się kodem 0. Tylko do KRÓTKICH poleceń:
+;; `proc_run_cmd` zbiera stdout/stderr w pipe'ach, więc duże wyjście idzie
+;; zawsze do plików (patrz worker.h#).
+pub fn run_ok(cmd: string) -> bool is
+    let r: ProcResult = proc_run_cmd(cmd, 0)
+    return r.exit_code == 0
+end
+
+pub fn capture(cmd: string) -> string is
+    return string_trim(shell(cmd))
+end
+
+pub fn tool_exists(name: string) -> bool is
+    return run_ok("command -v " + sq(name) + " >/dev/null 2>&1")
+end
+
+;; Czy to prawdziwa sesja terminalowa: stdin jest TTY ORAZ stdout tego procesu
+;; wskazuje na urządzenie terminala. `proc_run_cmd` dziedziczy stdin, a stdout
+;; ma w pipe — dlatego stdout sprawdzamy przez /proc/$PPID/fd/1 (PPID powłoki
+;; to nasz proces).
+pub fn is_tty_session() -> bool is
+    let cmd: string = "[ -t 0 ] && case \"$(readlink /proc/$PPID/fd/1 2>/dev/null)\" in /dev/pts/*|/dev/tty*|/dev/console) exit 0;; esac; exit 1"
+    return run_ok(cmd)
+end
+
+;; Absolutna ścieżka własnego pliku wykonywalnego (do --with-gui).
+pub fn self_exe() -> string is
+    return capture("readlink -f /proc/$PPID/exe 2>/dev/null")
+end
