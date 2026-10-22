@@ -1,0 +1,378 @@
+mod tasks
+mod worker
+
+;; app.h# — stan aplikacji i przejścia między stanami (app.rs).
+;;
+;; Różnice względem Rust (wynikają z H#, nie z gustu):
+;;   * brak wątków i kanału mpsc  -> zdarzenia z zadań przynosi `tick()` (czyta
+;;     nowe linie z plików, patrz worker.h#) wołany z pętli zdarzeń TUI;
+;;   * brak mutowalnych referencji do structów -> styl funkcyjny jak w
+;;     hacker/src/game.h#: funkcja bierze `App`, kopiuje do `let mut s`, zmienia
+;;     pola i zwraca nowy `App`;
+;;   * brak `AtomicBool`/`Arc<Mutex<..>>` (cancel_flag, is_working,
+;;     current_child_pid) -> niepotrzebne, bo pętla jest jednowątkowa; PID
+;;     zadania siedzi w pliku `pid` w katalogu zadania.
+;;
+;; Wszystkie pola mają prefiks ap_ (kolizje nazw pól między structami modułów).
+
+pub fn s_login()      -> int is return 0 end
+pub fn s_processing() -> int is return 1 end
+pub fn s_finished()   -> int is return 2 end
+pub fn s_confirm()    -> int is return 3 end
+
+pub struct App is
+    pub ap_state:   int
+    pub ap_variant: string
+    pub ap_tasks:   [tasks::Task]
+    pub ap_status:  [int]
+    pub ap_cur:     int
+    pub ap_pw:      [string]      ;; wpisane znaki hasła (tablica => bezpieczne dla UTF-8)
+    pub ap_pw_err:  string
+    pub ap_logs:    [string]
+    pub ap_scroll:  int           ;; pierwszy widoczny wiersz logu, gdy !ap_auto
+    pub ap_auto:    bool
+    pub ap_failed:  [string]
+    pub ap_dir:     string        ;; katalog roboczy (job.sh, pw, ...)
+    pub ap_pwfile:  string
+    pub ap_job:     worker::Job
+    pub ap_exit:    string        ;; "" | "quit" | "reboot" | "shutdown"
+end
+
+pub fn new(variant: string) -> App is
+    let ts: [tasks::Task] = tasks::build_tasks(variant)
+    let mut st: [int] = []
+    let mut i: int = 0
+    while i < array_len(ts) is
+        st = array_push(st, tasks::st_pending())
+        i += 1
+    end
+    return App {
+        ap_state: s_login(), ap_variant: variant, ap_tasks: ts, ap_status: st, ap_cur: 0,
+        ap_pw: [], ap_pw_err: "", ap_logs: [], ap_scroll: 0, ap_auto: true, ap_failed: [],
+        ap_dir: "", ap_pwfile: "", ap_job: worker::job_none(), ap_exit: "",
+    }
+end
+
+;; ── Akcesory (ui.h# i main.h# nie sięgają do pól bezpośrednio) ──────
+pub fn state_of(a: App)      -> int      is return a.ap_state end
+pub fn tasks_of(a: App)      -> [tasks::Task] is return a.ap_tasks end
+pub fn status_of(a: App)     -> [int]    is return a.ap_status end
+pub fn logs_of(a: App)       -> [string] is return a.ap_logs end
+pub fn pw_len(a: App)        -> int      is return array_len(a.ap_pw) end
+pub fn pw_error(a: App)      -> string   is return a.ap_pw_err end
+pub fn is_auto(a: App)       -> bool     is return a.ap_auto end
+pub fn exit_request(a: App)  -> string   is return a.ap_exit end
+pub fn work_dir(a: App)      -> string   is return a.ap_dir end
+pub fn pw_file(a: App)       -> string   is return a.ap_pwfile end
+
+;; ── Drobne operacje na stanie ───────────────────────────────────────
+fn log(a: App, line: string) -> App is
+    let mut s: App = a
+    s.ap_logs = array_push(s.ap_logs, line)
+    return s
+end
+
+fn set_status(a: App, idx: int, st: int) -> App is
+    let mut s: App = a
+    let mut ns: [int] = []
+    let mut i: int = 0
+    while i < array_len(a.ap_status) is
+        if i == idx is
+            ns = array_push(ns, st)
+        else is
+            ns = array_push(ns, a.ap_status[i])
+        end
+        i += 1
+    end
+    s.ap_status = ns
+    s.ap_cur = idx
+    if st == tasks::st_failed() is
+        s.ap_failed = array_push(s.ap_failed, tasks::name_of(a.ap_tasks[idx]))
+    end
+    return s
+end
+
+fn pw_join(a: App) -> string is
+    let mut out: string = ""
+    let mut i: int = 0
+    while i < array_len(a.ap_pw) is
+        out = out + a.ap_pw[i]
+        i += 1
+    end
+    return out
+end
+
+fn pw_pop(a: App) -> App is
+    let mut s: App = a
+    let n: int = array_len(a.ap_pw)
+    if n == 0 is return s end
+    let mut np: [string] = []
+    let mut i: int = 0
+    while i < n - 1 is
+        np = array_push(np, a.ap_pw[i])
+        i += 1
+    end
+    s.ap_pw = np
+    return s
+end
+
+;; ── Zakończenie (AppEvent::AllTasksFinished) ────────────────────────
+fn finish(a: App) -> App is
+    let mut s: App = a
+    s.ap_state = s_finished()
+    s.ap_job = worker::job_none()
+    s = log(s, "")
+    s = log(s, "══════════════════════════════════════")
+    if array_len(s.ap_failed) == 0 is
+        s = log(s, "  ✓ All tasks completed successfully.")
+    else is
+        s = log(s, "  ⚠ Completed with " + to_string(array_len(s.ap_failed)) + " issue(s):")
+        let mut i: int = 0
+        while i < array_len(s.ap_failed) is
+            s = log(s, "    • " + s.ap_failed[i])
+            i += 1
+        end
+    end
+    s = log(s, "══════════════════════════════════════")
+    return s
+end
+
+;; ── Przebieg zadań ──────────────────────────────────────────────────
+fn start_task(a: App, idx: int) -> App is
+    let n: int = array_len(a.ap_tasks)
+    if idx >= n is
+        return finish(a)
+    end
+    let t: tasks::Task = a.ap_tasks[idx]
+    let mut s: App = set_status(a, idx, tasks::st_running())
+    s = log(s, "━━━ [" + to_string(idx + 1) + "/" + to_string(n) + "] " + tasks::name_of(t) + " ━━━")
+    s.ap_job = worker::job_start(s.ap_dir, s.ap_pwfile, t, idx)
+    return s
+end
+
+;; Rozliczenie zadania jak w run_standard_task: 0 => Success; błąd + zadanie
+;; opcjonalne => Skipped; błąd + wymagane => Failed.
+fn complete_task(a: App, idx: int, rc: int) -> App is
+    let t: tasks::Task = a.ap_tasks[idx]
+    let name: string = tasks::name_of(t)
+    let mut s: App = a
+    if rc == 0 is
+        s = set_status(s, idx, tasks::st_success())
+        s = log(s, "✓ " + name + " — OK")
+    elsif tasks::is_optional(t) is
+        s = set_status(s, idx, tasks::st_skipped())
+        s = log(s, "⚠ " + name + " — skipped (exit " + to_string(rc) + ")")
+    else is
+        s = set_status(s, idx, tasks::st_failed())
+        s = log(s, "✗ " + name + " — FAILED (exit " + to_string(rc) + ")")
+    end
+    s = log(s, "")
+    return start_task(s, idx + 1)
+end
+
+;; Wołane z pętli zdarzeń TUI: dociąga nowe linie logu i, gdy zadanie się
+;; skończyło, przechodzi do następnego.
+pub fn tick(a: App) -> App is
+    if a.ap_state != s_processing() && a.ap_state != s_confirm() is return a end
+    if !worker::is_active(a.ap_job) is return a end
+    let p: worker::Poll = worker::poll(a.ap_job)
+    let mut s: App = a
+    let mut i: int = 0
+    while i < array_len(p.pl_lines) is
+        s = log(s, p.pl_lines[i])
+        i += 1
+    end
+    s.ap_job = p.pl_job
+    if !p.pl_done is return s end
+    return complete_task(s, s.ap_cur, p.pl_rc)
+end
+
+;; Anulowanie (cancel_current + oznaczenie reszty jako Cancelled).
+fn cancel_all(a: App) -> App is
+    worker::job_kill(a.ap_job)
+    let mut s: App = a
+    let mut ns: [int] = []
+    let mut i: int = 0
+    while i < array_len(a.ap_status) is
+        let st: int = a.ap_status[i]
+        if st == tasks::st_pending() || st == tasks::st_running() is
+            ns = array_push(ns, tasks::st_cancelled())
+        else is
+            ns = array_push(ns, st)
+        end
+        i += 1
+    end
+    s.ap_status = ns
+    s = log(s, ">>> UPDATE CANCELLED BY USER <<<")
+    return finish(s)
+end
+
+;; ── Logowanie (try_login) ───────────────────────────────────────────
+fn try_login(a: App) -> App is
+    let mut s: App = a
+    if s.ap_dir == "" is
+        s.ap_dir = worker::workdir_create()
+    end
+    if s.ap_dir == "" is
+        s.ap_pw = []
+        s.ap_pw_err = "System error: cannot create work directory"
+        return s
+    end
+    s.ap_pwfile = worker::password_write(s.ap_dir, pw_join(a))
+    if worker::sudo_verify(s.ap_pwfile) is
+        s.ap_pw = []
+        s.ap_pw_err = ""
+        s.ap_state = s_processing()
+        return start_task(s, 0)
+    end
+    s.ap_pw = []
+    s.ap_pw_err = "Incorrect password. Try again."
+    return s
+end
+
+;; ── Przewijanie logu ────────────────────────────────────────────────
+;; `h` = wysokość widocznego okna logu. W Rust offset przy auto-scroll był
+;; ustawiany na len-1, przez co pierwsze strzałki w górę "nic nie robiły"
+;; (martwa strefa o wysokości okna). Tu offset liczy się od realnego dołu.
+fn max_scroll(a: App, h: int) -> int is
+    let m: int = array_len(a.ap_logs) - h
+    if m < 0 is return 0 end
+    return m
+end
+
+pub fn top_row(a: App, h: int) -> int is
+    let m: int = max_scroll(a, h)
+    if a.ap_auto is return m end
+    if a.ap_scroll > m is return m end
+    return a.ap_scroll
+end
+
+fn scroll_up(a: App, h: int) -> App is
+    let top: int = top_row(a, h)
+    let mut s: App = a
+    s.ap_auto = false
+    if top > 0 is
+        s.ap_scroll = top - 1
+    else is
+        s.ap_scroll = 0
+    end
+    return s
+end
+
+fn scroll_down(a: App, h: int) -> App is
+    let m: int = max_scroll(a, h)
+    let mut nt: int = top_row(a, h) + 1
+    if nt > m is nt = m end
+    let mut s: App = a
+    s.ap_scroll = nt
+    s.ap_auto = nt >= m
+    return s
+end
+
+fn scroll_home(a: App) -> App is
+    let mut s: App = a
+    s.ap_auto = false
+    s.ap_scroll = 0
+    return s
+end
+
+fn scroll_end(a: App) -> App is
+    let mut s: App = a
+    s.ap_auto = true
+    return s
+end
+
+fn scroll_key(a: App, code: string, h: int) -> App is
+    match code is
+        "Up"   => is return scroll_up(a, h) end
+        "Down" => is return scroll_down(a, h) end
+        "Home" => is return scroll_home(a) end
+        "End"  => is return scroll_end(a) end
+        _      => is end
+    end
+    return a
+end
+
+;; ── Klawisze (handle_*_key) ─────────────────────────────────────────
+;; Klawisze nazwane mold: wszystko inne (też " " i "ż") to zwykły znak.
+fn in_list(list: [string], v: string) -> bool is
+    let mut i: int = 0
+    while i < array_len(list) is
+        if list[i] == v is return true end
+        i += 1
+    end
+    return false
+end
+
+fn is_named_key(code: string) -> bool is
+    return in_list(["Enter", "Esc", "Tab", "BackTab", "Backspace", "Up", "Down", "Left", "Right",
+                      "Home", "End", "PageUp", "PageDown", "Insert", "Delete",
+                      "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"], code)
+end
+
+fn with_exit(a: App, what: string) -> App is
+    let mut s: App = a
+    s.ap_exit = what
+    return s
+end
+
+fn login_key(a: App, code: string, plain: bool) -> App is
+    if code == "Esc" is return with_exit(a, "quit") end
+    if code == "Enter" is
+        if array_len(a.ap_pw) > 0 is return try_login(a) end
+        return a
+    end
+    if code == "Backspace" is return pw_pop(a) end
+    if plain && !is_named_key(code) && string_len(code) > 0 is
+        let mut s: App = a
+        s.ap_pw = array_push(s.ap_pw, code)
+        return s
+    end
+    return a
+end
+
+fn processing_key(a: App, code: string, plain: bool, h: int) -> App is
+    if code == "Esc" || (plain && code == "c") is
+        let mut s: App = a
+        s.ap_state = s_confirm()
+        return s
+    end
+    return scroll_key(a, code, h)
+end
+
+fn finished_key(a: App, code: string, plain: bool, h: int) -> App is
+    if plain && code == "r" is return with_exit(a, "reboot") end
+    if plain && code == "s" is return with_exit(a, "shutdown") end
+    if code == "Esc" || code == "Enter" || (plain && code == "q") is return with_exit(a, "quit") end
+    return scroll_key(a, code, h)
+end
+
+fn confirm_key(a: App, code: string, plain: bool) -> App is
+    if plain && (code == "y" || code == "Y") is
+        return cancel_all(a)
+    end
+    if code == "Esc" || (plain && (code == "n" || code == "N")) is
+        let mut s: App = a
+        s.ap_state = s_processing()
+        return s
+    end
+    return a
+end
+
+;; `ctrl`/`alt` — modyfikatory z mold (KEY_CTRL=2, KEY_ALT=4). Raw mode mold
+;; wyłącza ISIG, więc Ctrl+C przychodzi jako zdarzenie: traktujemy je jak Esc
+;; (w Rust, przez dopasowanie samego 'c', dawało to samo w stanie Processing).
+pub fn on_key(a: App, code: string, ctrl: bool, alt: bool, h: int) -> App is
+    let mut c: string = code
+    if ctrl && code == "c" is c = "Esc" end
+    let plain: bool = !ctrl && !alt
+    if a.ap_state == s_login() is return login_key(a, c, plain) end
+    if a.ap_state == s_processing() is return processing_key(a, c, plain, h) end
+    if a.ap_state == s_finished() is return finished_key(a, c, plain, h) end
+    return confirm_key(a, c, plain)
+end
+
+;; F10 — wyjście bez pytania (zadanie w tle dobiega końca samo, jak w Rust).
+pub fn force_quit(a: App) -> App is
+    return with_exit(a, "quit")
+end
