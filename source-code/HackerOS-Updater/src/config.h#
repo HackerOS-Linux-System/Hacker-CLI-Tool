@@ -1,0 +1,44 @@
+use "std -> fs"      from "fs"
+use "std -> strings" from "str"
+
+;; config.h# — wykrywanie edycji HackerOS (config.rs: detect_variant).
+;;
+;; Rust miał `enum Variant`. Tu wariant to krótki napis — ten sam wzorzec co
+;; `phase.h#` w apt-frontend (liczby/napisy + funkcje zamiast stałych, bo stałe
+;; z innego modułu nie są pewne po spłaszczeniu `mod`).
+
+pub fn distro_rc() -> string is
+    return "/etc/xdg/kcm-about-distrorc"
+end
+
+pub fn v_standard()      -> string is return "Standard"      end
+pub fn v_atomic()        -> string is return "Atomic"        end
+pub fn v_cybersecurity() -> string is return "Cybersecurity" end
+pub fn v_blue()          -> string is return "Blue"          end
+pub fn v_gaming()        -> string is return "Gaming"        end
+
+;; Szuka linii `Variant=<wartość>` w kcm-about-distrorc. Official / LTS / Hydra /
+;; Gnome / Xfce / NVIDIA oraz brak pliku => Standard (jak w oryginale).
+pub fn detect_variant() -> string is
+    let path: string = distro_rc()
+    if !fs::exists(path) is
+        return v_standard()
+    end
+    let lines: [string] = fs::read_lines(path)
+    let mut i: int = 0
+    while i < lines.len() is
+        let line: string = str::trim(lines[i])
+        if line.starts_with("Variant=") is
+            let value: string = str::trim(str::remove_prefix(line, "Variant="))
+            match value is
+                "Atomic Edition"        => is return v_atomic() end
+                "Cybersecurity Edition" => is return v_cybersecurity() end
+                "Blue Edition"          => is return v_blue() end
+                "Gaming Edition"        => is return v_gaming() end
+                _                       => is return v_standard() end
+            end
+        end
+        i += 1
+    end
+    return v_standard()
+end
