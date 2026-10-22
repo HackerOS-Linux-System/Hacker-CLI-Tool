@@ -1,0 +1,103 @@
+use "hlib -> mold" from "mold"
+use "std -> env"   from "env"
+
+mod config
+mod shell
+mod tasks
+mod worker
+mod app
+mod ui
+mod headless
+
+;; main.h# — punkt wejścia HackerOS Updater (main.rs).
+;;
+;;   hackeros-updater              TUI (mold), jeśli stdin/stdout to terminal
+;;   hackeros-updater              bez terminala => tryb headless (log w /tmp)
+;;   hackeros-updater --with-gui   otwiera siebie w oknie alacritty i wraca
+;;
+;; Pętla zdarzeń odpowiada `run_app` z Rust: rysuj -> przetwórz zdarzenia z
+;; zadań -> poczekaj do 40 ms na klawisz. Zdarzenia z zadań przynosi
+;; `app::tick` (patrz app.h#), bo H# nie ma wątków ani kanałów.
+
+fn has_arg(args: [string], flag: string) -> bool is
+    let mut i: int = 1
+    while i < array_len(args) is
+        if args[i] == flag is return true end
+        i += 1
+    end
+    return false
+end
+
+;; Jak `--with-gui` w Rust: alacritty -e <ten sam plik> (odłączone od terminala).
+;; true => okno uruchomione, kończymy. Gdy nie da się ustalić ścieżki — bez GUI.
+fn launch_gui() -> bool is
+    let exe: string = shell::self_exe()
+    if exe == "" is return false end
+    shell::run_ok("alacritty -e " + shell::sq(exe) + " >/dev/null 2>&1 </dev/null &")
+    return true
+end
+
+;; Odpytywanie plików zadań co ~150 ms zamiast co klatkę (40 ms) — każde
+;; odpytanie to kilka krótkich procesów (wc/tail), więc oszczędzamy CPU.
+fn poll_interval_ms() -> int is return 150 end
+
+fn run_tui() is
+    let variant: string = config::detect_variant()
+    let mut a: app::App = app::new(variant)
+
+    let term: mold::Terminal = mold::terminal_init()
+    let mut running: bool = true
+    let mut last_poll: int = time_ms()
+
+    while running is
+        let rows: int = ui::draw(term, a)
+        let log_h: int = ui::log_height(rows)
+
+        let ev: mold::Event = mold::event_poll(40)
+        if ev.kind == "key" is
+            let ctrl: bool = mold::mods_has(ev.mods, 2)
+            let alt: bool  = mold::mods_has(ev.mods, 4)
+            if mold::event_is_key(ev, "F10") is
+                a = app::force_quit(a)
+            else is
+                a = app::on_key(a, ev.code, ctrl, alt, log_h)
+            end
+        elsif ev.kind == "eof" is
+            a = app::force_quit(a)
+        end
+
+        let now: int = time_ms()
+        if now - last_poll >= poll_interval_ms() is
+            a = app::tick(a)
+            last_poll = time_ms()
+        end
+
+        if app::exit_request(a) != "" is
+            running = false
+        end
+    end
+
+    ;; ZAWSZE przywróć terminal (README mold) — dopiero potem polecenia systemowe.
+    mold::terminal_restore(term)
+
+    let what: string = app::exit_request(a)
+    if (what == "reboot" || what == "shutdown") && app::pw_file(a) != "" is
+        worker::sudo_power(app::pw_file(a), what)
+    end
+    worker::cleanup(app::work_dir(a))
+end
+
+fn main() is
+    let args: [string] = env::args()
+
+    if has_arg(args, "--with-gui") is
+        if launch_gui() is return end
+    end
+
+    if !shell::is_tty_session() is
+        headless::run()
+        return
+    end
+
+    run_tui()
+end
