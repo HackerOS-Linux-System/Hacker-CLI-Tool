@@ -1,0 +1,218 @@
+mod shell
+mod tasks
+
+use "std -> fs" from "fs"
+
+;; worker.h# — uruchamianie zadań w tle z odczytem na żywo (worker.rs).
+;;
+;; Rust robił to wątkami: `Command::spawn` + po wątku na stdout i stderr, kanał
+;; mpsc do UI. H# nie ma wątków, więc używamy wzorca z apt-frontend/runner.h# i
+;; bit/src/task.h#:
+;;
+;;   1. zadanie dostaje swój mały skrypt `job.sh` w katalogu roboczym,
+;;   2. skrypt działa w TLE (nowa sesja przez setsid), stdout -> `out`,
+;;      stderr -> `err`, kod wyjścia -> `rc` (zapis atomowy: rc.tmp -> rc),
+;;   3. pętla zdarzeń TUI co kilka klatek woła `poll()`, który czyta TYLKO nowe
+;;      linie obu plików. Interfejs nigdy nie blokuje się na zadaniu.
+;;
+;; Hasło sudo: nigdy w argumentach procesu (widocznych w `ps`). Trafia do pliku
+;; `pw` (katalog 0700, plik 0600), a zadania sudo dostają go na stdin:
+;; `sudo -S -p '' ... < pw`. Katalog znika przy wyjściu (`cleanup`).
+
+;; Pola z prefiksem jb_/pl_/ck_ — patrz uwaga o kolizjach nazw w tasks.h#.
+pub struct Job is
+    pub jb_active:   bool
+    pub jb_tdir:     string    ;; katalog zadania (job.sh, out, err, rc, pid)
+    pub jb_seen_out: int       ;; ile linii stdout już przekazano do logu
+    pub jb_seen_err: int
+end
+
+pub struct Poll is
+    pub pl_lines: [string]
+    pub pl_done:  bool
+    pub pl_rc:    int
+    pub pl_job:   Job
+end
+
+struct Chunk is
+    ck_lines: [string]
+    ck_seen:  int
+end
+
+pub fn job_none() -> Job is
+    return Job { jb_active: false, jb_tdir: "", jb_seen_out: 0, jb_seen_err: 0 }
+end
+
+pub fn is_active(j: Job) -> bool is return j.jb_active end
+
+;; ── Katalog roboczy i hasło ─────────────────────────────────────────
+pub fn workdir_create() -> string is
+    return shell::capture("umask 077; mktemp -d /tmp/hackeros-updater.XXXXXX")
+end
+
+;; Zapisuje hasło do `<dir>/pw` (0600). Zwraca ścieżkę albo "" przy błędzie.
+pub fn password_write(dir: string, pw: string) -> string is
+    if dir == "" is return "" end
+    let path: string = dir + "/pw"
+    fs::write(path, pw + "\n")
+    shell::run_ok("chmod 600 " + shell::sq(path))
+    return path
+end
+
+;; `sudo -S -v` — jak try_login w app.rs; hasło z pliku, nie z argv.
+pub fn sudo_verify(pwfile: string) -> bool is
+    return shell::run_ok("sudo -S -p '' -v < " + shell::sq(pwfile) + " >/dev/null 2>&1")
+end
+
+;; reboot / shutdown po zakończeniu (klawisze R / S na ekranie końcowym).
+pub fn sudo_power(pwfile: string, verb: string) is
+    let cmd: string = if verb == "reboot" then "reboot" else "shutdown -h now"
+    shell::run_ok("sudo -S -p '' " + cmd + " < " + shell::sq(pwfile) + " >/dev/null 2>&1")
+end
+
+pub fn cleanup(dir: string) is
+    if dir != "" && string_starts_with(dir, "/tmp/hackeros-updater.") is
+        shell::run_ok("rm -rf " + shell::sq(dir))
+    end
+end
+
+;; ── Start zadania ───────────────────────────────────────────────────
+fn run_line(t: tasks::Task, pwfile: string) -> string is
+    let body: string = if tasks::is_hnm(t) then tasks::hnm_script() else tasks::command_of(t)
+    let buf: string = if shell::tool_exists("stdbuf") then "stdbuf -oL -eL " else ""
+    if tasks::is_sudo(t) is
+        return "sudo -S -p '' " + buf + "bash -c " + shell::sq(body) + " < " + shell::sq(pwfile)
+    end
+    return buf + "bash -c " + shell::sq(body) + " < /dev/null"
+end
+
+pub fn job_start(dir: string, pwfile: string, t: tasks::Task, idx: int) -> Job is
+    let tdir: string = dir + "/t" + to_string(idx)
+    shell::run_ok("mkdir -p " + shell::sq(tdir))
+
+    let script: string = "#!/bin/sh\n" +
+        "echo $$ > " + shell::sq(tdir + "/pid") + "\n" +
+        run_line(t, pwfile) + " > " + shell::sq(tdir + "/out") + " 2> " + shell::sq(tdir + "/err") + "\n" +
+        "echo $? > " + shell::sq(tdir + "/rc.tmp") + "\n" +
+        "mv " + shell::sq(tdir + "/rc.tmp") + " " + shell::sq(tdir + "/rc") + "\n"
+    let jobsh: string = tdir + "/job.sh"
+    fs::write(jobsh, script)
+
+    ;; setsid: nowa grupa procesów, żeby anulowanie ubiło całe drzewo zadania.
+    let launch: string = "( if command -v setsid >/dev/null 2>&1; then setsid sh " + shell::sq(jobsh) +
+                         "; else sh " + shell::sq(jobsh) + "; fi ) >/dev/null 2>&1 </dev/null &"
+    shell::run_ok(launch)
+    return Job { jb_active: true, jb_tdir: tdir, jb_seen_out: 0, jb_seen_err: 0 }
+end
+
+;; ── Odczyt nowych linii ─────────────────────────────────────────────
+;; Usuwa sekwencje ANSI i czyści linię na '\r' (strip_ansi z ui.rs) — jednym
+;; `sed` na cały kawałek, a nie procesem na linię.
+fn sanitize_pipe() -> string is
+    return " | sed -e 's/\x1b\\[[0-9;?]*[a-zA-Z]//g' -e 's/.*\r//'"
+end
+
+fn count_lines(path: string) -> int is
+    let t: string = string_trim(shell("wc -l < " + shell::sq(path) + " 2>/dev/null"))
+    if t == "" is return 0 end
+    return str_to_int(t)
+end
+
+;; Nowe linie pliku po pierwszych `seen`. `last` = zadanie skończone, więc
+;; bierzemy też ostatnią linię bez końcowego "\n".
+fn read_new(path: string, seen: int, last: bool) -> Chunk is
+    let mut out: [string] = []
+    if !file_exists(path) is
+        return Chunk { ck_lines: out, ck_seen: seen }
+    end
+    let from: string = "tail -n +" + to_string(seen + 1) + " " + shell::sq(path) + " 2>/dev/null"
+
+    if last is
+        let txt: string = shell(from + sanitize_pipe())
+        if txt == "" is
+            return Chunk { ck_lines: out, ck_seen: seen }
+        end
+        let parts: [string] = string_split(txt, "\n")
+        let mut n: int = array_len(parts)
+        if n > 0 is
+            if parts[n - 1] == "" is n -= 1 end
+        end
+        let mut i: int = 0
+        while i < n is
+            out = array_push(out, parts[i])
+            i += 1
+        end
+        return Chunk { ck_lines: out, ck_seen: seen + n }
+    end
+
+    let total: int = count_lines(path)
+    if total <= seen is
+        return Chunk { ck_lines: out, ck_seen: seen }
+    end
+    let want: int = total - seen
+    let txt: string = shell(from + " | head -n " + to_string(want) + sanitize_pipe())
+    let parts: [string] = string_split(txt, "\n")
+    let mut i: int = 0
+    while i < want is
+        if i < array_len(parts) is
+            out = array_push(out, parts[i])
+        else is
+            out = array_push(out, "")
+        end
+        i += 1
+    end
+    return Chunk { ck_lines: out, ck_seen: total }
+end
+
+fn is_sudo_noise(l: string) -> bool is
+    return string_contains(l, "[sudo] password") || string_contains(l, "password for")
+end
+
+;; Jeden krok pętli UI: nowe linie stdout (bez prefiksu) i stderr (prefiks
+;; "[stderr] ", bez linii z monitem sudo — jak w worker.rs) oraz informacja,
+;; czy zadanie się skończyło i z jakim kodem.
+pub fn poll(j: Job) -> Poll is
+    let mut lines: [string] = []
+    if !j.jb_active is
+        return Poll { pl_lines: lines, pl_done: false, pl_rc: 0, pl_job: j }
+    end
+
+    ;; rc sprawdzamy PIERWSZY: pojawia się dopiero po zakończeniu zadania, więc
+    ;; wszystko, co zadanie napisało, jest już w plikach.
+    let rcf: string = j.jb_tdir + "/rc"
+    let done: bool = file_exists(rcf)
+
+    let o: Chunk = read_new(j.jb_tdir + "/out", j.jb_seen_out, done)
+    let e: Chunk = read_new(j.jb_tdir + "/err", j.jb_seen_err, done)
+
+    let mut i: int = 0
+    while i < array_len(o.ck_lines) is
+        lines = array_push(lines, o.ck_lines[i])
+        i += 1
+    end
+    i = 0
+    while i < array_len(e.ck_lines) is
+        if !is_sudo_noise(e.ck_lines[i]) is
+            lines = array_push(lines, "[stderr] " + e.ck_lines[i])
+        end
+        i += 1
+    end
+
+    let mut rc: int = 0
+    if done is
+        let t: string = string_trim(file_read(rcf))
+        if t != "" is rc = str_to_int(t) end
+    end
+
+    let nj: Job = Job { jb_active: !done, jb_tdir: j.jb_tdir, jb_seen_out: o.ck_seen, jb_seen_err: e.ck_seen }
+    return Poll { pl_lines: lines, pl_done: done, pl_rc: rc, pl_job: nj }
+end
+
+;; SIGTERM do całej grupy zadania (cancel_current w app.rs).
+pub fn job_kill(j: Job) is
+    if !j.jb_active is return end
+    let pid: string = string_trim(file_read(j.jb_tdir + "/pid"))
+    if pid != "" is
+        shell::run_ok("kill -TERM -- -" + pid + " 2>/dev/null || kill -TERM " + pid + " 2>/dev/null")
+    end
+end
