@@ -1,19 +1,31 @@
 [package]
-name = "HackerOS-Updater"
-version = "2.4.2"
-edition = "2021"
+-> name        => HackerOS-Updater
+-> version     => 2.4.3
+-> description => "HackerOS Updater — TUI na bibliotece mold (H# + bit + hlib)"
+-> authors     => ["HackerOS Team <hackeros068@gmail.com>"]
+-> license     => GPL-3.0
+-> lang        => h#
 
-[[bin]]
-name = "HackerOS-Updater"
-path = "src/main.rs"
+[edition]
+-> edition   => 2026
+-> toolchain => 0.9
+
+[layout]
+-> src => src
+
+[build]
+-> link => static
+
+[default-build]
+-> profile => release
 
 [dependencies]
-ratatui = "0.28"
-crossterm = "0.28"
-anyhow = "1.0"
-libc = "0.2"
+-> mold => newest
 
-[profile.release]
-opt-level = 3
-strip = true
-lto = true
+[commands]
+-> check
+--> run => find src -name '*.h#' -print0 | xargs -0 h# check
+--> description => Type-check every module
+-> build-release
+--> run => mkdir -p ../../cache/build/release && bit build --release
+--> description => Static release build of HackerOS-Updater
