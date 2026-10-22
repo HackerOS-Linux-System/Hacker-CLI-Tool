@@ -1,0 +1,138 @@
+pub fn hackeros_update_script()  -> string is return "/usr/share/HackerOS/Scripts/Bin/update-hackeros.hl"  end
+pub fn wallpapers_update_script() -> string is return "/usr/share/HackerOS/Scripts/Bin/update-wallpapers.hl" end
+
+;; ── Status zadania (enum TaskStatus) ────────────────────────────────
+pub fn st_pending()   -> int is return 0 end
+pub fn st_running()   -> int is return 1 end
+pub fn st_success()   -> int is return 2 end
+pub fn st_failed()    -> int is return 3 end
+pub fn st_skipped()   -> int is return 4 end
+pub fn st_cancelled() -> int is return 5 end
+
+;; Pola z prefiksem tk_ (kolizje nazw pól między structami różnych modułów).
+pub struct Task is
+    pub tk_name:     string
+    pub tk_command:  string    ;; polecenie powłoki ("" dla zadania hnm)
+    pub tk_sudo:     bool
+    pub tk_optional: bool
+    pub tk_hnm:      bool      ;; HackerOS Nix Manager — wieloetapowa logika hnm
+end
+
+fn mk(name: string, command: string, sudo: bool, optional: bool, hnm: bool) -> Task is
+    return Task { tk_name: name, tk_command: command, tk_sudo: sudo, tk_optional: optional, tk_hnm: hnm }
+end
+
+;; ── Pojedyncze zadania ──────────────────────────────────────────────
+fn apt_task() -> Task is
+    let cmd: string = "DEBIAN_FRONTEND=noninteractive apt-get update -qq && " +
+                      "DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y " +
+                      "-o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' && " +
+                      "apt-get autoremove -y && apt-get autoclean -y"
+    return mk("System Update (APT)", cmd, true, false, false)
+end
+
+fn flatpak_task() -> Task is
+    return mk("Flatpak Update", "flatpak update -y --noninteractive", false, true, false)
+end
+
+fn snap_task() -> Task is
+    return mk("Snap Updates", "snap refresh", true, true, false)
+end
+
+fn brew_task() -> Task is
+    let cmd: string = "if command -v brew &>/dev/null; then brew update && brew upgrade && brew cleanup; else echo \"Brew not found, skipping.\"; fi"
+    return mk("Brew Updates", cmd, false, true, false)
+end
+
+fn firmware_task() -> Task is
+    return mk("Firmware Update", "fwupdmgr refresh --force; fwupdmgr update --no-reboot-check", true, true, false)
+end
+
+fn omz_task() -> Task is
+    let cmd: string = "if [ -d \"$HOME/.oh-my-zsh\" ]; then zsh -c 'source \"$HOME/.zshrc\" 2>/dev/null; omz update --unattended 2>&1 || true'; else echo \"Oh-My-Zsh not found, skipping.\"; fi"
+    return mk("Zsh / Oh-My-Zsh Update", cmd, false, true, false)
+end
+
+fn distrobox_task() -> Task is
+    return mk("Distrobox Update", "distrobox-upgrade --all 2>&1 || true", false, true, false)
+end
+
+fn hnm_task() -> Task is
+    return mk("HackerOS Nix Manager", "", false, true, true)
+end
+
+fn hackeros_update_task() -> Task is
+    return mk("HackerOS Update", "/usr/bin/hl run " + hackeros_update_script(), false, false, false)
+end
+
+fn wallpapers_task() -> Task is
+    return mk("Wallpapers Update", "/usr/bin/hl run " + wallpapers_update_script(), false, true, false)
+end
+
+fn hammer_task() -> Task is
+    return mk("Hammer Updates", "hammer update && hammer upgrade -y", false, false, false)
+end
+
+fn cybersecurity_task() -> Task is
+    return mk("Cybersecurity Updates", "cybersecurity-cli update-all", false, true, false)
+end
+
+fn blue_task() -> Task is
+    return mk("Blue Updates", "blue update", false, true, false)
+end
+
+fn gaming_task() -> Task is
+    return mk("Gaming Updates", "gaming-cli update", false, true, false)
+end
+
+;; Skrypt zadania hnm (run_hnm_task): check -> [unpack, gdy "NOT FOUND"] -> update
+;; -> upgrade. Jak w oryginale: brak hnm = pominięcie (kod 127 => Skipped, bo
+;; zadanie jest opcjonalne), a kody podkomend hnm są ignorowane (zawsze exit 0).
+;; Bez nawiasów klamrowych — w napisach H# `{...}` to interpolacja.
+pub fn hnm_script() -> string is
+    return "if ! command -v hnm >/dev/null 2>&1; then echo \"⚠ hnm not available, skipping.\"; exit 127; fi\n" +
+           "OUT=$(hnm check 2>&1)\n" +
+           "printf '%s\\n' \"$OUT\"\n" +
+           "case \"$OUT\" in *\"NOT FOUND\"*) echo \"[hnm] Nix not found — running hnm unpack...\"; echo \"[hnm] Running: hnm unpack\"; hnm unpack;; esac\n" +
+           "echo \"[hnm] Running: hnm update\"\n" +
+           "hnm update\n" +
+           "echo \"[hnm] Running: hnm upgrade\"\n" +
+           "hnm upgrade\n" +
+           "exit 0\n"
+end
+
+;; ── Listy per edycja ────────────────────────────────────────────────
+fn standard_tasks() -> [Task] is
+    return [apt_task(), flatpak_task(), snap_task(), brew_task(), firmware_task(),
+            omz_task(), distrobox_task(), hnm_task(), hackeros_update_task(), wallpapers_task()]
+end
+
+;; Atomic: Hammer zamiast APT; bez Snap, HackerOS Update i Wallpapers.
+fn atomic_tasks() -> [Task] is
+    return [hammer_task(), flatpak_task(), brew_task(), firmware_task(),
+            omz_task(), distrobox_task(), hnm_task()]
+end
+
+;; Cybersecurity / Blue / Gaming: standard + zadanie edycji tuż po hnm.
+fn edition_tasks(extra: Task) -> [Task] is
+    return [apt_task(), flatpak_task(), snap_task(), brew_task(), firmware_task(),
+            omz_task(), distrobox_task(), hnm_task(), extra, hackeros_update_task(), wallpapers_task()]
+end
+
+pub fn build_tasks(variant: string) -> [Task] is
+    match variant is
+        "Atomic"        => is return atomic_tasks() end
+        "Cybersecurity" => is return edition_tasks(cybersecurity_task()) end
+        "Blue"          => is return edition_tasks(blue_task()) end
+        "Gaming"        => is return edition_tasks(gaming_task()) end
+        _               => is end
+    end
+    return standard_tasks()
+end
+
+;; Akcesory (pola są pub, ale reszta kodu woli funkcje — wzorzec z bit/src).
+pub fn name_of(t: Task)     -> string is return t.tk_name end
+pub fn command_of(t: Task)  -> string is return t.tk_command end
+pub fn is_sudo(t: Task)     -> bool   is return t.tk_sudo end
+pub fn is_optional(t: Task) -> bool   is return t.tk_optional end
+pub fn is_hnm(t: Task)      -> bool   is return t.tk_hnm end
