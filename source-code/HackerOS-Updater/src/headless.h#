@@ -1,0 +1,41 @@
+mod config
+mod shell
+mod tasks
+
+use "std -> fs" from "fs"
+
+;; headless.h# — tryb bez terminala (worker::run_headless w Rust).
+;; Uruchamiane z systemd/cron/skryptu: wszystkie zadania po kolei, log do
+;; /tmp/hackeros-updater.log. Zadania sudo idą przez `sudo -n` (bez hasła —
+;; wymaga uprawnień NOPASSWD albo ważnego biletu sudo), tak jak w oryginale.
+
+pub fn log_path() -> string is return "/tmp/hackeros-updater.log" end
+
+pub fn run() is
+    let variant: string = config::detect_variant()
+    let ts: [tasks::Task] = tasks::build_tasks(variant)
+    let log: string = log_path()
+
+    fs::write(log, "=== HackerOS Updater (headless mode) ===\nDetected variant: " + variant + "\n")
+
+    let mut i: int = 0
+    while i < array_len(ts) is
+        let t: tasks::Task = ts[i]
+        fs::append(log, "--- " + tasks::name_of(t) + " ---\n")
+
+        let body: string = if tasks::is_hnm(t) then tasks::hnm_script() else tasks::command_of(t)
+        let runner: string = if tasks::is_sudo(t) then "sudo -n bash -c " else "bash -c "
+        ;; Wyjście idzie prosto do pliku logu (nie przez pipe — `proc_run_cmd`
+        ;; blokowałby się na dużym wyjściu apt).
+        let full: string = runner + shell::sq(body) + " >> " + shell::sq(log) + " 2>&1 < /dev/null"
+        let r: ProcResult = proc_run_cmd(full, 0)
+        if r.exit_code == 0 is
+            fs::append(log, "OK\n")
+        else is
+            fs::append(log, "FAILED (exit " + to_string(r.exit_code) + ")\n")
+        end
+        i += 1
+    end
+
+    fs::append(log, "=== Done ===\n")
+end
