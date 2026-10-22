@@ -1,0 +1,296 @@
+use "hlib -> mold" from "mold"
+
+mod tasks
+mod app
+
+;; ui.h# — rysowanie (ui.rs). JEDYNY plik, który zna bibliotekę mold.
+;;
+;; mold wchodzi wyłącznie przez `use "hlib -> mold" from "mold"` — bez żadnego
+;; `extern`. Wołamy ją tak, jak opisują jej twórcy (README mold, "Szybki start"):
+;; pętla `terminal_begin` -> `render_*(term.buffer, widget, area)` ->
+;; `terminal_end`. Od ratatui różni się tym, że zamiast `terminal.draw(|f| ..)`
+;; jest właśnie ta pętla (mold nie ma closures).
+;;
+;; Widgety budujemy buildrami `*_with_*` (zwracają kopię) — pasuje do stylu
+;; funkcyjnego H#, w którym `let` jest niemutowalne. Wartości kolorów/ramek to
+;; liczby z lib/style.hcs, lib/widget_block.hcs i lib/text.hcs mold; trzymamy
+;; je tu jako funkcje (jak reszta projektu), żeby nie zależeć od tego, jak
+;; kompilator nazywa stałe z zaimportowanej biblioteki.
+
+;; ── Paleta (motyw z tasks.rs: COLOR_*) ──────────────────────────────
+fn c_none()    -> int is return 0  end   ;; COLOR_NONE  (dziedzicz — COLOR_BG: Color::Reset)
+fn c_black()   -> int is return 2  end
+fn c_red()     -> int is return 3  end   ;; COLOR_ERROR
+fn c_green()   -> int is return 4  end   ;; COLOR_SUCCESS
+fn c_yellow()  -> int is return 5  end   ;; COLOR_FOCUS / COLOR_WARN
+fn c_magenta() -> int is return 7  end   ;; COLOR_ACCENT
+fn c_dim()     -> int is return 10 end   ;; COLOR_DARK_GRAY — COLOR_TEXT_DIM
+fn c_white()   -> int is return 17 end   ;; COLOR_WHITE     — COLOR_TEXT_MAIN
+
+fn m_bold()    -> int is return 1  end   ;; MOD_BOLD
+
+fn b_bottom()  -> int is return 4  end   ;; BORDER_BOTTOM
+fn bt_rounded() -> int is return 1 end   ;; BORDER_ROUNDED
+fn bt_thick()  -> int is return 3  end   ;; BORDER_THICK
+fn a_center()  -> int is return 1  end   ;; ALIGN_CENTER
+
+fn st(fg: int, mods: int) -> mold::Style is
+    return mold::style_of(fg, c_none(), mods)
+end
+
+;; ── Klocki ──────────────────────────────────────────────────────────
+;; Ramka z tytułem; `style` obejmuje ramkę i tytuł (Block::style w ratatui).
+fn framed(title: string, btype: int, color: int) -> mold::Block is
+    let b: mold::Block = mold::block_bordered()
+    let b2: mold::Block = mold::block_with_title(b, title)
+    let b3: mold::Block = mold::block_with_border_type(b2, btype)
+    return mold::block_with_style(b3, st(color, 0))
+end
+
+;; Tekst w jednym wierszu/obszarze. `align` 0 = lewo, 1 = środek.
+fn put(term: mold::Terminal, text: string, style: mold::Style, align: int, area: mold::Rect) is
+    let p: mold::Paragraph = mold::paragraph_from_str(text)
+    let p2: mold::Paragraph = mold::paragraph_with_style(p, style)
+    let p3: mold::Paragraph = mold::paragraph_with_align(p2, align)
+    mold::render_paragraph(term.buffer, p3, area)
+end
+
+;; ── Nagłówek i stopka ───────────────────────────────────────────────
+fn render_header(term: mold::Terminal, area: mold::Rect) is
+    let b0: mold::Block = mold::block_bordered()
+    let b1: mold::Block = mold::block_with_borders(b0, b_bottom())
+    let b2: mold::Block = mold::block_with_border_style(b1, st(c_dim(), 0))
+    let p: mold::Paragraph = mold::paragraph_from_str(" ⬡  HackerOS Updater  ⬡ ")
+    let p2: mold::Paragraph = mold::paragraph_with_style(p, st(c_magenta(), m_bold()))
+    let p3: mold::Paragraph = mold::paragraph_with_align(p2, a_center())
+    let p4: mold::Paragraph = mold::paragraph_with_block(p3, b2)
+    mold::render_paragraph(term.buffer, p4, area)
+end
+
+fn footer_text(state: int) -> string is
+    if state == app::s_login() is
+        return "  Enter: Authenticate  │  Esc: Quit  │  F10: Force Quit  "
+    end
+    if state == app::s_processing() is
+        return "  ↑↓: Scroll  │  Home/End: Jump  │  C/Esc: Cancel  │  F10: Force Quit  "
+    end
+    if state == app::s_finished() is
+        return "  ↑↓: Scroll  │  R: Reboot  │  S: Shutdown  │  Q/Enter: Quit  "
+    end
+    return "  Y: Confirm Cancel  │  N/Esc: Resume  "
+end
+
+fn render_footer(term: mold::Terminal, area: mold::Rect, a: app::App) is
+    put(term, footer_text(app::state_of(a)), st(c_dim(), 0), a_center(), area)
+end
+
+;; ── Logowanie ───────────────────────────────────────────────────────
+fn render_login(term: mold::Terminal, area: mold::Rect, a: app::App) is
+    let popup: mold::Rect = mold::rect_centered_percent(area, 60, 50)
+    mold::render_clear(term.buffer, popup)
+
+    let blk: mold::Block = mold::block_with_title_align(framed(" [ Security Verification ] ", bt_thick(), c_magenta()), a_center())
+    mold::render_block(term.buffer, blk, popup)
+
+    let inner: [mold::Rect] = mold::layout_split(popup, false,
+        [mold::constraint_length(1), mold::constraint_length(3), mold::constraint_length(3), mold::constraint_min(1)], 2, 0)
+
+    put(term, "Root privileges are required.\nEnter your sudo password to begin.", st(c_white(), 0), a_center(), inner[1])
+
+    let mut stars: string = ""
+    let n: int = app::pw_len(a)
+    let mut i: int = 0
+    while i < n is
+        stars = stars + "●"
+        i += 1
+    end
+    let field: mold::Block = framed(" Password ", bt_rounded(), c_yellow())
+    let p: mold::Paragraph = mold::paragraph_from_str(stars + "_")
+    let p2: mold::Paragraph = mold::paragraph_with_style(p, st(c_magenta(), m_bold()))
+    let p3: mold::Paragraph = mold::paragraph_with_align(p2, a_center())
+    let p4: mold::Paragraph = mold::paragraph_with_block(p3, field)
+    mold::render_paragraph(term.buffer, p4, inner[2])
+
+    let err: string = app::pw_error(a)
+    if err != "" is
+        put(term, "⚠ " + err, st(c_red(), 0), a_center(), inner[3])
+    end
+end
+
+;; ── Dashboard ───────────────────────────────────────────────────────
+fn status_icon(s: int) -> string is
+    if s == tasks::st_running()   is return "  ▶  " end
+    if s == tasks::st_success()   is return "  ✓  " end
+    if s == tasks::st_failed()    is return "  ✗  " end
+    if s == tasks::st_skipped()   is return "  ⚠  " end
+    if s == tasks::st_cancelled() is return "  ⊘  " end
+    return "  ○  "
+end
+
+fn icon_color(s: int) -> int is
+    if s == tasks::st_running() is return c_magenta() end
+    if s == tasks::st_success() is return c_green() end
+    if s == tasks::st_failed()  is return c_red() end
+    if s == tasks::st_skipped() is return c_yellow() end
+    return c_dim()
+end
+
+;; Kolor nazwy: Running = biały + bold (jak w ui.rs), reszta jak ikona.
+fn name_color(s: int) -> int is
+    if s == tasks::st_running() is return c_white() end
+    return icon_color(s)
+end
+
+fn count_done(statuses: [int]) -> int is
+    let mut n: int = 0
+    let mut i: int = 0
+    while i < array_len(statuses) is
+        let s: int = statuses[i]
+        if s == tasks::st_success() || s == tasks::st_failed() || s == tasks::st_skipped() || s == tasks::st_cancelled() is
+            n += 1
+        end
+        i += 1
+    end
+    return n
+end
+
+fn count_failed(statuses: [int]) -> int is
+    let mut n: int = 0
+    let mut i: int = 0
+    while i < array_len(statuses) is
+        if statuses[i] == tasks::st_failed() is n += 1 end
+        i += 1
+    end
+    return n
+end
+
+fn progress_label(done: int, total: int, failed: int, percent: int) -> string is
+    let frac: string = " " + to_string(done) + "/" + to_string(total)
+    if failed > 0 is
+        return frac + " — " + to_string(failed) + " failed "
+    end
+    return frac + " (" + to_string(percent) + "%) "
+end
+
+fn render_progress(term: mold::Terminal, area: mold::Rect, a: app::App) is
+    let sts: [int] = app::status_of(a)
+    let done: int = count_done(sts)
+    let total: int = array_len(sts)
+    let failed: int = count_failed(sts)
+    let mut percent: int = 0
+    if total > 0 is percent = (done * 100) / total end
+
+    let label: string = progress_label(done, total, failed, percent)
+    let color: int = if failed > 0 then c_red() else c_magenta()
+
+    let g0: mold::Gauge = mold::gauge_new()
+    let g1: mold::Gauge = mold::gauge_with_percent(g0, percent)
+    let g2: mold::Gauge = mold::gauge_with_label(g1, label)
+    let g3: mold::Gauge = mold::gauge_with_gauge_style(g2, mold::style_of(color, c_black(), 0))
+    let g4: mold::Gauge = mold::gauge_with_block(g3, framed(" Total Progress ", bt_rounded(), c_dim()))
+    mold::render_gauge(term.buffer, g4, area)
+end
+
+fn render_tasks(term: mold::Terminal, area: mold::Rect, a: app::App) is
+    let blk: mold::Block = framed(" Tasks ", bt_rounded(), c_magenta())
+    mold::render_block(term.buffer, blk, area)
+    let inner: mold::Rect = mold::block_inner(blk, area)
+
+    let ts: [tasks::Task] = app::tasks_of(a)
+    let sts: [int] = app::status_of(a)
+    let mut i: int = 0
+    while i < array_len(ts) && i < inner.height is
+        let s: int = sts[i]
+        let icon_area: mold::Rect = mold::rect_new(inner.x, inner.y + i, 5, 1)
+        let name_area: mold::Rect = mold::rect_new(inner.x + 5, inner.y + i, inner.width - 5, 1)
+        put(term, status_icon(s), st(icon_color(s), 0), 0, icon_area)
+        let mods: int = if s == tasks::st_running() then m_bold() else 0
+        put(term, tasks::name_of(ts[i]), st(name_color(s), mods), 0, name_area)
+        i += 1
+    end
+end
+
+;; Kolor linii logu — ta sama kolejność reguł co w ui.rs.
+fn log_color(l: string) -> int is
+    if string_contains(l, "✗") || string_contains(l, "FAILED") || string_contains(l, "[stderr]") is return c_red() end
+    if string_contains(l, "✓") && string_contains(l, "OK") is return c_green() end
+    if string_contains(l, "⚠") || string_contains(l, "skipped") is return c_yellow() end
+    if string_starts_with(l, "━━━") || string_starts_with(l, "══") is return c_magenta() end
+    return c_white()
+end
+
+fn log_mods(l: string) -> int is
+    if string_starts_with(l, "━━━") || string_starts_with(l, "══") is return m_bold() end
+    return 0
+end
+
+;; Wysokość okna logu dla terminala o `rows` wierszach: margines 1 (2 wiersze),
+;; nagłówek 3 + stopka 3, pasek postępu 3, ramka logu 2. Używa jej też main.h#
+;; do klawiszy przewijania — dlatego jedna funkcja.
+pub fn log_height(rows: int) -> int is
+    let h: int = rows - 13
+    if h < 1 is return 1 end
+    return h
+end
+
+fn render_log(term: mold::Terminal, area: mold::Rect, a: app::App, rows: int) is
+    mold::render_clear(term.buffer, area)
+    let title: string = if app::is_auto(a) then " Execution Log [auto-scroll] " else " Execution Log [↑↓ scroll] "
+    let blk: mold::Block = framed(title, bt_rounded(), c_dim())
+    mold::render_block(term.buffer, blk, area)
+    let inner: mold::Rect = mold::block_inner(blk, area)
+
+    let logs: [string] = app::logs_of(a)
+    let top: int = app::top_row(a, inner.height)
+    let mut i: int = 0
+    while i < inner.height && top + i < array_len(logs) is
+        let l: string = logs[top + i]
+        let row: mold::Rect = mold::rect_new(inner.x, inner.y + i, inner.width, 1)
+        put(term, l, st(log_color(l), log_mods(l)), 0, row)
+        i += 1
+    end
+end
+
+fn render_dashboard(term: mold::Terminal, area: mold::Rect, a: app::App, rows: int) is
+    let parts: [mold::Rect] = mold::layout_vertical([mold::constraint_length(3), mold::constraint_min(10)], area)
+    render_progress(term, parts[0], a)
+    let cols: [mold::Rect] = mold::layout_horizontal([mold::constraint_percentage(38), mold::constraint_percentage(62)], parts[1])
+    render_tasks(term, cols[0], a)
+    render_log(term, cols[1], a, rows)
+end
+
+;; ── Potwierdzenie anulowania ────────────────────────────────────────
+fn render_confirm(term: mold::Terminal, area: mold::Rect) is
+    let popup: mold::Rect = mold::rect_centered_percent(area, 50, 25)
+    mold::render_clear(term.buffer, popup)
+    let blk: mold::Block = mold::block_with_title_align(framed(" Cancel Updates? ", bt_thick(), c_red()), a_center())
+    mold::render_block(term.buffer, blk, popup)
+    let inner: [mold::Rect] = mold::layout_split(popup, false, [mold::constraint_min(1), mold::constraint_length(2)], 2, 0)
+    put(term, "The current task will be terminated.\nPartial updates may leave the system in an inconsistent state.\n\nAre you sure? [Y]es / [N]o",
+        st(c_white(), 0), a_center(), inner[0])
+end
+
+;; ── Cała klatka ─────────────────────────────────────────────────────
+;; Zwraca wysokość terminala (main.h# liczy z niej okno logu dla przewijania).
+pub fn draw(term: mold::Terminal, a: app::App) -> int is
+    let area: mold::Rect = mold::terminal_begin(term)
+    let rows: int = area.height
+
+    let rows_layout: [mold::Rect] = mold::layout_split(area, false,
+        [mold::constraint_length(3), mold::constraint_min(10), mold::constraint_length(3)], 1, 0)
+
+    render_header(term, rows_layout[0])
+    render_footer(term, rows_layout[2], a)
+
+    let s: int = app::state_of(a)
+    if s == app::s_login() is
+        render_login(term, rows_layout[1], a)
+    else is
+        render_dashboard(term, rows_layout[1], a, rows)
+        if s == app::s_confirm() is
+            render_confirm(term, area)
+        end
+    end
+    mold::terminal_end(term)
+    return rows
+end
