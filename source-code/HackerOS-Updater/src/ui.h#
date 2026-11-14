@@ -1,13 +1,15 @@
-use "hlib -> mold" from "mold"
+use "hlib -> mold"
 
 mod tasks
 mod app
 
 ;; ui.h# — rysowanie (ui.rs). JEDYNY plik, który zna bibliotekę mold.
 ;;
-;; mold wchodzi wyłącznie przez `use "hlib -> mold" from "mold"` — bez żadnego
-;; `extern`. Wołamy ją tak, jak opisują jej twórcy (README mold, "Szybki start"):
-;; pętla `terminal_begin` -> `render_*(term.buffer, widget, area)` ->
+;; mold wchodzi wyłącznie przez `use "hlib -> mold"` (bez aliasu `from`, bez
+;; żadnego `extern`): fasada C-ABI wiąże funkcje po GOŁYCH nazwach z manifestu
+;; (`terminal_init()`, nie `mold::terminal_init()`), pola struktur czyta się
+;; akcesorami (`Rect_get_x`, `Terminal_get_buffer`), a `[T]` to uchwyt `List_T`. Wołamy ją tak, jak opisują jej twórcy (README mold, "Szybki start"):
+;; pętla `terminal_begin` -> `render_*(Terminal_get_buffer(term), widget, area)` ->
 ;; `terminal_end`. Od ratatui różni się tym, że zamiast `terminal.draw(|f| ..)`
 ;; jest właśnie ta pętla (mold nie ma closures).
 ;;
@@ -34,37 +36,60 @@ fn bt_rounded() -> int is return 1 end   ;; BORDER_ROUNDED
 fn bt_thick()  -> int is return 3  end   ;; BORDER_THICK
 fn a_center()  -> int is return 1  end   ;; ALIGN_CENTER
 
-fn st(fg: int, mods: int) -> mold::Style is
-    return mold::style_of(fg, c_none(), mods)
+
+;; ── Listy ograniczeń ────────────────────────────────────────────────
+;; `[Constraint]` w HackerScript to w fasadzie uchwyt `List_Constraint` (List_T_new/push). Listę budujemy tu; `layout_*`
+;; klonuje ją wewnątrz, więc po wywołaniu zwalniamy własną kopię.
+fn cons2(a: Constraint, b: Constraint) -> List_Constraint is
+    let l: List_Constraint = List_Constraint_new()
+    List_Constraint_push(l, a)
+    List_Constraint_push(l, b)
+    return l
+end
+
+fn cons3(a: Constraint, b: Constraint, c: Constraint) -> List_Constraint is
+    let l: List_Constraint = cons2(a, b)
+    List_Constraint_push(l, c)
+    return l
+end
+
+fn cons4(a: Constraint, b: Constraint, c: Constraint, d: Constraint) -> List_Constraint is
+    let l: List_Constraint = cons3(a, b, c)
+    List_Constraint_push(l, d)
+    return l
+end
+
+fn st(fg: int, mods: int) -> Style is
+    return style_of(fg, c_none(), mods)
 end
 
 ;; ── Klocki ──────────────────────────────────────────────────────────
 ;; Ramka z tytułem; `style` obejmuje ramkę i tytuł (Block::style w ratatui).
-fn framed(title: string, btype: int, color: int) -> mold::Block is
-    let b: mold::Block = mold::block_bordered()
-    let b2: mold::Block = mold::block_with_title(b, title)
-    let b3: mold::Block = mold::block_with_border_type(b2, btype)
-    return mold::block_with_style(b3, st(color, 0))
+fn framed(title: string, btype: int, color: int) -> Block is
+    let b: Block = block_bordered()
+    let b2: Block = block_with_title(b, title)
+    let b3: Block = block_with_border_type(b2, btype)
+    return block_with_style(b3, st(color, 0))
 end
 
 ;; Tekst w jednym wierszu/obszarze. `align` 0 = lewo, 1 = środek.
-fn put(term: mold::Terminal, text: string, style: mold::Style, align: int, area: mold::Rect) is
-    let p: mold::Paragraph = mold::paragraph_from_str(text)
-    let p2: mold::Paragraph = mold::paragraph_with_style(p, style)
-    let p3: mold::Paragraph = mold::paragraph_with_align(p2, align)
-    mold::render_paragraph(term.buffer, p3, area)
+fn put(term: Terminal, text: string, style: Style, align: int, area: Rect) is
+    let p: Paragraph = paragraph_from_str(text)
+    let p2: Paragraph = paragraph_with_style(p, style)
+    let p3: Paragraph = paragraph_with_align(p2, align)
+    render_paragraph(Terminal_get_buffer(term), p3, area)
 end
 
 ;; ── Nagłówek i stopka ───────────────────────────────────────────────
-fn render_header(term: mold::Terminal, area: mold::Rect) is
-    let b0: mold::Block = mold::block_bordered()
-    let b1: mold::Block = mold::block_with_borders(b0, b_bottom())
-    let b2: mold::Block = mold::block_with_border_style(b1, st(c_dim(), 0))
-    let p: mold::Paragraph = mold::paragraph_from_str(" ⬡  HackerOS Updater  ⬡ ")
-    let p2: mold::Paragraph = mold::paragraph_with_style(p, st(c_magenta(), m_bold()))
-    let p3: mold::Paragraph = mold::paragraph_with_align(p2, a_center())
-    let p4: mold::Paragraph = mold::paragraph_with_block(p3, b2)
-    mold::render_paragraph(term.buffer, p4, area)
+fn render_header(term: Terminal, area: Rect) is
+    let b0: Block = block_bordered()
+    let b1: Block = block_with_borders(b0, b_bottom())
+    let b2: Block = block_with_border_style(b1, st(c_dim(), 0))
+    let p: Paragraph = paragraph_from_str(" ⬡  HackerOS Updater  ⬡ ")
+    let p2: Paragraph = paragraph_with_style(p, st(c_magenta(), m_bold()))
+    let p3: Paragraph = paragraph_with_align(p2, a_center())
+    let p4: Paragraph = paragraph_with_block(p3, b2)
+    render_paragraph(Terminal_get_buffer(term), p4, area)
 end
 
 fn footer_text(state: int) -> string is
@@ -80,22 +105,22 @@ fn footer_text(state: int) -> string is
     return "  Y: Confirm Cancel  │  N/Esc: Resume  "
 end
 
-fn render_footer(term: mold::Terminal, area: mold::Rect, a: app::App) is
+fn render_footer(term: Terminal, area: Rect, a: app::App) is
     put(term, footer_text(app::state_of(a)), st(c_dim(), 0), a_center(), area)
 end
 
 ;; ── Logowanie ───────────────────────────────────────────────────────
-fn render_login(term: mold::Terminal, area: mold::Rect, a: app::App) is
-    let popup: mold::Rect = mold::rect_centered_percent(area, 60, 50)
-    mold::render_clear(term.buffer, popup)
+fn render_login(term: Terminal, area: Rect, a: app::App) is
+    let popup: Rect = rect_centered_percent(area, 60, 50)
+    render_clear(Terminal_get_buffer(term), popup)
 
-    let blk: mold::Block = mold::block_with_title_align(framed(" [ Security Verification ] ", bt_thick(), c_magenta()), a_center())
-    mold::render_block(term.buffer, blk, popup)
+    let blk: Block = block_with_title_align(framed(" [ Security Verification ] ", bt_thick(), c_magenta()), a_center())
+    render_block(Terminal_get_buffer(term), blk, popup)
 
-    let inner: [mold::Rect] = mold::layout_split(popup, false,
-        [mold::constraint_length(1), mold::constraint_length(3), mold::constraint_length(3), mold::constraint_min(1)], 2, 0)
+    let inner: List_Rect = layout_split(popup, false,
+        cons4(constraint_length(1), constraint_length(3), constraint_length(3), constraint_min(1)), 2, 0)
 
-    put(term, "Root privileges are required.\nEnter your sudo password to begin.", st(c_white(), 0), a_center(), inner[1])
+    put(term, "Root privileges are required.\nEnter your sudo password to begin.", st(c_white(), 0), a_center(), List_Rect_get(inner, 1))
 
     let mut stars: string = ""
     let n: int = app::pw_len(a)
@@ -104,16 +129,16 @@ fn render_login(term: mold::Terminal, area: mold::Rect, a: app::App) is
         stars = stars + "●"
         i += 1
     end
-    let field: mold::Block = framed(" Password ", bt_rounded(), c_yellow())
-    let p: mold::Paragraph = mold::paragraph_from_str(stars + "_")
-    let p2: mold::Paragraph = mold::paragraph_with_style(p, st(c_magenta(), m_bold()))
-    let p3: mold::Paragraph = mold::paragraph_with_align(p2, a_center())
-    let p4: mold::Paragraph = mold::paragraph_with_block(p3, field)
-    mold::render_paragraph(term.buffer, p4, inner[2])
+    let field: Block = framed(" Password ", bt_rounded(), c_yellow())
+    let p: Paragraph = paragraph_from_str(stars + "_")
+    let p2: Paragraph = paragraph_with_style(p, st(c_magenta(), m_bold()))
+    let p3: Paragraph = paragraph_with_align(p2, a_center())
+    let p4: Paragraph = paragraph_with_block(p3, field)
+    render_paragraph(Terminal_get_buffer(term), p4, List_Rect_get(inner, 2))
 
     let err: string = app::pw_error(a)
     if err != "" is
-        put(term, "⚠ " + err, st(c_red(), 0), a_center(), inner[3])
+        put(term, "⚠ " + err, st(c_red(), 0), a_center(), List_Rect_get(inner, 3))
     end
 end
 
@@ -172,7 +197,7 @@ fn progress_label(done: int, total: int, failed: int, percent: int) -> string is
     return frac + " (" + to_string(percent) + "%) "
 end
 
-fn render_progress(term: mold::Terminal, area: mold::Rect, a: app::App) is
+fn render_progress(term: Terminal, area: Rect, a: app::App) is
     let sts: [int] = app::status_of(a)
     let done: int = count_done(sts)
     let total: int = array_len(sts)
@@ -183,26 +208,26 @@ fn render_progress(term: mold::Terminal, area: mold::Rect, a: app::App) is
     let label: string = progress_label(done, total, failed, percent)
     let color: int = if failed > 0 then c_red() else c_magenta()
 
-    let g0: mold::Gauge = mold::gauge_new()
-    let g1: mold::Gauge = mold::gauge_with_percent(g0, percent)
-    let g2: mold::Gauge = mold::gauge_with_label(g1, label)
-    let g3: mold::Gauge = mold::gauge_with_gauge_style(g2, mold::style_of(color, c_black(), 0))
-    let g4: mold::Gauge = mold::gauge_with_block(g3, framed(" Total Progress ", bt_rounded(), c_dim()))
-    mold::render_gauge(term.buffer, g4, area)
+    let g0: Gauge = gauge_new()
+    let g1: Gauge = gauge_with_percent(g0, percent)
+    let g2: Gauge = gauge_with_label(g1, label)
+    let g3: Gauge = gauge_with_gauge_style(g2, style_of(color, c_black(), 0))
+    let g4: Gauge = gauge_with_block(g3, framed(" Total Progress ", bt_rounded(), c_dim()))
+    render_gauge(Terminal_get_buffer(term), g4, area)
 end
 
-fn render_tasks(term: mold::Terminal, area: mold::Rect, a: app::App) is
-    let blk: mold::Block = framed(" Tasks ", bt_rounded(), c_magenta())
-    mold::render_block(term.buffer, blk, area)
-    let inner: mold::Rect = mold::block_inner(blk, area)
+fn render_tasks(term: Terminal, area: Rect, a: app::App) is
+    let blk: Block = framed(" Tasks ", bt_rounded(), c_magenta())
+    render_block(Terminal_get_buffer(term), blk, area)
+    let inner: Rect = block_inner(blk, area)
 
     let ts: [tasks::Task] = app::tasks_of(a)
     let sts: [int] = app::status_of(a)
     let mut i: int = 0
-    while i < array_len(ts) && i < inner.height is
+    while i < array_len(ts) && i < Rect_get_height(inner) is
         let s: int = sts[i]
-        let icon_area: mold::Rect = mold::rect_new(inner.x, inner.y + i, 5, 1)
-        let name_area: mold::Rect = mold::rect_new(inner.x + 5, inner.y + i, inner.width - 5, 1)
+        let icon_area: Rect = rect_new(Rect_get_x(inner), Rect_get_y(inner) + i, 5, 1)
+        let name_area: Rect = rect_new(Rect_get_x(inner) + 5, Rect_get_y(inner) + i, Rect_get_width(inner) - 5, 1)
         put(term, status_icon(s), st(icon_color(s), 0), 0, icon_area)
         let mods: int = if s == tasks::st_running() then m_bold() else 0
         put(term, tasks::name_of(ts[i]), st(name_color(s), mods), 0, name_area)
@@ -233,64 +258,64 @@ pub fn log_height(rows: int) -> int is
     return h
 end
 
-fn render_log(term: mold::Terminal, area: mold::Rect, a: app::App, rows: int) is
-    mold::render_clear(term.buffer, area)
+fn render_log(term: Terminal, area: Rect, a: app::App, rows: int) is
+    render_clear(Terminal_get_buffer(term), area)
     let title: string = if app::is_auto(a) then " Execution Log [auto-scroll] " else " Execution Log [↑↓ scroll] "
-    let blk: mold::Block = framed(title, bt_rounded(), c_dim())
-    mold::render_block(term.buffer, blk, area)
-    let inner: mold::Rect = mold::block_inner(blk, area)
+    let blk: Block = framed(title, bt_rounded(), c_dim())
+    render_block(Terminal_get_buffer(term), blk, area)
+    let inner: Rect = block_inner(blk, area)
 
     let logs: [string] = app::logs_of(a)
-    let top: int = app::top_row(a, inner.height)
+    let top: int = app::top_row(a, Rect_get_height(inner))
     let mut i: int = 0
-    while i < inner.height && top + i < array_len(logs) is
+    while i < Rect_get_height(inner) && top + i < array_len(logs) is
         let l: string = logs[top + i]
-        let row: mold::Rect = mold::rect_new(inner.x, inner.y + i, inner.width, 1)
+        let row: Rect = rect_new(Rect_get_x(inner), Rect_get_y(inner) + i, Rect_get_width(inner), 1)
         put(term, l, st(log_color(l), log_mods(l)), 0, row)
         i += 1
     end
 end
 
-fn render_dashboard(term: mold::Terminal, area: mold::Rect, a: app::App, rows: int) is
-    let parts: [mold::Rect] = mold::layout_vertical([mold::constraint_length(3), mold::constraint_min(10)], area)
-    render_progress(term, parts[0], a)
-    let cols: [mold::Rect] = mold::layout_horizontal([mold::constraint_percentage(38), mold::constraint_percentage(62)], parts[1])
-    render_tasks(term, cols[0], a)
-    render_log(term, cols[1], a, rows)
+fn render_dashboard(term: Terminal, area: Rect, a: app::App, rows: int) is
+    let parts: List_Rect = layout_vertical(cons2(constraint_length(3), constraint_min(10)), area)
+    render_progress(term, List_Rect_get(parts, 0), a)
+    let cols: List_Rect = layout_horizontal(cons2(constraint_percentage(38), constraint_percentage(62)), List_Rect_get(parts, 1))
+    render_tasks(term, List_Rect_get(cols, 0), a)
+    render_log(term, List_Rect_get(cols, 1), a, rows)
 end
 
 ;; ── Potwierdzenie anulowania ────────────────────────────────────────
-fn render_confirm(term: mold::Terminal, area: mold::Rect) is
-    let popup: mold::Rect = mold::rect_centered_percent(area, 50, 25)
-    mold::render_clear(term.buffer, popup)
-    let blk: mold::Block = mold::block_with_title_align(framed(" Cancel Updates? ", bt_thick(), c_red()), a_center())
-    mold::render_block(term.buffer, blk, popup)
-    let inner: [mold::Rect] = mold::layout_split(popup, false, [mold::constraint_min(1), mold::constraint_length(2)], 2, 0)
+fn render_confirm(term: Terminal, area: Rect) is
+    let popup: Rect = rect_centered_percent(area, 50, 25)
+    render_clear(Terminal_get_buffer(term), popup)
+    let blk: Block = block_with_title_align(framed(" Cancel Updates? ", bt_thick(), c_red()), a_center())
+    render_block(Terminal_get_buffer(term), blk, popup)
+    let inner: List_Rect = layout_split(popup, false, cons2(constraint_min(1), constraint_length(2)), 2, 0)
     put(term, "The current task will be terminated.\nPartial updates may leave the system in an inconsistent state.\n\nAre you sure? [Y]es / [N]o",
-        st(c_white(), 0), a_center(), inner[0])
+        st(c_white(), 0), a_center(), List_Rect_get(inner, 0))
 end
 
 ;; ── Cała klatka ─────────────────────────────────────────────────────
 ;; Zwraca wysokość terminala (main.h# liczy z niej okno logu dla przewijania).
-pub fn draw(term: mold::Terminal, a: app::App) -> int is
-    let area: mold::Rect = mold::terminal_begin(term)
-    let rows: int = area.height
+pub fn draw(term: Terminal, a: app::App) -> int is
+    let area: Rect = terminal_begin(term)
+    let rows: int = Rect_get_height(area)
 
-    let rows_layout: [mold::Rect] = mold::layout_split(area, false,
-        [mold::constraint_length(3), mold::constraint_min(10), mold::constraint_length(3)], 1, 0)
+    let rows_layout: List_Rect = layout_split(area, false,
+        cons3(constraint_length(3), constraint_min(10), constraint_length(3)), 1, 0)
 
-    render_header(term, rows_layout[0])
-    render_footer(term, rows_layout[2], a)
+    render_header(term, List_Rect_get(rows_layout, 0))
+    render_footer(term, List_Rect_get(rows_layout, 2), a)
 
     let s: int = app::state_of(a)
     if s == app::s_login() is
-        render_login(term, rows_layout[1], a)
+        render_login(term, List_Rect_get(rows_layout, 1), a)
     else is
-        render_dashboard(term, rows_layout[1], a, rows)
+        render_dashboard(term, List_Rect_get(rows_layout, 1), a, rows)
         if s == app::s_confirm() is
             render_confirm(term, area)
         end
     end
-    mold::terminal_end(term)
+    terminal_end(term)
     return rows
 end
