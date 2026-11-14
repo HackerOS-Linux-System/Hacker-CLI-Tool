@@ -76,18 +76,18 @@ fn set_status(a: App, idx: int, st: int) -> App is
     let mut s: App = a
     let mut ns: [int] = []
     let mut i: int = 0
-    while i < array_len(a.ap_status) is
+    while i < array_len(s.ap_status) is
         if i == idx is
             ns = array_push(ns, st)
         else is
-            ns = array_push(ns, a.ap_status[i])
+            ns = array_push(ns, s.ap_status[i])
         end
         i += 1
     end
     s.ap_status = ns
     s.ap_cur = idx
     if st == tasks::st_failed() is
-        s.ap_failed = array_push(s.ap_failed, tasks::name_of(a.ap_tasks[idx]))
+        s.ap_failed = array_push(s.ap_failed, tasks::name_of(s.ap_tasks[idx]))
     end
     return s
 end
@@ -104,12 +104,12 @@ end
 
 fn pw_pop(a: App) -> App is
     let mut s: App = a
-    let n: int = array_len(a.ap_pw)
+    let n: int = array_len(s.ap_pw)
     if n == 0 is return s end
     let mut np: [string] = []
     let mut i: int = 0
     while i < n - 1 is
-        np = array_push(np, a.ap_pw[i])
+        np = array_push(np, s.ap_pw[i])
         i += 1
     end
     s.ap_pw = np
@@ -193,8 +193,8 @@ fn cancel_all(a: App) -> App is
     let mut s: App = a
     let mut ns: [int] = []
     let mut i: int = 0
-    while i < array_len(a.ap_status) is
-        let st: int = a.ap_status[i]
+    while i < array_len(s.ap_status) is
+        let st: int = s.ap_status[i]
         if st == tasks::st_pending() || st == tasks::st_running() is
             ns = array_push(ns, tasks::st_cancelled())
         else is
