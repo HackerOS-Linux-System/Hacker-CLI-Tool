@@ -1,4 +1,4 @@
-use "hlib -> mold" from "mold"
+use "hlib -> mold"
 use "std -> env"   from "env"
 
 mod config
@@ -45,7 +45,7 @@ fn run_tui() is
     let variant: string = config::detect_variant()
     let mut a: app::App = app::new(variant)
 
-    let term: mold::Terminal = mold::terminal_init()
+    let term: Terminal = terminal_init()
     let mut running: bool = true
     let mut last_poll: int = time_ms()
 
@@ -53,18 +53,22 @@ fn run_tui() is
         let rows: int = ui::draw(term, a)
         let log_h: int = ui::log_height(rows)
 
-        let ev: mold::Event = mold::event_poll(40)
-        if ev.kind == "key" is
-            let ctrl: bool = mold::mods_has(ev.mods, 2)
-            let alt: bool  = mold::mods_has(ev.mods, 4)
-            if mold::event_is_key(ev, "F10") is
+        let ev: Event = event_poll(40)
+        ;; napisy zwracane przez fasadę żyją w buforze wątku — kopiujemy je od razu
+        let kind: string = Event_get_kind(ev)
+        if kind == "key" is
+            let mods: int = Event_get_mods(ev)
+            let ctrl: bool = mods_has(mods, 2)
+            let alt: bool  = mods_has(mods, 4)
+            if event_is_key(ev, "F10") is
                 a = app::force_quit(a)
             else is
-                a = app::on_key(a, ev.code, ctrl, alt, log_h)
+                a = app::on_key(a, Event_get_code(ev), ctrl, alt, log_h)
             end
-        elsif ev.kind == "eof" is
+        elsif kind == "eof" is
             a = app::force_quit(a)
         end
+        Event_free(ev)
 
         let now: int = time_ms()
         if now - last_poll >= poll_interval_ms() is
@@ -78,7 +82,8 @@ fn run_tui() is
     end
 
     ;; ZAWSZE przywróć terminal (README mold) — dopiero potem polecenia systemowe.
-    mold::terminal_restore(term)
+    terminal_restore(term)
+    Terminal_free(term)
 
     let what: string = app::exit_request(a)
     if (what == "reboot" || what == "shutdown") && app::pw_file(a) != "" is
