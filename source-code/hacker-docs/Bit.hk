@@ -1,0 +1,28 @@
+[package]
+-> name        => hacker-docs
+-> version     => 2.4.3
+-> description => "Dokumentacja i FAQ HackerOS (H# + tui)"
+-> authors     => ["HackerOS Team <hackeros068@gmail.com>"]
+-> license     => GPL-3.0
+-> lang        => h#
+
+[edition]
+-> edition   => 2026
+-> toolchain => 0.9
+
+[layout]
+-> src => src
+
+[build]
+-> link => static
+
+[default-build]
+-> profile => release
+
+[dependencies]
+-> tui => newest
+
+[commands]
+-> check
+--> run => find src -name '*.h#' -print0 | xargs -0 h# check
+--> description => Type-check every module
