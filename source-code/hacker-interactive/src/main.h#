@@ -1,0 +1,437 @@
+use "std -> env" from "env"
+use "bit -> tui" from "tui"
+
+mod catalog
+mod job
+
+;; hacker-interactive — terminal komend `hacker` (przepisane z Go/bubbletea).
+;;
+;; Lewy panel: katalog komend (filtr `/`). Enter wkleja komendę do pola wejściowego,
+;; enter w polu uruchamia ją przez `hsh -c` (albo `bash -c`) W TLE — spinner kręci się,
+;; a wyjście płynie do panelu na żywo. Tryby: browse / input / running / output.
+
+const VERSION: string = "2.4.3"
+
+pub struct Model is
+    pub ia_mode:   int       ;; 0 browse, 1 input, 2 running, 3 output
+    pub ia_list:   any
+    pub ia_filter: any
+    pub ia_typing: bool
+    pub ia_vis:    [int]     ;; indeksy katalogu na liście
+    pub ia_input:  any
+    pub ia_vp:     any
+    pub ia_hist:   [string]
+    pub ia_hidx:   int
+    pub ia_cmd:    string
+    pub ia_dir:    string
+    pub ia_hsh:    string
+    pub ia_start:  int
+    pub ia_dur:    int
+    pub ia_ok:     bool
+    pub ia_poll:   int
+    pub ia_spin:   any
+    pub ia_w:      int
+    pub ia_h:      int
+end
+
+fn imax(a: int, b: int) -> int is
+    if a > b is return a end
+    return b
+end
+
+fn side_width(w: int) -> int is
+    if w < 90 is return 28 end
+    return 36
+end
+
+fn find_hsh() -> string is
+    let p: string = string_trim(shell("command -v hsh 2>/dev/null"))
+    if p != "" is return p end
+    let home: string = env_get("HOME") + "/.hackeros/hacker/hsh"
+    if file_exists(home) is return home end
+    return "bash"
+end
+
+fn base_name(p: string) -> string is
+    let parts: [string] = string_split(p, "/")
+    return parts[array_len(parts) - 1]
+end
+
+fn hist_file() -> string is
+    return env_get("HOME") + "/.cache/hacker-interactive/history"
+end
+
+fn load_history() -> [string] is
+    let mut out: [string] = []
+    let f: string = hist_file()
+    if !file_exists(f) is return out end
+    let lines: [string] = string_split(file_read(f), "\n")
+    ;; najnowsze pierwsze
+    let mut i: int = array_len(lines) - 1
+    while i >= 0 && array_len(out) < 200 is
+        if string_trim(lines[i]) != "" is out = array_push(out, lines[i]) end
+        i -= 1
+    end
+    return out
+end
+
+fn save_history(line: string) is
+    shell("mkdir -p " + job::sq(env_get("HOME") + "/.cache/hacker-interactive") + " && printf '%s\\n' " + job::sq(line) + " >> " + job::sq(hist_file()))
+end
+
+fn visible(needle: string) -> [int] is
+    let names: [string] = catalog::cat_names()
+    let descs: [string] = catalog::cat_descs()
+    let groups: [string] = catalog::cat_groups()
+    let n: string = string_lower(needle)
+    let mut out: [int] = []
+    let mut i: int = 0
+    while i < array_len(names) is
+        if n == "" || string_contains(string_lower(names[i] + " " + descs[i] + " " + groups[i]), n) is
+            out = array_push(out, i)
+        end
+        i += 1
+    end
+    return out
+end
+
+fn labels(idx: [int]) -> [string] is
+    let names: [string] = catalog::cat_names()
+    let mut out: [string] = []
+    let mut i: int = 0
+    while i < array_len(idx) is
+        out = array_push(out, names[idx[i]])
+        i += 1
+    end
+    return out
+end
+
+fn rebuild(m: Model) -> Model is
+    let mut s: Model = m
+    s.ia_vis = visible(tui::textinput_value(s.ia_filter))
+    s.ia_list = tui::list_set_items(s.ia_list, labels(s.ia_vis))
+    s.ia_list = tui::list_set_height(s.ia_list, imax(3, s.ia_h - 7))
+    return s
+end
+
+fn main_width(m: Model) -> int is
+    return imax(30, m.ia_w - side_width(m.ia_w) - 3)
+end
+
+fn colorize_line(l: string) -> string is
+    if string_starts_with(l, "[ERROR]") || string_contains(l, "error:") || string_starts_with(l, "✗") is
+        return tui::colorize(l, "#ef4444")
+    end
+    if string_starts_with(l, "[WARN]") || string_contains(l, "Warning") is
+        return tui::colorize(l, "#eab308")
+    end
+    if string_starts_with(l, "[INFO]") || string_starts_with(l, "✓") is
+        return tui::colorize(l, "#22c55e")
+    end
+    if string_starts_with(l, ">>>") || string_starts_with(l, "━━━") || string_starts_with(l, "===") is
+        return tui::style_render(tui::style_fg(tui::style_bold(tui::style_new(), true), "#c026d3"), l)
+    end
+    return l
+end
+
+fn colorize_output(text: string, ok: bool, finished: bool) -> string is
+    let lines: [string] = string_split(text, "\n")
+    let mut n: int = array_len(lines)
+    if n > 0 && lines[n - 1] == "" is n -= 1 end
+    let mut out: string = ""
+    let mut i: int = 0
+    while i < n is
+        if i > 0 is out = out + "\n" end
+        out = out + colorize_line(lines[i])
+        i += 1
+    end
+    if finished is
+        if ok is
+            out = out + "\n\n" + tui::colorize("✓  OK", "#22c55e")
+        else is
+            out = out + "\n\n" + tui::colorize("✗  Błąd: polecenie zakończyło się niepowodzeniem", "#ef4444")
+        end
+    end
+    return out
+end
+
+fn start_input(m: Model, value: string) -> Model is
+    let mut s: Model = m
+    s.ia_mode = 1
+    s.ia_input = tui::textinput_focus(tui::textinput_set_value(s.ia_input, value), true)
+    return s
+end
+
+fn run_command(m: Model, raw: string) -> Model is
+    let mut s: Model = m
+    let mut cmd: string = raw
+    if string_starts_with(cmd, "hacker ") is cmd = string_trim(string_slice(cmd, 7, string_len(cmd))) end
+    s.ia_hist = array_concat([raw], s.ia_hist)
+    s.ia_hidx = -1
+    save_history(raw)
+    s.ia_cmd = cmd
+    s.ia_start = time_ms()
+    s.ia_poll = 0
+    s.ia_dir = job::start(s.ia_hsh, "hacker " + cmd)
+    s.ia_input = tui::textinput_focus(tui::textinput_reset(s.ia_input), false)
+    s.ia_vp = tui::viewport_set_content(s.ia_vp, "")
+    s.ia_mode = 2
+    return s
+end
+
+fn finish(m: Model) -> Model is
+    let mut s: Model = m
+    s.ia_dur = time_ms() - s.ia_start
+    s.ia_ok = job::exit_code(s.ia_dir) == 0
+    s.ia_vp = tui::viewport_set_content(s.ia_vp, colorize_output(job::output(s.ia_dir), s.ia_ok, true))
+    s.ia_vp = tui::viewport_scroll(s.ia_vp, 1000000)
+    job::cleanup(s.ia_dir)
+    s.ia_dir = ""
+    s.ia_mode = 3
+    return s
+end
+
+pub fn init() -> any is
+    let idx: [int] = visible("")
+    let list: any = tui::list_new(labels(idx))
+    let input: any = tui::textinput_focus(tui::textinput_set_prompt(tui::textinput_new("hacker ..."), "❯ "), false)
+    let filter: any = tui::textinput_focus(tui::textinput_set_prompt(tui::textinput_new("filtr"), "/ "), false)
+    return Model { ia_mode: 0, ia_list: list, ia_filter: filter, ia_typing: false, ia_vis: idx, ia_input: input,
+                   ia_vp: tui::viewport_new(60, 10), ia_hist: load_history(), ia_hidx: -1, ia_cmd: "", ia_dir: "",
+                   ia_hsh: find_hsh(), ia_start: 0, ia_dur: 0, ia_ok: true, ia_poll: 0,
+                   ia_spin: tui::spinner_new("dot"), ia_w: 80, ia_h: 24 }
+end
+
+fn update_browse(m: Model, msg: any) -> Model is
+    let mut s: Model = m
+    if s.ia_typing is
+        if tui::msg_is_key(msg, "enter") is
+            s.ia_typing = false
+            s.ia_filter = tui::textinput_focus(s.ia_filter, false)
+            return s
+        end
+        if tui::msg_is_key(msg, "esc") is
+            s.ia_typing = false
+            s.ia_filter = tui::textinput_focus(tui::textinput_reset(s.ia_filter), false)
+            return rebuild(s)
+        end
+        s.ia_filter = tui::textinput_update(s.ia_filter, msg)
+        return rebuild(s)
+    end
+    if tui::msg_is_key(msg, "q") is
+        s.ia_mode = -1
+        return s
+    end
+    if tui::msg_is_key(msg, "/") is
+        s.ia_typing = true
+        s.ia_filter = tui::textinput_focus(s.ia_filter, true)
+        return s
+    end
+    if tui::msg_is_key(msg, "i") is return start_input(s, "hacker ") end
+    if tui::msg_is_key(msg, "enter") is
+        if array_len(s.ia_vis) == 0 is return s end
+        let c: int = s.ia_vis[tui::list_selected_index(s.ia_list)]
+        let mut prefix: string = "hacker " + catalog::cat_names()[c]
+        if catalog::cat_has_args()[c] is prefix = prefix + " " end
+        return start_input(s, prefix)
+    end
+    s.ia_list = tui::list_update(s.ia_list, msg)
+    return s
+end
+
+fn update_input(m: Model, msg: any) -> Model is
+    let mut s: Model = m
+    if tui::msg_is_key(msg, "esc") is
+        s.ia_mode = 0
+        s.ia_input = tui::textinput_focus(s.ia_input, false)
+        return s
+    end
+    if tui::msg_is_key(msg, "enter") is
+        let raw: string = string_trim(tui::textinput_value(s.ia_input))
+        if raw == "" is return s end
+        return run_command(s, raw)
+    end
+    if tui::msg_is_key(msg, "up") is
+        if array_len(s.ia_hist) > 0 is
+            s.ia_hidx = s.ia_hidx + 1
+            if s.ia_hidx >= array_len(s.ia_hist) is s.ia_hidx = array_len(s.ia_hist) - 1 end
+            s.ia_input = tui::textinput_set_value(s.ia_input, s.ia_hist[s.ia_hidx])
+        end
+        return s
+    end
+    if tui::msg_is_key(msg, "down") is
+        if s.ia_hidx > 0 is
+            s.ia_hidx = s.ia_hidx - 1
+            s.ia_input = tui::textinput_set_value(s.ia_input, s.ia_hist[s.ia_hidx])
+        elsif s.ia_hidx == 0 is
+            s.ia_hidx = -1
+            s.ia_input = tui::textinput_set_value(s.ia_input, "hacker ")
+        end
+        return s
+    end
+    if tui::msg_is_key(msg, "ctrl+l") is
+        s.ia_input = tui::textinput_set_value(s.ia_input, "hacker ")
+        return s
+    end
+    s.ia_input = tui::textinput_update(s.ia_input, msg)
+    return s
+end
+
+pub fn update(model_any: any, msg: any) -> (any, fn() -> any) is
+    let mut s: Model = model_any
+    if tui::is_ctrl_c(msg) is return (s, tui::cmd_quit()) end
+
+    if tui::msg_is_resize(msg) is
+        s.ia_w = tui::msg_width(msg)
+        s.ia_h = tui::msg_height(msg)
+        s.ia_vp = tui::viewport_set_size(s.ia_vp, main_width(s) - 4, imax(3, s.ia_h - 9))
+        s.ia_input = tui::textinput_set_width(s.ia_input, imax(10, main_width(s) - 8))
+        return (rebuild(s), tui::cmd_none())
+    end
+
+    if s.ia_mode == 2 is
+        if tui::msg_is_tick(msg) is
+            s.ia_spin = tui::spinner_tick(s.ia_spin)
+            if job::finished(s.ia_dir) is
+                return (finish(s), tui::cmd_none())
+            end
+            ;; podgląd na żywo — co ~0,3 s
+            s.ia_poll = s.ia_poll + 1
+            if s.ia_poll % 4 == 0 is
+                s.ia_vp = tui::viewport_set_content(s.ia_vp, colorize_output(job::output(s.ia_dir), true, false))
+                s.ia_vp = tui::viewport_scroll(s.ia_vp, 1000000)
+            end
+            return (s, tui::cmd_none())
+        end
+        if tui::msg_is_key(msg, "esc") is
+            job::kill(s.ia_dir)
+            s.ia_dur = time_ms() - s.ia_start
+            s.ia_ok = false
+            s.ia_vp = tui::viewport_set_content(s.ia_vp, colorize_output(job::output(s.ia_dir) + "\n[WARN] Przerwano (esc)", false, false))
+            job::cleanup(s.ia_dir)
+            s.ia_dir = ""
+            s.ia_mode = 3
+        end
+        return (s, tui::cmd_none())
+    end
+
+    if s.ia_mode == 3 is
+        if tui::msg_is_key(msg, "enter") || tui::msg_is_key(msg, "esc") is
+            return (start_input(s, "hacker "), tui::cmd_none())
+        end
+        if tui::msg_is_key(msg, "b") is
+            s.ia_mode = 0
+            return (s, tui::cmd_none())
+        end
+        if tui::msg_is_key(msg, "q") is return (s, tui::cmd_quit()) end
+        s.ia_vp = tui::viewport_update(s.ia_vp, msg)
+        return (s, tui::cmd_none())
+    end
+
+    if tui::msg_is_tick(msg) is return (s, tui::cmd_none()) end
+
+    if s.ia_mode == 1 is
+        s = update_input(s, msg)
+        return (s, tui::cmd_none())
+    end
+    s = update_browse(s, msg)
+    if s.ia_mode == -1 is return (s, tui::cmd_quit()) end
+    return (s, tui::cmd_none())
+end
+
+fn mode_tag(m: Model) -> string is
+    let mut name: string = "BROWSE"
+    let mut color: string = "#06b6d4"
+    if m.ia_mode == 1 is
+        name = "INPUT"
+        color = "#c026d3"
+    end
+    if m.ia_mode == 2 is
+        name = "RUNNING"
+        color = "#eab308"
+    end
+    if m.ia_mode == 3 is
+        name = "OUTPUT"
+        color = "#22c55e"
+    end
+    return tui::style_render(tui::style_padding(tui::style_bold(tui::style_fg(tui::style_bg(tui::style_new(), color), "#0d0d0f"), true), 1, 0), name)
+end
+
+pub fn view(model_any: any) -> string is
+    let s: Model = model_any
+    let sw: int = side_width(s.ia_w)
+    let mw: int = main_width(s)
+    let bh: int = imax(3, s.ia_h - 5)
+    let accent: any = tui::style_bold(tui::style_fg(tui::style_new(), "#c026d3"), true)
+    let dim: any = tui::style_fg(tui::style_new(), "#475569")
+    let cyan: any = tui::style_fg(tui::style_new(), "#06b6d4")
+    let green: any = tui::style_fg(tui::style_new(), "#22c55e")
+
+    let head_l: string = tui::style_render(accent, "⬡  hacker") + tui::style_render(dim, " interactive")
+    let head_r: string = tui::style_render(cyan, "hsh: " + base_name(s.ia_hsh)) + "  " + tui::style_render(dim, "v" + VERSION)
+    let head: string = tui::statusbar(head_l, head_r, s.ia_w)
+
+    let side_box: any = tui::style_height(tui::style_width(tui::style_border_color(tui::style_border(tui::style_new(), "rounded"), "#2a2a3a"), sw), bh)
+    let mut side_title: string = tui::style_render(accent, "Komendy")
+    if s.ia_typing is
+        side_title = side_title + "  " + tui::textinput_view(s.ia_filter)
+    elsif tui::textinput_value(s.ia_filter) != "" is
+        side_title = side_title + "  /" + tui::textinput_value(s.ia_filter)
+    end
+    let side: string = tui::style_render(side_box, side_title + "\n" + tui::list_view(s.ia_list))
+
+    let mut main_body: string = ""
+    if s.ia_mode == 0 is
+        if array_len(s.ia_vis) > 0 is
+            let c: int = s.ia_vis[tui::list_selected_index(s.ia_list)]
+            let mut args_note: string = ""
+            if catalog::cat_has_args()[c] is args_note = "\n" + tui::style_render(cyan, "  ⬡ Ta komenda przyjmuje argumenty.") end
+            main_body = tui::style_render(green, "hacker " + catalog::cat_names()[c]) + "\n\n" + catalog::cat_descs()[c] + "\n\n" +
+                        tui::style_render(dim, "  Grupa: " + catalog::cat_groups()[c]) + args_note + "\n\n" +
+                        tui::style_render(dim, "  ↑↓ nawigacja · enter wybierz · / filtruj · i wpisz komendę · q wyjdź")
+        else is
+            main_body = tui::style_render(cyan, "Brak komend pasujących do filtra.")
+        end
+    end
+    if s.ia_mode == 1 is
+        main_body = tui::style_render(tui::style_border_color(tui::style_border(tui::style_new(), "rounded"), "#c026d3"), tui::textinput_view(s.ia_input)) + "\n"
+        if array_len(s.ia_hist) > 0 is
+            main_body = main_body + tui::style_render(dim, "  Historia: " + to_string(array_len(s.ia_hist)) + " komend · ↑↓ nawiguj · ctrl+l wyczyść · esc wróć") + "\n\n" +
+                        tui::style_render(dim, "  Ostatnie komendy:")
+            let mut i: int = 0
+            while i < 5 && i < array_len(s.ia_hist) is
+                let mark: string = if i == s.ia_hidx then "  ▶ " else "    "
+                main_body = main_body + "\n" + tui::style_render(dim, mark + s.ia_hist[i])
+                i += 1
+            end
+        else is
+            main_body = main_body + tui::style_render(dim, "  esc — wróć do listy · enter — wykonaj")
+        end
+    end
+    if s.ia_mode == 2 is
+        main_body = tui::style_render(accent, tui::spinner_view(s.ia_spin) + "  Wykonywanie: ") + tui::style_render(green, "hacker " + s.ia_cmd) + "\n" +
+                    tui::style_render(dim, "  esc — przerwij · wyjście na żywo poniżej") + "\n\n" + tui::viewport_view(s.ia_vp)
+    end
+    if s.ia_mode == 3 is
+        let secs: string = to_string(s.ia_dur / 1000) + "." + to_string((s.ia_dur % 1000) / 100) + " s"
+        let mut status: string = tui::colorize("✓ OK", "#22c55e")
+        if !s.ia_ok is status = tui::colorize("✗ Błąd", "#ef4444") end
+        main_body = status + tui::style_render(dim, "  ·  hacker " + s.ia_cmd + "  ·  " + secs) + "\n" +
+                    tui::viewport_view(s.ia_vp) + "\n" +
+                    tui::style_render(dim, "  enter/esc — nowa komenda · b — lista · ↑↓ — przewijaj")
+    end
+    let main_box: any = tui::style_height(tui::style_width(tui::style_border_color(tui::style_border(tui::style_new(), "rounded"), "#2a2a3a"), mw), bh)
+    let main_panel: string = tui::style_render(main_box, main_body)
+
+    let status_bar: string = mode_tag(s) + tui::style_render(dim, " ctrl+c wyjdź · / filtruj komendy")
+    return head + "\n" + tui::join_horizontal([side, main_panel], 1) + "\n" + status_bar
+end
+
+fn main() is
+    let result: Model = tui::run(init, update, view)
+    ;; ctrl+c w trakcie zadania: nie zostawiamy sierot
+    if result.ia_dir != "" is
+        job::kill(result.ia_dir)
+        job::cleanup(result.ia_dir)
+    end
+end
