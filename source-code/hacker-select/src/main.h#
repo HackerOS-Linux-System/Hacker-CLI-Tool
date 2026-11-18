@@ -1,0 +1,419 @@
+use "std -> env" from "env"
+use "bit -> tui" from "tui"
+
+mod catalog
+
+extern static [c] is
+    fn system(cmd: string) -> int
+    fn exit(code: int)
+end
+
+;; hacker-select — wybór kategorii / aplikacji (przepisane z Go/bubbletea).
+;;
+;;   hacker-select [--mode unpack|pack|cyber] [--pack|--unpack|--cyber] [--run]
+;;
+;; Po zatwierdzeniu (enter) tokeny trafiają na stdout (`category:<v>` / `app:<v>`,
+;; w trybie cyber samo `<v>`), czytelna lista komend na stderr — tak jak w wersji Go.
+;; `--run` dodatkowo wykonuje zaznaczone komendy `hacker <tryb> <wartość>`.
+;;
+;;   ↑/↓ ruch · space zaznacz · a wszystko · n nic · / filtr · enter zatwierdź · q wyjście
+
+pub struct Model is
+    pub sl_mode:   string
+    pub sl_types:  [string]
+    pub sl_titles: [string]
+    pub sl_descs:  [string]
+    pub sl_values: [string]
+    pub sl_sel:    [bool]
+    pub sl_vis:    [int]
+    pub sl_filter: any
+    pub sl_typing: bool
+    pub sl_cursor: int
+    pub sl_top:    int
+    pub sl_w:      int
+    pub sl_h:      int
+    pub sl_ok:     bool     ;; zatwierdzono enterem
+end
+
+fn imax(a: int, b: int) -> int is
+    if a > b is return a end
+    return b
+end
+
+fn imin(a: int, b: int) -> int is
+    if a < b is return a end
+    return b
+end
+
+fn falses(n: int) -> [bool] is
+    let mut out: [bool] = []
+    let mut i: int = 0
+    while i < n is
+        out = array_push(out, false)
+        i += 1
+    end
+    return out
+end
+
+fn body_height(m: Model) -> int is
+    return imax(3, m.sl_h - 6)
+end
+
+fn visible(m: Model) -> [int] is
+    let needle: string = string_lower(tui::textinput_value(m.sl_filter))
+    let mut out: [int] = []
+    let mut i: int = 0
+    while i < array_len(m.sl_types) is
+        if needle == "" is
+            out = array_push(out, i)
+        elsif m.sl_types[i] != "header" is
+            if string_contains(string_lower(m.sl_titles[i] + " " + m.sl_descs[i]), needle) is
+                out = array_push(out, i)
+            end
+        end
+        i += 1
+    end
+    return out
+end
+
+fn refilter(m: Model) -> Model is
+    let mut s: Model = m
+    s.sl_vis = visible(s)
+    s.sl_cursor = 0
+    s.sl_top = 0
+    return s
+end
+
+fn move_cursor(m: Model, c: int) -> Model is
+    let mut s: Model = m
+    let n: int = array_len(s.sl_vis)
+    let mut want: int = c
+    if n == 0 is
+        s.sl_cursor = 0
+        s.sl_top = 0
+        return s
+    end
+    if want < 0 is want = n - 1 end
+    if want >= n is want = 0 end
+    s.sl_cursor = want
+    let bh: int = body_height(s)
+    if want < s.sl_top is s.sl_top = want end
+    if want >= s.sl_top + bh is s.sl_top = want - bh + 1 end
+    return s
+end
+
+fn selected_count(m: Model) -> int is
+    let mut n: int = 0
+    let mut i: int = 0
+    while i < array_len(m.sl_sel) is
+        if m.sl_sel[i] is n += 1 end
+        i += 1
+    end
+    return n
+end
+
+fn set_all(m: Model, on: bool) -> Model is
+    let mut s: Model = m
+    let mut out: [bool] = []
+    let mut k: int = 0
+    while k < array_len(s.sl_sel) is
+        out = array_push(out, false)
+        k += 1
+    end
+    k = 0
+    while k < array_len(s.sl_vis) is
+        let i: int = s.sl_vis[k]
+        if s.sl_types[i] != "header" is out[i] = on end
+        k += 1
+    end
+    ;; zaznaczenia spoza filtra zostają
+    k = 0
+    while k < array_len(m.sl_sel) is
+        let mut shown: bool = false
+        let mut j: int = 0
+        while j < array_len(s.sl_vis) is
+            if s.sl_vis[j] == k is shown = true end
+            j += 1
+        end
+        if !shown is out[k] = m.sl_sel[k] end
+        k += 1
+    end
+    s.sl_sel = out
+    return s
+end
+
+fn toggle(m: Model) -> Model is
+    let mut s: Model = m
+    if array_len(s.sl_vis) == 0 is return s end
+    let i: int = s.sl_vis[s.sl_cursor]
+    if s.sl_types[i] == "header" is return s end
+    s.sl_sel[i] = !s.sl_sel[i]
+    return s
+end
+
+;; Tokeny (stdout) dla zaznaczonych pozycji — logika z Update w Go.
+fn tokens(m: Model) -> [string] is
+    let mut out: [string] = []
+    let mut i: int = 0
+    while i < array_len(m.sl_sel) is
+        if m.sl_sel[i] is
+            if m.sl_mode == "cyber" is
+                out = array_push(out, m.sl_values[i])
+            elsif m.sl_types[i] == "category" is
+                out = array_push(out, "category:" + m.sl_values[i])
+            elsif m.sl_types[i] == "app" is
+                out = array_push(out, "app:" + m.sl_values[i])
+            end
+        end
+        i += 1
+    end
+    return out
+end
+
+fn commands(m: Model) -> [string] is
+    let mut out: [string] = []
+    let mut i: int = 0
+    while i < array_len(m.sl_sel) is
+        if m.sl_sel[i] is
+            if m.sl_mode == "cyber" is
+                out = array_push(out, "hacker cyber " + m.sl_values[i])
+            elsif m.sl_types[i] == "category" || m.sl_types[i] == "app" is
+                out = array_push(out, "hacker " + m.sl_mode + " " + m.sl_values[i])
+            end
+        end
+        i += 1
+    end
+    return out
+end
+
+pub fn make(mode: string, types: [string], titles: [string], descs: [string], values: [string]) -> Model is
+    let filter: any = tui::textinput_focus(tui::textinput_set_prompt(tui::textinput_new("filtr"), "/ "), false)
+    let mut m: Model = Model { sl_mode: mode, sl_types: types, sl_titles: titles, sl_descs: descs, sl_values: values,
+                               sl_sel: falses(array_len(types)), sl_vis: [], sl_filter: filter, sl_typing: false,
+                               sl_cursor: 0, sl_top: 0, sl_w: 80, sl_h: 24, sl_ok: false }
+    m.sl_vis = visible(m)
+    return m
+end
+
+pub fn update(model_any: any, msg: any) -> (any, fn() -> any) is
+    let mut s: Model = model_any
+    if tui::is_ctrl_c(msg) is return (s, tui::cmd_quit()) end
+    if tui::msg_is_resize(msg) is
+        s.sl_w = tui::msg_width(msg)
+        s.sl_h = tui::msg_height(msg)
+        return (move_cursor(s, s.sl_cursor), tui::cmd_none())
+    end
+    if tui::msg_is_wheel_up(msg) is return (move_cursor(s, s.sl_cursor - 1), tui::cmd_none()) end
+    if tui::msg_is_wheel_down(msg) is return (move_cursor(s, s.sl_cursor + 1), tui::cmd_none()) end
+
+    if s.sl_typing is
+        if tui::msg_is_key(msg, "enter") is
+            s.sl_typing = false
+            s.sl_filter = tui::textinput_focus(s.sl_filter, false)
+            return (s, tui::cmd_none())
+        end
+        if tui::msg_is_key(msg, "esc") is
+            s.sl_typing = false
+            s.sl_filter = tui::textinput_focus(tui::textinput_reset(s.sl_filter), false)
+            return (refilter(s), tui::cmd_none())
+        end
+        s.sl_filter = tui::textinput_update(s.sl_filter, msg)
+        return (refilter(s), tui::cmd_none())
+    end
+
+    if tui::msg_is_key(msg, "q") || tui::msg_is_key(msg, "esc") is return (s, tui::cmd_quit()) end
+    if tui::msg_is_key(msg, "up") || tui::msg_is_key(msg, "k") is return (move_cursor(s, s.sl_cursor - 1), tui::cmd_none()) end
+    if tui::msg_is_key(msg, "down") || tui::msg_is_key(msg, "j") is return (move_cursor(s, s.sl_cursor + 1), tui::cmd_none()) end
+    if tui::msg_is_key(msg, "pgup") is return (move_cursor(s, imax(0, s.sl_cursor - body_height(s))), tui::cmd_none()) end
+    if tui::msg_is_key(msg, "pgdown") is return (move_cursor(s, imin(array_len(s.sl_vis) - 1, s.sl_cursor + body_height(s))), tui::cmd_none()) end
+    if tui::msg_is_key(msg, "home") is return (move_cursor(s, 0), tui::cmd_none()) end
+    if tui::msg_is_key(msg, "end") is return (move_cursor(s, array_len(s.sl_vis) - 1), tui::cmd_none()) end
+    if tui::msg_is_key(msg, "space") || tui::msg_is_key(msg, " ") is return (toggle(s), tui::cmd_none()) end
+    if tui::msg_is_key(msg, "a") is return (set_all(s, true), tui::cmd_none()) end
+    if tui::msg_is_key(msg, "n") is return (set_all(s, false), tui::cmd_none()) end
+    if tui::msg_is_key(msg, "/") is
+        s.sl_typing = true
+        s.sl_filter = tui::textinput_focus(s.sl_filter, true)
+        return (s, tui::cmd_none())
+    end
+    if tui::msg_is_key(msg, "enter") is
+        s.sl_ok = true
+        return (s, tui::cmd_quit())
+    end
+    return (s, tui::cmd_none())
+end
+
+pub fn view(model_any: any) -> string is
+    let s: Model = model_any
+    let accent: any = tui::style_bold(tui::style_fg(tui::style_new(), "#FA8072"), true)
+    let dim: any = tui::style_fg(tui::style_new(), "#475569")
+    let pick: any = tui::style_bold(tui::style_fg(tui::style_new(), "#FF75CB"), true)
+    let head: string = tui::style_render(accent, "Select items (space to toggle, enter to confirm)") +
+                       "  " + tui::style_render(dim, "[" + s.sl_mode + "] zaznaczono: " + to_string(selected_count(s)))
+    let width: int = imax(20, s.sl_w - 4)
+    let bh: int = body_height(s)
+
+    let mut rows: [string] = []
+    let mut k: int = s.sl_top
+    while k < imin(array_len(s.sl_vis), s.sl_top + bh) is
+        let i: int = s.sl_vis[k]
+        let mut line: string = ""
+        if s.sl_types[i] == "header" is
+            line = tui::colorize("── " + s.sl_titles[i] + " ──", "#00FF00")
+            if k == s.sl_cursor is line = "› " + line else is line = "  " + line end
+        else is
+            let box: string = if s.sl_sel[i] then "[x] " else "[ ] "
+            let mut text: string = box + s.sl_titles[i]
+            if s.sl_descs[i] != "" is text = text + "  — " + s.sl_descs[i] end
+            text = tui::truncate_str(text, width - 2, "…")
+            if k == s.sl_cursor is
+                line = "› " + tui::style_render(pick, text)
+            else is
+                line = "  " + text
+            end
+        end
+        rows = array_push(rows, line)
+        k += 1
+    end
+    while array_len(rows) < bh is
+        rows = array_push(rows, "")
+    end
+    let mut body: string = ""
+    k = 0
+    while k < array_len(rows) is
+        if k > 0 is body = body + "\n" end
+        body = body + rows[k]
+        k += 1
+    end
+
+    let mut filter_line: string = ""
+    if s.sl_typing is
+        filter_line = tui::textinput_view(s.sl_filter)
+    elsif tui::textinput_value(s.sl_filter) != "" is
+        filter_line = "/ " + tui::textinput_value(s.sl_filter)
+    end
+    let help: string = tui::help_view(["↑/↓", "space", "a/n", "/", "enter", "q"], ["ruch", "zaznacz", "wszystko/nic", "filtr", "zatwierdź", "wyjście"])
+    return head + "\n" + filter_line + "\n" + body + "\n" + help
+end
+
+fn flag_value(args: [string], i: int) -> string is
+    if i + 1 < array_len(args) is return args[i + 1] end
+    return ""
+end
+
+fn usage() is
+    write("Użycie: hacker-select [--mode unpack|pack|cyber] [--pack|--unpack|--cyber] [--run]")
+end
+
+;; Tryb z argumentów: --mode X, --mode=X, -mode X, -mode=X, --pack, --unpack, --cyber.
+fn parse_mode(args: [string]) -> string is
+    let mut mode: string = "unpack"
+    let mut i: int = 1
+    while i < array_len(args) is
+        let a: string = args[i]
+        if a == "--pack" || a == "-pack" is mode = "pack" end
+        if a == "--unpack" || a == "-unpack" is mode = "unpack" end
+        if a == "--cyber" || a == "-cyber" is mode = "cyber" end
+        if a == "--mode" || a == "-mode" is mode = flag_value(args, i) end
+        if string_starts_with(a, "--mode=") is mode = string_slice(a, 7, string_len(a)) end
+        if string_starts_with(a, "-mode=") is mode = string_slice(a, 6, string_len(a)) end
+        i += 1
+    end
+    return mode
+end
+
+fn has_flag(args: [string], flag: string) -> bool is
+    let mut i: int = 1
+    while i < array_len(args) is
+        if args[i] == flag is return true end
+        i += 1
+    end
+    return false
+end
+
+fn sq(s: string) -> string is
+    return "'" + string_replace(s, "'", "'\\''") + "'"
+end
+
+fn build_cyber() -> Model is
+    let out: string = shell("distrobox-enter -n blackarch -- bash -c \"pacman -Sg | grep '^blackarch-'\" 2>/dev/null")
+    if string_trim(out) == "" is
+        write("Error fetching categories: kontener 'blackarch' niedostępny albo pusty (hacker unpack cybersecurity)")
+        exit(1)
+    end
+    let mut types: [string] = ["category", "header"]
+    let mut titles: [string] = ["All", "BlackArch Categories"]
+    let mut descs: [string] = ["Install all BlackArch tools", ""]
+    let mut values: [string] = ["all", ""]
+    let lines: [string] = string_split(out, "\n")
+    let mut i: int = 0
+    while i < array_len(lines) is
+        let l: string = string_trim(lines[i])
+        if l != "" is
+            types = array_push(types, "category")
+            titles = array_push(titles, l)
+            descs = array_push(descs, "BlackArch category")
+            values = array_push(values, l)
+        end
+        i += 1
+    end
+    return make("cyber", types, titles, descs, values)
+end
+
+fn build(mode: string) -> Model is
+    if mode == "unpack" is
+        return make(mode, catalog::unpack_types(), catalog::unpack_titles(), catalog::unpack_descs(), catalog::unpack_values())
+    end
+    if mode == "pack" is
+        return make(mode, catalog::pack_types(), catalog::pack_titles(), catalog::pack_descs(), catalog::pack_values())
+    end
+    if mode == "cyber" is return build_cyber() end
+    write("Invalid mode. Use --mode unpack, --mode pack, or --mode cyber")
+    exit(1)
+    return make("unpack", [], [], [], [])
+end
+
+pub fn init() -> any is
+    return build(parse_mode(env::args()))
+end
+
+fn main() is
+    let args: [string] = env::args()
+    if has_flag(args, "--help") || has_flag(args, "-h") is
+        usage()
+        return
+    end
+
+    let result: Model = tui::run(init, update, view)
+    if !result.sl_ok is return end
+
+    ;; tokeny dla skryptu nadrzędnego -> stdout
+    let toks: [string] = tokens(result)
+    let mut i: int = 0
+    while i < array_len(toks) is
+        write(toks[i])
+        i += 1
+    end
+
+    ;; czytelne podsumowanie -> stderr
+    let cmds: [string] = commands(result)
+    if array_len(cmds) == 0 is
+        system("printf '\\nNo items selected.\\n' >&2")
+        return
+    end
+    system("printf '\\nSelected items:\\n' >&2")
+    i = 0
+    while i < array_len(cmds) is
+        system("printf '  %s\\n' " + sq(cmds[i]) + " >&2")
+        i += 1
+    end
+    system("printf '\\n' >&2")
+
+    if has_flag(args, "--run") is
+        i = 0
+        while i < array_len(cmds) is
+            system(cmds[i])
+            i += 1
+        end
+    end
+end
