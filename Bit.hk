@@ -6,17 +6,18 @@
 -> license     => GPL-3.0
 
 [workspace]
--> members => [source-code/hacker, source-code/update-system, source-code/apt-fronted]
+-> members => [source-code/hacker, source-code/update-system, source-code/apt-frontend, source-code/HackerOS-Updater, source-code/hacker-help, source-code/hacker-docs, source-code/hacker-interactive, source-code/hacker-select, source-code/hacker-repair]
 
 [build]
 -> link => static
 
 [dependencies]
 -> progress-bar => newest
+-> tui => newest
 
 [commands]
 -> build-apt-frontend
---> run => mkdir -p cache/build/release && h# compile source-code/apt-fronted/src/main.h# -o cache/build/release/apt-frontend --release
+--> run => mkdir -p cache/build/release && h# compile source-code/apt-frontend/src/main.h# -o cache/build/release/apt-frontend --release
 --> description => Build apt-frontend (H# + progress-bar, static)
 -> build-update-system
 --> run => mkdir -p cache/build/release && h# compile source-code/update-system/src/main.h# -o cache/build/release/update-system --release
@@ -24,15 +25,36 @@
 -> build-hacker
 --> run => mkdir -p cache/build/release && h# compile source-code/hacker/src/main.h# -o cache/build/release/hacker --release --dynamic
 --> description => Build hacker (H#; uses extern dynamic [c], so it is linked dynamically and bit's static-only guard does not apply)
+-> build-hacker-help
+--> run => mkdir -p cache/build/release && h# compile source-code/hacker-help/src/main.h# -o cache/build/release/hacker-help --release
+--> description => Build hacker-help (H# + tui, static)
+-> build-hacker-docs
+--> run => mkdir -p cache/build/release && h# compile source-code/hacker-docs/src/main.h# -o cache/build/release/hacker-docs --release
+--> description => Build hacker-docs (H# + tui, static)
+-> build-hacker-interactive
+--> run => mkdir -p cache/build/release && h# compile source-code/hacker-interactive/src/main.h# -o cache/build/release/hacker-interactive --release
+--> description => Build hacker-interactive (H# + tui, static)
+-> build-hacker-select
+--> run => mkdir -p cache/build/release && h# compile source-code/hacker-select/src/main.h# -o cache/build/release/hacker-select --release
+--> description => Build hacker-select (H# + tui, static)
+-> build-hacker-repair
+--> run => mkdir -p cache/build/release && h# compile source-code/hacker-repair/src/main.h# -o cache/build/release/hacker-repair --release
+--> description => Build hacker-repair (H# + tui, static)
+-> build-tui-tools
+--> run => bit build-hacker-help && bit build-hacker-docs && bit build-hacker-interactive && bit build-hacker-select && bit build-hacker-repair
+--> description => Build every H# + tui tool (the former Go/Rust TUIs)
 -> build-h
---> run => bit build-update-system && bit build-apt-frontend
+--> run => bit build-update-system && bit build-apt-frontend && bit build-tui-tools
 --> description => Build every statically linked H# member
 -> build-legacy
---> run => (cd source-code/hacker-help && go get hacker-help && go build) && (cd source-code/hacker-interactive && go get hacker-interactive && go build) && (cd source-code/hacker-select && go get hacker-select && go build) && (cd source-code/hacker-docs && go get hacker-docs && go build) && (cd source-code/hacker-repair && cargo build --release) && (cd source-code/HackerOS-Updater && cargo build --release) && (cd source-code/hacker-shell && cargo build --release)
---> description => Build the Go and Rust tools (same steps as build.hl)
+--> run => (cd source-code/HackerOS-Updater && cargo build --release) && (cd source-code/hacker-shell && cargo build --release)
+--> description => Build the remaining Rust tools (same steps as build.hl)
 -> build-all
 --> run => bit build-h && bit build-legacy
 --> description => Build everything build.hl builds
 -> check-h
---> run => find source-code/update-system/src source-code/apt-fronted/src source-code/hacker/src libs/progress-bar/src -name '*.h#' -print0 | xargs -0 h# check
+--> run => find source-code/update-system/src source-code/apt-frontend/src source-code/hacker/src source-code/hacker-help/src source-code/hacker-docs/src source-code/hacker-interactive/src source-code/hacker-select/src source-code/hacker-repair/src -name '*.h#' -print0 | xargs -0 h# check
 --> description => Type-check every H# module of the workspace
+-> regen-data
+--> run => python3 gen/gen_data.py .
+--> description => Regenerate the H# data modules (help/docs/interactive/select catalogs) from the original Go sources in gen/go-src
