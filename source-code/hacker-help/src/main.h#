@@ -1,0 +1,212 @@
+use "bit -> tui" from "tui"
+
+mod data
+
+;; hacker-help — interaktywna lista komend `hacker` (przepisane z Go/bubbletea).
+;;
+;;   ↑/↓ wybór · enter szczegóły · esc wróć · ←/→ grupa · / filtr · q wyjście
+
+pub struct Model is
+    pub hp_list:   any
+    pub hp_tabs:   any
+    pub hp_filter: any
+    pub hp_vp:     any
+    pub hp_idx:    [int]     ;; indeksy katalogu widoczne na liście (-1 = Exit)
+    pub hp_mode:   int       ;; 0 lista, 1 szczegóły, 2 wpisywanie filtra
+    pub hp_w:      int
+    pub hp_h:      int
+end
+
+fn groups() -> [string] is
+    return ["all", "unpack", "pack", "env", "run", "plugin", "system", "other"]
+end
+
+fn group_of(name: string) -> string is
+    let parts: [string] = string_split(name, " ")
+    if array_len(parts) < 2 is return "other" end
+    let g: string = parts[1]
+    if g == "unpack" || g == "pack" || g == "env" || g == "run" || g == "plugin" is return g end
+    if g == "enable" || g == "disable" || g == "switch" || g == "settings" || g == "system" is return "system" end
+    return "other"
+end
+
+fn matches(name: string, desc: string, group: string, tab: string, needle: string) -> bool is
+    if tab != "all" && group != tab is return false end
+    if needle == "" is return true end
+    let n: string = string_lower(needle)
+    return string_contains(string_lower(name), n) || string_contains(string_lower(desc), n)
+end
+
+fn visible(tab: string, needle: string) -> [int] is
+    let names: [string] = data::cmd_names()
+    let descs: [string] = data::cmd_descs()
+    let mut out: [int] = []
+    if needle == "" && tab == "all" is out = array_push(out, -1) end
+    let mut i: int = 0
+    while i < array_len(names) is
+        if matches(names[i], descs[i], group_of(names[i]), tab, needle) is
+            out = array_push(out, i)
+        end
+        i += 1
+    end
+    return out
+end
+
+fn labels(idx: [int]) -> [string] is
+    let names: [string] = data::cmd_names()
+    let mut out: [string] = []
+    let mut i: int = 0
+    while i < array_len(idx) is
+        if idx[i] < 0 is
+            out = array_push(out, "[ Exit ]")
+        else is
+            out = array_push(out, names[idx[i]])
+        end
+        i += 1
+    end
+    return out
+end
+
+fn imax(a: int, b: int) -> int is
+    if a > b is return a end
+    return b
+end
+
+fn left_width(w: int) -> int is
+    return imax(30, w / 2 - 2)
+end
+
+fn rebuild(m: Model) -> Model is
+    let mut s: Model = m
+    let tab: string = groups()[tui::tabs_active(s.hp_tabs)]
+    s.hp_idx = visible(tab, tui::textinput_value(s.hp_filter))
+    s.hp_list = tui::list_set_items(s.hp_list, labels(s.hp_idx))
+    s.hp_list = tui::list_set_height(s.hp_list, imax(3, s.hp_h - 6))
+    return s
+end
+
+fn selected_catalog(m: Model) -> int is
+    if array_len(m.hp_idx) == 0 is return -2 end
+    return m.hp_idx[tui::list_selected_index(m.hp_list)]
+end
+
+fn detail_text(i: int, width: int) -> string is
+    let names: [string] = data::cmd_names()
+    let descs: [string] = data::cmd_descs()
+    let details: [string] = data::cmd_details()
+    let title: string = tui::style_render(tui::style_fg(tui::style_bold(tui::style_new(), true), "#c026d3"), names[i])
+    let dim: any = tui::style_fg(tui::style_new(), "#94a3b8")
+    return title + "\n\n" + descs[i] + "\n\n" + tui::style_render(dim, "Grupa: " + group_of(names[i])) + "\n\n" + tui::wrap_text(details[i], width)
+end
+
+pub fn init() -> any is
+    let idx: [int] = visible("all", "")
+    let list: any = tui::list_set_wrap(tui::list_new(labels(idx)), true)
+    let tabs: any = tui::tabs_new(groups())
+    let filter: any = tui::textinput_focus(tui::textinput_set_prompt(tui::textinput_new("szukaj komendy"), "/ "), false)
+    return Model { hp_list: list, hp_tabs: tabs, hp_filter: filter, hp_vp: tui::viewport_new(40, 10),
+                   hp_idx: idx, hp_mode: 0, hp_w: 80, hp_h: 24 }
+end
+
+pub fn update(model_any: any, msg: any) -> (any, fn() -> any) is
+    let mut s: Model = model_any
+    if tui::is_ctrl_c(msg) is return (s, tui::cmd_quit()) end
+
+    if tui::msg_is_resize(msg) is
+        s.hp_w = tui::msg_width(msg)
+        s.hp_h = tui::msg_height(msg)
+        s.hp_vp = tui::viewport_set_size(s.hp_vp, imax(10, s.hp_w - left_width(s.hp_w) - 8), imax(3, s.hp_h - 8))
+        s = rebuild(s)
+        return (s, tui::cmd_none())
+    end
+
+    if s.hp_mode == 2 is
+        if tui::msg_is_key(msg, "enter") is
+            s.hp_mode = 0
+            s.hp_filter = tui::textinput_focus(s.hp_filter, false)
+            return (s, tui::cmd_none())
+        end
+        if tui::msg_is_key(msg, "esc") is
+            s.hp_mode = 0
+            s.hp_filter = tui::textinput_focus(tui::textinput_reset(s.hp_filter), false)
+            s = rebuild(s)
+            return (s, tui::cmd_none())
+        end
+        s.hp_filter = tui::textinput_update(s.hp_filter, msg)
+        s = rebuild(s)
+        return (s, tui::cmd_none())
+    end
+
+    if s.hp_mode == 1 is
+        if tui::msg_is_key(msg, "esc") || tui::msg_is_key(msg, "backspace") is
+            s.hp_mode = 0
+            return (s, tui::cmd_none())
+        end
+        if tui::msg_is_key(msg, "q") is return (s, tui::cmd_quit()) end
+        s.hp_vp = tui::viewport_update(s.hp_vp, msg)
+        return (s, tui::cmd_none())
+    end
+
+    if tui::msg_is_key(msg, "q") is return (s, tui::cmd_quit()) end
+    if tui::msg_is_key(msg, "/") is
+        s.hp_mode = 2
+        s.hp_filter = tui::textinput_focus(s.hp_filter, true)
+        return (s, tui::cmd_none())
+    end
+    if tui::msg_is_key(msg, "left") || tui::msg_is_key(msg, "right") is
+        s.hp_tabs = tui::tabs_update(s.hp_tabs, msg)
+        s = rebuild(s)
+        return (s, tui::cmd_none())
+    end
+    if tui::msg_is_key(msg, "enter") is
+        let c: int = selected_catalog(s)
+        if c == -1 is return (s, tui::cmd_quit()) end
+        if c >= 0 is
+            s.hp_vp = tui::viewport_set_content(s.hp_vp, detail_text(c, imax(10, s.hp_w - left_width(s.hp_w) - 10)))
+            s.hp_mode = 1
+        end
+        return (s, tui::cmd_none())
+    end
+    s.hp_list = tui::list_update(s.hp_list, msg)
+    return (s, tui::cmd_none())
+end
+
+pub fn view(model_any: any) -> string is
+    let s: Model = model_any
+    let lw: int = left_width(s.hp_w)
+    let rw: int = imax(20, s.hp_w - lw - 6)
+    let bh: int = imax(3, s.hp_h - 6)
+    let accent: any = tui::style_bold(tui::style_fg(tui::style_new(), "#FA8072"), true)
+    let dim: any = tui::style_fg(tui::style_new(), "#475569")
+
+    let head: string = tui::style_render(accent, "HackerOS Commands") + "  " +
+                       tui::style_render(dim, to_string(array_len(s.hp_idx)) + " pozycji")
+    let tabs: string = tui::tabs_view(s.hp_tabs)
+    let mut filter_line: string = ""
+    if s.hp_mode == 2 is
+        filter_line = tui::textinput_view(s.hp_filter)
+    elsif tui::textinput_value(s.hp_filter) != "" is
+        filter_line = "/ " + tui::textinput_value(s.hp_filter)
+    end
+
+    let left_box: any = tui::style_height(tui::style_width(tui::style_border(tui::style_new(), "rounded"), lw), bh)
+    let left: string = tui::style_render(left_box, tui::list_view(s.hp_list))
+
+    let mut right_body: string = "Wybierz komendę z listy, aby zobaczyć szczegóły.\n\nenter — szczegóły\nesc — wróć\n/ — filtr\n←/→ — grupa\nq — wyjście"
+    if s.hp_mode == 1 is
+        right_body = tui::viewport_view(s.hp_vp)
+    else is
+        let c: int = selected_catalog(s)
+        if c >= 0 is right_body = detail_text(c, rw - 6) end
+    end
+    let right_box: any = tui::style_padding(tui::style_height(tui::style_width(tui::style_border(tui::style_new(), "rounded"), rw), bh), 1, 0)
+    let right: string = tui::style_render(right_box, right_body)
+
+    let body: string = tui::join_horizontal([left, right], 1)
+    let help: string = tui::help_view(["↑/↓", "enter", "esc", "←/→", "/", "q"], ["wybór", "szczegóły", "wróć", "grupa", "filtr", "wyjście"])
+    return head + "\n" + tabs + "\n" + filter_line + "\n" + body + "\n" + help
+end
+
+fn main() is
+    tui::run(init, update, view)
+end
