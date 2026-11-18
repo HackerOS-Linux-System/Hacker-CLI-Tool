@@ -1,0 +1,470 @@
+use "bit -> tui" from "tui"
+
+mod job
+mod ops
+
+extern static [c] is
+    fn system(cmd: string) -> int
+    fn exit(code: int)
+end
+
+;; hacker-repair — narzędzie naprawcze Debian/HackerOS (przepisane z Rust/ratatui).
+;;
+;; Menu główne -> lista operacji (space zaznacza, enter uruchamia) / automatyczne
+;; skanowanie / Timeshift. Kroki biegną w TLE, wyjście płynie na żywo, Esc przerywa.
+;; Przywracanie snapshotu Timeshift jest interaktywne: TUI zamyka się na czas
+;; `timeshift --restore` (pytania na terminalu) i wraca po Enterze.
+
+const VERSION: string = "2.4.3"
+const LOG_FILE: string = "/var/log/hacker-repair.log"
+
+pub struct Model is
+    pub rp_stage:  int        ;; 0 menu, 1 operacje, 2 timeshift, 3 praca, 4 wynik
+    pub rp_menu:   any
+    pub rp_check:  any
+    pub rp_ts:     any
+    pub rp_vp:     any
+    pub rp_log:    [string]   ;; zakończone linie wyniku
+    pub rp_q_item: [int]      ;; kolejka kroków: indeks operacji
+    pub rp_q_lbl:  [string]
+    pub rp_q_cmd:  [string]
+    pub rp_pos:    int        ;; bieżący krok
+    pub rp_failed: int        ;; operacja, której reszta kroków jest pomijana (-1 brak)
+    pub rp_dir:    string     ;; katalog bieżącego zadania ("" = brak)
+    pub rp_errors: int
+    pub rp_hint:   string
+    pub rp_poll:   int
+    pub rp_spin:   any
+    pub rp_exec:   string     ;; polecenie do wykonania PO zamknięciu TUI
+    pub rp_w:      int
+    pub rp_h:      int
+end
+
+fn imax(a: int, b: int) -> int is
+    if a > b is return a end
+    return b
+end
+
+fn main_titles() -> [string] is
+    return ["Rozpocznij diagnostykę (wybierz operacje)",
+            "Nie wiem, co jest nie tak - automatyczne skanowanie i naprawa",
+            "Zarządzanie Timeshift (snapshoty systemu)",
+            "Wyjdź"]
+end
+
+fn main_descs() -> [string] is
+    return ["Wybierz, co chcesz sprawdzić/naprawić",
+            "Narzędzie samo sprawdzi i naprawi typowe problemy",
+            "Twórz, przywracaj snapshoty",
+            "Zamknij program"]
+end
+
+fn ts_titles() -> [string] is
+    return ["Utwórz nowy snapshot", "Przywróć snapshot", "Lista snapshotów", "Wróć"]
+end
+
+fn with_desc(titles: [string], descs: [string]) -> [string] is
+    let mut out: [string] = []
+    let mut i: int = 0
+    while i < array_len(titles) is
+        out = array_push(out, titles[i] + "  —  " + descs[i])
+        i += 1
+    end
+    return out
+end
+
+fn log_line(text: string) is
+    shell("printf '%s\\n' " + job::sq(text) + " >> " + job::sq(LOG_FILE) + " 2>/dev/null")
+end
+
+pub fn init() -> any is
+    log_line("INFO: Starting hacker-repair")
+    let menu: any = tui::list_set_wrap(tui::list_new(with_desc(main_titles(), main_descs())), true)
+    let check: any = tui::checklist_new(with_desc(ops::titles(), ops::descs()))
+    let ts: any = tui::list_set_wrap(tui::list_new(ts_titles()), true)
+    return Model { rp_stage: 0, rp_menu: menu, rp_check: check, rp_ts: ts, rp_vp: tui::viewport_new(60, 10),
+                   rp_log: [], rp_q_item: [], rp_q_lbl: [], rp_q_cmd: [], rp_pos: 0, rp_failed: -1, rp_dir: "",
+                   rp_errors: 0, rp_hint: "", rp_poll: 0, rp_spin: tui::spinner_new("line"), rp_exec: "",
+                   rp_w: 80, rp_h: 24 }
+end
+
+;; ── kolejka kroków ───────────────────────────────────────────────────
+fn enqueue(m: Model, item: int, titles: [string], lbls: [string], cmds: [string]) -> Model is
+    let mut s: Model = m
+    let mut i: int = 0
+    while i < array_len(cmds) is
+        s.rp_q_item = array_push(s.rp_q_item, item)
+        s.rp_q_lbl = array_push(s.rp_q_lbl, titles[0] + ": " + lbls[i])
+        s.rp_q_cmd = array_push(s.rp_q_cmd, cmds[i])
+        i += 1
+    end
+    return s
+end
+
+fn begin_run(m: Model) -> Model is
+    let mut s: Model = m
+    s.rp_stage = 3
+    s.rp_pos = -1
+    s.rp_failed = -1
+    s.rp_errors = 0
+    s.rp_dir = ""
+    s.rp_poll = 0
+    return s
+end
+
+fn clear_queue(m: Model) -> Model is
+    let mut s: Model = m
+    s.rp_log = []
+    s.rp_q_item = []
+    s.rp_q_lbl = []
+    s.rp_q_cmd = []
+    s.rp_hint = ""
+    return s
+end
+
+fn start_ops(m: Model, picked: [int]) -> Model is
+    let mut s: Model = clear_queue(m)
+    let titles: [string] = ops::titles()
+    let mut k: int = 0
+    while k < array_len(picked) is
+        let i: int = picked[k]
+        s = enqueue(s, i, [titles[i]], ops::step_labels(i), ops::step_cmds(i))
+        k += 1
+    end
+    return begin_run(s)
+end
+
+fn all_items() -> [int] is
+    let mut out: [int] = []
+    let mut i: int = 0
+    while i < array_len(ops::titles()) is
+        out = array_push(out, i)
+        i += 1
+    end
+    return out
+end
+
+fn has_timeshift() -> bool is
+    return string_trim(shell("command -v timeshift 2>/dev/null")) != ""
+end
+
+fn start_timeshift(m: Model, which: int) -> Model is
+    let mut s: Model = clear_queue(m)
+    if !has_timeshift() is
+        s.rp_log = ["Błąd: Timeshift nie jest zainstalowany.", "Zainstaluj go: apt install timeshift"]
+        s.rp_stage = 4
+        s.rp_errors = 1
+        s.rp_vp = tui::viewport_set_content(s.rp_vp, render_log(s))
+        return s
+    end
+    if which == 0 is
+        s = enqueue(s, 100, ["Timeshift"], ["--create"], ["timeshift --create --comments 'hacker-repair'"])
+    else is
+        s = enqueue(s, 101, ["Timeshift"], ["--list"], ["timeshift --list"])
+    end
+    return begin_run(s)
+end
+
+;; ── przebieg ────────────────────────────────────────────────────────
+fn push_log(m: Model, line: string) -> Model is
+    let mut s: Model = m
+    s.rp_log = array_push(s.rp_log, line)
+    return s
+end
+
+fn push_output(m: Model, text: string) -> Model is
+    let mut s: Model = m
+    let lines: [string] = string_split(text, "\n")
+    let mut n: int = array_len(lines)
+    if n > 0 && lines[n - 1] == "" is n -= 1 end
+    let mut i: int = 0
+    while i < n is
+        s.rp_log = array_push(s.rp_log, lines[i])
+        i += 1
+    end
+    return s
+end
+
+fn render_log(m: Model) -> string is
+    let mut out: string = ""
+    let mut i: int = 0
+    while i < array_len(m.rp_log) is
+        if i > 0 is out = out + "\n" end
+        out = out + color_line(m.rp_log[i])
+        i += 1
+    end
+    return out
+end
+
+fn color_line(l: string) -> string is
+    if string_contains(l, "Błąd") || string_contains(l, "Error") || string_contains(l, "failed") || string_contains(l, "has issues") is
+        return tui::colorize(l, "#ef4444")
+    end
+    if string_contains(l, "Warning") || string_contains(l, "WARN") || string_contains(l, "przerwana") is
+        return tui::colorize(l, "#eab308")
+    end
+    if string_starts_with(l, "###") is
+        return tui::style_render(tui::style_fg(tui::style_bold(tui::style_new(), true), "#c026d3"), l)
+    end
+    if string_contains(l, " OK") || string_starts_with(l, "OK") is return tui::colorize(l, "#22c55e") end
+    return l
+end
+
+fn refresh_vp(m: Model, live: string) -> Model is
+    let mut s: Model = m
+    let mut text: string = render_log(s)
+    if live != "" is
+        if text != "" is text = text + "\n" end
+        text = text + live
+    end
+    s.rp_vp = tui::viewport_set_content(s.rp_vp, text)
+    s.rp_vp = tui::viewport_scroll(s.rp_vp, 1000000)
+    return s
+end
+
+fn finish_all(m: Model) -> Model is
+    let mut s: Model = m
+    s = push_log(s, "")
+    if s.rp_errors == 0 is
+        s = push_log(s, "Zakończono — wszystkie kroki OK.")
+    else is
+        s = push_log(s, "Zakończono z błędami: " + to_string(s.rp_errors) + " (Error)")
+    end
+    log_line("INFO: run finished, errors=" + to_string(s.rp_errors))
+    s.rp_stage = 4
+    s.rp_dir = ""
+    s = refresh_vp(s, "")
+    return s
+end
+
+;; Startuje następny krok kolejki (pomija kroki operacji, która już zawiodła).
+fn next_step(m: Model) -> Model is
+    let mut s: Model = m
+    let mut p: int = s.rp_pos + 1
+    while p < array_len(s.rp_q_cmd) && s.rp_q_item[p] == s.rp_failed is
+        p += 1
+    end
+    if p >= array_len(s.rp_q_cmd) is
+        s.rp_pos = p
+        return finish_all(s)
+    end
+    s.rp_pos = p
+    s = push_log(s, "### Starting: " + s.rp_q_lbl[p])
+    log_line("INFO: starting " + s.rp_q_lbl[p])
+    s.rp_dir = job::start(s.rp_q_cmd[p])
+    if s.rp_dir == "" is
+        s = push_log(s, "Error: nie można utworzyć katalogu zadania")
+        s.rp_errors = s.rp_errors + 1
+        s.rp_failed = s.rp_q_item[p]
+        return next_step(s)
+    end
+    return refresh_vp(s, "")
+end
+
+fn step_done(m: Model) -> Model is
+    let mut s: Model = m
+    let rc: int = job::exit_code(s.rp_dir)
+    s = push_output(s, job::output(s.rp_dir))
+    job::cleanup(s.rp_dir)
+    s.rp_dir = ""
+    if rc != 0 is
+        s = push_log(s, "Error: Command failed with status: " + to_string(rc))
+        log_line("ERROR: " + s.rp_q_lbl[s.rp_pos] + " rc=" + to_string(rc))
+        s.rp_errors = s.rp_errors + 1
+        s.rp_failed = s.rp_q_item[s.rp_pos]
+    end
+    return next_step(s)
+end
+
+fn cancel(m: Model) -> Model is
+    let mut s: Model = m
+    job::kill(s.rp_dir)
+    s = push_output(s, job::output(s.rp_dir))
+    job::cleanup(s.rp_dir)
+    s.rp_dir = ""
+    s = push_log(s, "Operacja przerwana.")
+    log_line("INFO: operation cancelled")
+    s.rp_stage = 4
+    return refresh_vp(s, "")
+end
+
+fn to_menu(m: Model) -> Model is
+    let mut s: Model = m
+    s.rp_stage = 0
+    s.rp_hint = ""
+    return s
+end
+
+fn quit_cmd(m: Model) -> (any, fn() -> any) is
+    return (m, tui::cmd_quit())
+end
+
+pub fn update(model_any: any, msg: any) -> (any, fn() -> any) is
+    let mut s: Model = model_any
+    if tui::is_ctrl_c(msg) is return quit_cmd(s) end
+
+    if tui::msg_is_resize(msg) is
+        s.rp_w = tui::msg_width(msg)
+        s.rp_h = tui::msg_height(msg)
+        s.rp_vp = tui::viewport_set_size(s.rp_vp, imax(20, s.rp_w - 4), imax(3, s.rp_h - 6))
+        let lh: int = imax(3, s.rp_h - 6)
+        s.rp_menu = tui::list_set_height(s.rp_menu, lh)
+        s.rp_ts = tui::list_set_height(s.rp_ts, lh)
+        s.rp_check = tui::checklist_set_height(s.rp_check, lh)
+        return (s, tui::cmd_none())
+    end
+
+    ;; ── praca w tle ──
+    if s.rp_stage == 3 is
+        if tui::msg_is_tick(msg) is
+            s.rp_spin = tui::spinner_tick(s.rp_spin)
+            if s.rp_pos < 0 is return (next_step(s), tui::cmd_none()) end
+            if s.rp_dir == "" is return (s, tui::cmd_none()) end
+            if job::finished(s.rp_dir) is return (step_done(s), tui::cmd_none()) end
+            s.rp_poll = s.rp_poll + 1
+            if s.rp_poll % 3 == 0 is
+                s = refresh_vp(s, job::output(s.rp_dir))
+            end
+            return (s, tui::cmd_none())
+        end
+        if tui::msg_is_key(msg, "esc") is return (cancel(s), tui::cmd_none()) end
+        if tui::msg_is_key(msg, "q") is return quit_cmd(s) end
+        s.rp_vp = tui::viewport_update(s.rp_vp, msg)
+        return (s, tui::cmd_none())
+    end
+
+    if tui::msg_is_tick(msg) is return (s, tui::cmd_none()) end
+
+    ;; ── wynik ──
+    if s.rp_stage == 4 is
+        if tui::msg_is_key(msg, "enter") || tui::msg_is_key(msg, "esc") is return (to_menu(s), tui::cmd_none()) end
+        if tui::msg_is_key(msg, "q") is return quit_cmd(s) end
+        s.rp_vp = tui::viewport_update(s.rp_vp, msg)
+        return (s, tui::cmd_none())
+    end
+
+    ;; ── operacje (checklist) ──
+    if s.rp_stage == 1 is
+        if tui::msg_is_key(msg, "esc") is return (to_menu(s), tui::cmd_none()) end
+        if tui::msg_is_key(msg, "q") is return quit_cmd(s) end
+        if tui::msg_is_key(msg, "enter") is
+            let picked: [int] = tui::checklist_selected_indices(s.rp_check)
+            if array_len(picked) == 0 is
+                s.rp_hint = "Zaznacz co najmniej jedną operację (space)."
+                return (s, tui::cmd_none())
+            end
+            return (start_ops(s, picked), tui::cmd_none())
+        end
+        s.rp_hint = ""
+        s.rp_check = tui::checklist_update(s.rp_check, msg)
+        return (s, tui::cmd_none())
+    end
+
+    ;; ── Timeshift ──
+    if s.rp_stage == 2 is
+        if tui::msg_is_key(msg, "esc") is return (to_menu(s), tui::cmd_none()) end
+        if tui::msg_is_key(msg, "q") is return quit_cmd(s) end
+        if tui::msg_is_key(msg, "enter") is
+            let i: int = tui::list_selected_index(s.rp_ts)
+            if i == 0 is return (start_timeshift(s, 0), tui::cmd_none()) end
+            if i == 2 is return (start_timeshift(s, 1), tui::cmd_none()) end
+            if i == 1 is
+                if !has_timeshift() is return (start_timeshift(s, 0), tui::cmd_none()) end
+                s.rp_exec = "timeshift --restore"
+                return quit_cmd(s)
+            end
+            return (to_menu(s), tui::cmd_none())
+        end
+        s.rp_ts = tui::list_update(s.rp_ts, msg)
+        return (s, tui::cmd_none())
+    end
+
+    ;; ── menu główne ──
+    if tui::msg_is_key(msg, "q") is return quit_cmd(s) end
+    if tui::msg_is_key(msg, "enter") is
+        let i: int = tui::list_selected_index(s.rp_menu)
+        if i == 0 is
+            s.rp_stage = 1
+            return (s, tui::cmd_none())
+        end
+        if i == 1 is return (start_ops(s, all_items()), tui::cmd_none()) end
+        if i == 2 is
+            s.rp_stage = 2
+            return (s, tui::cmd_none())
+        end
+        return quit_cmd(s)
+    end
+    s.rp_menu = tui::list_update(s.rp_menu, msg)
+    return (s, tui::cmd_none())
+end
+
+pub fn view(model_any: any) -> string is
+    let s: Model = model_any
+    let width: int = imax(20, s.rp_w)
+    let bh: int = imax(3, s.rp_h - 6)
+    let dim: any = tui::style_fg(tui::style_new(), "#475569")
+    let bar: any = tui::style_width(tui::style_align(tui::style_bold(tui::style_fg(tui::style_bg(tui::style_new(), "#c026d3"), "#ffffff"), true), "center"), width)
+    let title: string = tui::style_render(bar, "Hacker-Repair: Narzędzie do naprawy systemu Debian  v" + VERSION)
+
+    let box: any = tui::style_height(tui::style_width(tui::style_border(tui::style_new(), "rounded"), width - 2), bh)
+    let mut panel: string = ""
+    let mut help: string = ""
+    if s.rp_stage == 0 is
+        panel = tui::style_render(tui::style_bold(tui::style_new(), true), "Menu Główne") + "\n\n" + tui::list_view(s.rp_menu)
+        help = tui::help_view(["↑/↓", "enter", "q"], ["wybór", "otwórz", "wyjście"])
+    end
+    if s.rp_stage == 1 is
+        panel = tui::style_render(tui::style_bold(tui::style_new(), true), "Wybierz operacje do wykonania (space aby zaznaczyć, enter aby uruchomić)") + "\n\n" + tui::checklist_view(s.rp_check)
+        if s.rp_hint != "" is panel = panel + "\n\n" + tui::colorize(s.rp_hint, "#eab308") end
+        help = tui::help_view(["↑/↓", "space", "a/n", "enter", "esc"], ["ruch", "zaznacz", "wszystko/nic", "uruchom", "wróć"])
+    end
+    if s.rp_stage == 2 is
+        panel = tui::style_render(tui::style_bold(tui::style_new(), true), "Menu Timeshift") + "\n\n" + tui::list_view(s.rp_ts)
+        help = tui::help_view(["↑/↓", "enter", "esc"], ["wybór", "wykonaj", "wróć"])
+    end
+    if s.rp_stage == 3 is
+        let total: int = array_len(s.rp_q_cmd)
+        let mut now: int = s.rp_pos + 1
+        if now < 1 is now = 1 end
+        if now > total is now = total end
+        panel = tui::style_render(tui::style_bold(tui::style_new(), true), tui::spinner_view(s.rp_spin) + " Przetwarzanie... (" + to_string(now) + "/" + to_string(total) + ")") + "\n" + tui::viewport_view(s.rp_vp)
+        help = tui::help_view(["esc", "↑/↓", "q"], ["przerwij", "przewijaj", "wyjście"])
+    end
+    if s.rp_stage == 4 is
+        let mut heading: string = tui::colorize("Wynik operacji", "#22c55e")
+        if s.rp_errors > 0 is heading = tui::colorize("Wynik operacji — są błędy", "#ef4444") end
+        panel = heading + "  " + tui::style_render(dim, to_string(tui::viewport_scroll_percent(s.rp_vp)) + "%") + "\n" + tui::viewport_view(s.rp_vp)
+        help = tui::help_view(["enter/esc", "↑/↓", "q"], ["menu", "przewijaj", "wyjście"])
+    end
+    return title + "\n" + tui::style_render(box, panel) + "\n" + help
+end
+
+fn is_root() -> bool is
+    return string_trim(shell("id -u")) == "0"
+end
+
+fn main() is
+    if !is_root() is
+        write("This program requires root privileges. Please run with sudo.")
+        exit(1)
+    end
+
+    let mut again: bool = true
+    while again is
+        let result: Model = tui::run(init, update, view)
+        if result.rp_dir != "" is
+            job::kill(result.rp_dir)
+            job::cleanup(result.rp_dir)
+        end
+        again = false
+        if result.rp_exec != "" is
+            ;; interaktywne polecenie (Timeshift --restore) — na prawdziwym terminalu
+            log_line("INFO: running interactive: " + result.rp_exec)
+            system(result.rp_exec)
+            write("")
+            write("Naciśnij Enter, aby wrócić do hacker-repair (Ctrl+C aby wyjść)...")
+            system("read _x")
+            again = true
+        end
+    end
+end
