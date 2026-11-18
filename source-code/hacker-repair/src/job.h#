@@ -1,0 +1,52 @@
+use "std -> fs" from "fs"
+
+;; job.h# — krok naprawczy w TLE (wzorzec z HackerOS-Updater/worker.h#): skrypt w osobnej
+;; sesji (setsid), stdout+stderr -> `out`, kod wyjścia -> `rc` (atomowo), pid -> `pid`.
+;; Dzięki temu Esc może ubić całe drzewo procesów, a tui nigdy nie blokuje się na poleceniu.
+
+pub fn sq(s: string) -> string is
+    return "'" + string_replace(s, "'", "'\\''") + "'"
+end
+
+pub fn start(cmd: string) -> string is
+    let dir: string = string_trim(shell("umask 077; mktemp -d /tmp/hacker-repair.XXXXXX"))
+    if dir == "" is return "" end
+    let script: string = "#!/bin/sh\n" +
+        "echo $$ > " + sq(dir + "/pid") + "\n" +
+        "bash -c " + sq(cmd) + " > " + sq(dir + "/out") + " 2>&1 < /dev/null\n" +
+        "echo $? > " + sq(dir + "/rc.tmp") + "\n" +
+        "mv " + sq(dir + "/rc.tmp") + " " + sq(dir + "/rc") + "\n"
+    fs::write(dir + "/job.sh", script)
+    shell("( if command -v setsid >/dev/null 2>&1; then setsid sh " + sq(dir + "/job.sh") + "; else sh " + sq(dir + "/job.sh") + "; fi ) >/dev/null 2>&1 </dev/null &")
+    return dir
+end
+
+pub fn finished(dir: string) -> bool is
+    if dir == "" is return true end
+    return file_exists(dir + "/rc")
+end
+
+pub fn exit_code(dir: string) -> int is
+    let t: string = string_trim(file_read(dir + "/rc"))
+    if t == "" is return 1 end
+    return str_to_int(t)
+end
+
+pub fn output(dir: string) -> string is
+    if dir == "" || !file_exists(dir + "/out") is return "" end
+    return shell("sed -e 's/\\x1b\\[[0-9;?]*[a-zA-Z]//g' -e 's/.*\\r//' " + sq(dir + "/out") + " 2>/dev/null")
+end
+
+pub fn kill(dir: string) is
+    if dir == "" is return end
+    let pid: string = string_trim(file_read(dir + "/pid"))
+    if pid != "" is
+        shell("kill -TERM -- -" + pid + " 2>/dev/null || kill -TERM " + pid + " 2>/dev/null")
+    end
+end
+
+pub fn cleanup(dir: string) is
+    if dir != "" && string_starts_with(dir, "/tmp/hacker-repair.") is
+        shell("rm -rf " + sq(dir))
+    end
+end
