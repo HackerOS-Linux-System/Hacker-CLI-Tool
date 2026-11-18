@@ -1,0 +1,216 @@
+use "bit -> tui" from "tui"
+
+mod faq
+
+;; hacker-docs — FAQ i dokumentacja HackerOS (przepisane z Go/bubbletea).
+;;   ↑/↓ wybór · enter odpowiedź · esc wróć · / szukaj · q wyjście
+
+pub struct Model is
+    pub dc_list:   any
+    pub dc_filter: any
+    pub dc_vp:     any
+    pub dc_idx:    [int]     ;; indeksy FAQ widoczne na liście (-1 = Wyjdź)
+    pub dc_mode:   int       ;; 0 lista, 1 odpowiedź, 2 filtr
+    pub dc_cur:    int       ;; otwarte pytanie
+    pub dc_w:      int
+    pub dc_h:      int
+end
+
+fn imax(a: int, b: int) -> int is
+    if a > b is return a end
+    return b
+end
+
+fn side_width(w: int) -> int is
+    return imax(30, w / 2 - 2)
+end
+
+fn visible(needle: string) -> [int] is
+    let qs: [string] = faq::faq_questions()
+    let n: string = string_lower(needle)
+    let mut out: [int] = []
+    if needle == "" is out = array_push(out, -1) end
+    let mut i: int = 0
+    while i < array_len(qs) is
+        if needle == "" || string_contains(string_lower(qs[i]), n) is
+            out = array_push(out, i)
+        end
+        i += 1
+    end
+    return out
+end
+
+fn labels(idx: [int]) -> [string] is
+    let qs: [string] = faq::faq_questions()
+    let mut out: [string] = []
+    let mut i: int = 0
+    while i < array_len(idx) is
+        if idx[i] < 0 is
+            out = array_push(out, "[ Wyjdź ]")
+        else is
+            out = array_push(out, qs[idx[i]])
+        end
+        i += 1
+    end
+    return out
+end
+
+;; ── kolorowanie odpowiedzi (styleLine z Go) ──────────────────────────
+fn is_command(line: string) -> bool is
+    let prefixes: [string] = ["hacker ", "sudo ", "apt ", "lpm ", "hl ", "chker ", "nmcli ", "journalctl ", "dmesg ", "dd "]
+    let mut i: int = 0
+    while i < array_len(prefixes) is
+        if string_starts_with(line, prefixes[i]) is return true end
+        i += 1
+    end
+    return false
+end
+
+fn style_line(line: string, width: int) -> string is
+    let text: string = tui::wrap_text(line, width)
+    if line == "" is return "" end
+    if string_contains(line, "https://") || string_contains(line, "http://") is
+        return tui::colorize(text, "#06b6d4")
+    end
+    if string_len(line) < 40 && string_len(line) > 2 && string_ends_with(line, ":") is
+        return tui::style_render(tui::style_fg(tui::style_bold(tui::style_new(), true), "#c026d3"), text)
+    end
+    if string_starts_with(line, "UWAGA:") is
+        return tui::style_render(tui::style_fg(tui::style_bold(tui::style_new(), true), "#eab308"), text)
+    end
+    if is_command(line) is return tui::colorize(text, "#06b6d4") end
+    if string_starts_with(line, "•") is return tui::colorize(text, "#94a3b8") end
+    return tui::colorize(text, "#e2e8f0")
+end
+
+fn render_answer(i: int, width: int) -> string is
+    let lines: [string] = faq::faq_answer(i)
+    let mut out: [string] = []
+    let mut k: int = 0
+    while k < array_len(lines) is
+        out = array_push(out, style_line(lines[k], width))
+        k += 1
+    end
+    let mut joined: string = ""
+    k = 0
+    while k < array_len(out) is
+        if k > 0 is joined = joined + "\n" end
+        joined = joined + out[k]
+        k += 1
+    end
+    return joined
+end
+
+fn rebuild(m: Model) -> Model is
+    let mut s: Model = m
+    s.dc_idx = visible(tui::textinput_value(s.dc_filter))
+    s.dc_list = tui::list_set_items(s.dc_list, labels(s.dc_idx))
+    s.dc_list = tui::list_set_height(s.dc_list, imax(3, s.dc_h - 5))
+    return s
+end
+
+fn vp_width(m: Model) -> int is
+    return imax(20, m.dc_w - side_width(m.dc_w) - 8)
+end
+
+pub fn init() -> any is
+    let idx: [int] = visible("")
+    let list: any = tui::list_set_wrap(tui::list_new(labels(idx)), true)
+    let filter: any = tui::textinput_focus(tui::textinput_set_prompt(tui::textinput_new("szukaj pytania"), "/ "), false)
+    return Model { dc_list: list, dc_filter: filter, dc_vp: tui::viewport_new(40, 10), dc_idx: idx,
+                   dc_mode: 0, dc_cur: 0, dc_w: 80, dc_h: 24 }
+end
+
+pub fn update(model_any: any, msg: any) -> (any, fn() -> any) is
+    let mut s: Model = model_any
+    if tui::is_ctrl_c(msg) is return (s, tui::cmd_quit()) end
+
+    if tui::msg_is_resize(msg) is
+        s.dc_w = tui::msg_width(msg)
+        s.dc_h = tui::msg_height(msg)
+        s.dc_vp = tui::viewport_set_size(s.dc_vp, vp_width(s), imax(3, s.dc_h - 6))
+        s = rebuild(s)
+        return (s, tui::cmd_none())
+    end
+
+    if s.dc_mode == 2 is
+        if tui::msg_is_key(msg, "enter") is
+            s.dc_mode = 0
+            s.dc_filter = tui::textinput_focus(s.dc_filter, false)
+            return (s, tui::cmd_none())
+        end
+        if tui::msg_is_key(msg, "esc") is
+            s.dc_mode = 0
+            s.dc_filter = tui::textinput_focus(tui::textinput_reset(s.dc_filter), false)
+            s = rebuild(s)
+            return (s, tui::cmd_none())
+        end
+        s.dc_filter = tui::textinput_update(s.dc_filter, msg)
+        s = rebuild(s)
+        return (s, tui::cmd_none())
+    end
+
+    if s.dc_mode == 1 is
+        if tui::msg_is_key(msg, "esc") || tui::msg_is_key(msg, "backspace") is
+            s.dc_mode = 0
+            return (s, tui::cmd_none())
+        end
+        if tui::msg_is_key(msg, "q") is return (s, tui::cmd_quit()) end
+        s.dc_vp = tui::viewport_update(s.dc_vp, msg)
+        return (s, tui::cmd_none())
+    end
+
+    if tui::msg_is_key(msg, "q") is return (s, tui::cmd_quit()) end
+    if tui::msg_is_key(msg, "/") is
+        s.dc_mode = 2
+        s.dc_filter = tui::textinput_focus(s.dc_filter, true)
+        return (s, tui::cmd_none())
+    end
+    if tui::msg_is_key(msg, "enter") is
+        if array_len(s.dc_idx) == 0 is return (s, tui::cmd_none()) end
+        let c: int = s.dc_idx[tui::list_selected_index(s.dc_list)]
+        if c == -1 is return (s, tui::cmd_quit()) end
+        s.dc_cur = c
+        s.dc_vp = tui::viewport_set_content(s.dc_vp, render_answer(c, vp_width(s)))
+        s.dc_mode = 1
+        return (s, tui::cmd_none())
+    end
+    s.dc_list = tui::list_update(s.dc_list, msg)
+    return (s, tui::cmd_none())
+end
+
+pub fn view(model_any: any) -> string is
+    let s: Model = model_any
+    let sw: int = side_width(s.dc_w)
+    let rw: int = imax(20, s.dc_w - sw - 6)
+    let bh: int = imax(3, s.dc_h - 5)
+    let accent: any = tui::style_bold(tui::style_fg(tui::style_new(), "#c026d3"), true)
+    let dim: any = tui::style_fg(tui::style_new(), "#475569")
+
+    let mut head: string = tui::style_render(accent, "HackerOS — Dokumentacja & FAQ")
+    if s.dc_mode == 2 is
+        head = head + "   " + tui::textinput_view(s.dc_filter)
+    elsif tui::textinput_value(s.dc_filter) != "" is
+        head = head + "   / " + tui::textinput_value(s.dc_filter)
+    end
+
+    let left_box: any = tui::style_height(tui::style_width(tui::style_border_color(tui::style_border(tui::style_new(), "rounded"), "#2a2a3a"), sw), bh)
+    let left: string = tui::style_render(left_box, tui::list_view(s.dc_list))
+
+    let mut body: string = tui::style_render(dim, "Wybierz pytanie z listy, aby wyświetlić odpowiedź.\n\n  enter — wybierz\n  esc   — wróć\n  /     — szukaj\n  q     — wyjdź")
+    if s.dc_mode == 1 is
+        let qs: [string] = faq::faq_questions()
+        let title: string = tui::style_render(accent, "▌ " + qs[s.dc_cur])
+        body = title + "\n" + tui::style_render(dim, tui::hline(rw - 4)) + "\n" + tui::viewport_view(s.dc_vp) + "\n" +
+               tui::style_render(dim, "esc — wróć · ↑↓ — przewijaj · " + to_string(tui::viewport_scroll_percent(s.dc_vp)) + "%")
+    end
+    let right_box: any = tui::style_height(tui::style_width(tui::style_border_color(tui::style_border(tui::style_new(), "rounded"), "#2a2a3a"), rw), bh)
+    let right: string = tui::style_render(right_box, body)
+
+    let help: string = tui::help_view(["↑/↓", "enter", "esc", "/", "q"], ["wybór", "odpowiedź", "wróć", "szukaj", "wyjście"])
+    return head + "\n" + tui::join_horizontal([left, right], 1) + "\n" + help
+end
+
+fn main() is
+    tui::run(init, update, view)
+end
