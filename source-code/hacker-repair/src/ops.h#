@@ -1,0 +1,135 @@
+pub fn titles() -> [string] is
+    return [
+        "Napraw pakiety",
+        "Napraw boot loader",
+        "Sprawdź dysk",
+        "Aktualizuj system",
+        "Sprawdź miejsce na dysku",
+        "Diagnostyka sieci",
+        "Analiza logów",
+        "Czyszczenie systemu",
+        "Reset stacku sieciowego",
+        "Edytuj /etc/resolv.conf",
+        "Sprawdź blokady RF",
+    ]
+end
+
+pub fn descs() -> [string] is
+    return [
+        "apt update, install -f, dpkg --configure -a",
+        "update-grub",
+        "lsblk, błędy I/O z dmesg + porada nt. fsck",
+        "apt upgrade -y",
+        "df / i /var (ostrzeżenie przy 100%)",
+        "Pingi i status systemd-resolved",
+        "Szukaj kluczowych błędów w journalctl",
+        "apt clean, autoremove, vacuum journal",
+        "Restart NetworkManager, czyszczenie routingu, DHCP",
+        "Przełącz DNS na 8.8.8.8 (z kopią zapasową)",
+        "Diagnostyka rfkill",
+    ]
+end
+
+fn join_lines(lines: [string]) -> string is
+    let mut out: string = ""
+    let mut i: int = 0
+    while i < array_len(lines) is
+        if i > 0 is out = out + "\n" end
+        out = out + lines[i]
+        i += 1
+    end
+    return out
+end
+
+pub fn step_labels(i: int) -> [string] is
+    if i == 0 is return ["apt update", "apt install -f", "dpkg --configure -a"] end
+    if i == 1 is return ["update-grub"] end
+    if i == 2 is return ["Sprawdzam dysk"] end
+    if i == 3 is return ["apt upgrade -y"] end
+    if i == 4 is return ["Miejsce na dysku"] end
+    if i == 5 is return ["Diagnostyka sieci"] end
+    if i == 6 is return ["Analiza logów"] end
+    if i == 7 is return ["apt clean", "apt autoremove -y", "journalctl --vacuum-time=7d"] end
+    if i == 8 is return ["Restart NetworkManager", "Czyszczenie routingu", "dhclient -r", "dhclient"] end
+    if i == 9 is return ["Przełączam na Google DNS"] end
+    if i == 10 is return ["rfkill list"] end
+    return []
+end
+
+pub fn step_cmds(i: int) -> [string] is
+    if i == 0 is
+        return ["DEBIAN_FRONTEND=noninteractive apt update",
+                "DEBIAN_FRONTEND=noninteractive apt install -f -y",
+                "DEBIAN_FRONTEND=noninteractive dpkg --configure -a"]
+    end
+    if i == 1 is return ["update-grub"] end
+    if i == 2 is
+        return [join_lines([
+            "echo 'Sprawdzam dysk (fsck wymaga odmontowanego systemu plików).'",
+            "lsblk -f",
+            "echo",
+            "ERR=$(dmesg 2>/dev/null | grep -ci 'I/O error')",
+            "echo \"Błędy I/O w dmesg: $ERR\"",
+            "if [ \"$ERR\" != \"0\" ]; then echo 'Warning: wykryto błędy I/O — sprawdź SMART i kable.'; fi",
+            "echo 'Użyj fsck na odmontowanym dysku (np. z live USB).'",
+        ])]
+    end
+    if i == 3 is return ["DEBIAN_FRONTEND=noninteractive apt upgrade -y"] end
+    if i == 4 is
+        return [join_lines([
+            "echo 'Disk space for /:'",
+            "df -h /",
+            "if df -h / | tail -n 1 | grep -q ' 100% '; then echo 'Warning: Partition / is 100% full!'; fi",
+            "echo 'Disk space for /var:'",
+            "df -h /var",
+            "if df -h /var | tail -n 1 | grep -q ' 100% '; then echo 'Warning: Partition /var is 100% full!'; fi",
+        ])]
+    end
+    if i == 5 is
+        return [join_lines([
+            "GW=$(ip route get 8.8.8.8 2>/dev/null | grep -o 'via [0-9.]*' | cut -d' ' -f2 | head -n 1)",
+            "if [ -z \"$GW\" ]; then",
+            "  echo 'No default gateway found.'",
+            "else",
+            "  OUT=$(ping -c 1 -W 3 \"$GW\" 2>&1)",
+            "  echo 'Ping to gateway:'; echo \"$OUT\"",
+            "  if echo \"$OUT\" | grep -q '1 received'; then echo 'Ping to gateway OK.'; else echo 'Ping to gateway failed.'; fi",
+            "fi",
+            "OUT=$(ping -c 1 -W 3 8.8.8.8 2>&1)",
+            "echo 'Ping to Google DNS:'; echo \"$OUT\"",
+            "if echo \"$OUT\" | grep -q '1 received'; then echo 'Ping to Google DNS OK.'; else echo 'Ping to Google DNS failed.'; fi",
+            "ST=$(systemctl status systemd-resolved 2>&1)",
+            "echo 'systemd-resolved status:'; echo \"$ST\"",
+            "if echo \"$ST\" | grep -q 'active (running)'; then echo 'systemd-resolved OK.'; else echo 'systemd-resolved has issues.'; fi",
+        ])]
+    end
+    if i == 6 is
+        return [join_lines([
+            "LOGS=$(journalctl -p err -n 100 --no-pager 2>&1)",
+            "echo 'Last 100 error logs:'; echo \"$LOGS\"",
+            "FOUND=''",
+            "for kw in 'Hardware Error' 'Out of memory' 'Failed to mount'; do",
+            "  if echo \"$LOGS\" | grep -qi \"$kw\"; then FOUND=\"$FOUND$kw, \"; fi",
+            "done",
+            "if [ -n \"$FOUND\" ]; then echo \"Found critical keywords: $(echo \"$FOUND\" | sed 's/, $//')\"; else echo 'No critical keywords found.'; fi",
+        ])]
+    end
+    if i == 7 is return ["apt clean", "apt autoremove -y", "journalctl --vacuum-time=7d"] end
+    if i == 8 is
+        return ["systemctl restart NetworkManager", "ip route flush table main", "dhclient -r", "dhclient"]
+    end
+    if i == 9 is
+        return [join_lines([
+            "cp -a /etc/resolv.conf /etc/resolv.conf.hacker-repair.bak 2>/dev/null && echo 'Kopia zapasowa: /etc/resolv.conf.hacker-repair.bak'",
+            "printf 'nameserver 8.8.8.8\\n' > /etc/resolv.conf && echo 'OK: nameserver 8.8.8.8'",
+        ])]
+    end
+    if i == 10 is
+        return [join_lines([
+            "OUT=$(rfkill list 2>&1)",
+            "echo 'rfkill status:'; echo \"$OUT\"",
+            "if echo \"$OUT\" | grep -q 'blocked: yes'; then echo 'WiFi is blocked. Use rfkill unblock wifi to enable.'; fi",
+        ])]
+    end
+    return []
+end
