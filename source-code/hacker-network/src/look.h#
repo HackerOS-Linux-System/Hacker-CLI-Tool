@@ -1,0 +1,93 @@
+use "std -> env" from "env"
+use "std -> fs"  from "fs"
+
+pub const DEFAULT_ACCENT: string = "#c026d3"
+
+fn hex_digit(c: string) -> int is
+    if c >= "0" && c <= "9" is return to_int(c) end
+    let l: string = string_lower(c)
+    if l == "a" is return 10 end
+    if l == "b" is return 11 end
+    if l == "c" is return 12 end
+    if l == "d" is return 13 end
+    if l == "e" is return 14 end
+    if l == "f" is return 15 end
+    return -1
+end
+
+fn hex_byte(s: string, at: int) -> int is
+    let hi: int = hex_digit(string_at(s, at))
+    let lo: int = hex_digit(string_at(s, at + 1))
+    if hi < 0 || lo < 0 is return -1 end
+    return hi * 16 + lo
+end
+
+fn hex_out(v: int) -> string is
+    let digits: string = "0123456789abcdef"
+    return string_at(digits, v / 16) + string_at(digits, v % 16)
+end
+
+;; "#rrggbb" poprawne?
+pub fn valid_hex(h: string) -> bool is
+    if string_len(h) != 7 || string_at(h, 0) != "#" is return false end
+    let mut i: int = 1
+    while i < 7 is
+        if hex_digit(string_at(h, i)) < 0 is return false end
+        i += 1
+    end
+    return true
+end
+
+;; Rozjasnia kolor o `pct` procent w strone bieli (do tekstu akcentu na ciemnym tle).
+pub fn lighten(h: string, pct: int) -> string is
+    let r: int = hex_byte(h, 1)
+    let g: int = hex_byte(h, 3)
+    let b: int = hex_byte(h, 5)
+    let r2: int = r + (255 - r) * pct / 100
+    let g2: int = g + (255 - g) * pct / 100
+    let b2: int = b + (255 - b) * pct / 100
+    return "#" + hex_out(r2) + hex_out(g2) + hex_out(b2)
+end
+
+;; Wartosc napisowa klucza z prostego JSON-a (`"klucz" : "wartosc"`), "" gdy brak.
+pub fn json_str(json: string, key: string) -> string is
+    let idx: int = string_find(json, "\"" + key + "\"")
+    if idx < 0 is return "" end
+    let rest: string = string_slice(json, idx + string_len(key) + 2, string_len(json))
+    let colon: int = string_find(rest, ":")
+    if colon < 0 is return "" end
+    let after: string = string_slice(rest, colon + 1, string_len(rest))
+    let q1: int = string_find(after, "\"")
+    if q1 < 0 is return "" end
+    let tail: string = string_slice(after, q1 + 1, string_len(after))
+    let q2: int = string_find(tail, "\"")
+    if q2 < 0 is return "" end
+    return string_slice(tail, 0, q2)
+end
+
+pub fn accent() -> string is
+    let path: string = env::home() + "/.config/hackeros/hacker/look.json"
+    if !fs::exists(path) is return DEFAULT_ACCENT end
+    let a: string = json_str(fs::read(path), "accent")
+    if valid_hex(a) is return a end
+    return DEFAULT_ACCENT
+end
+
+pub fn css(accent_hex: string) -> string is
+    let light: string = lighten(accent_hex, 35)
+    let mut s: string = ""
+    s = s + "@define-color accent_bg_color " + accent_hex + ";\n"
+    s = s + "@define-color accent_color " + light + ";\n"
+    s = s + "@define-color accent_fg_color #ffffff;\n"
+    s = s + ".hn-badge { font-size: 0.78em; font-weight: 700; padding: 1px 9px; border-radius: 99px;"
+    s = s + " background: alpha(currentColor, 0.10); }\n"
+    s = s + ".hn-badge-ok { background: alpha(@success_color, 0.18); color: @success_color; }\n"
+    s = s + ".hn-badge-sec { background: alpha(@accent_color, 0.16); color: @accent_color; }\n"
+    s = s + ".hn-badge-warn { background: alpha(@warning_color, 0.18); color: @warning_color; }\n"
+    s = s + ".hn-mono { font-family: monospace; }\n"
+    s = s + ".hn-lock { opacity: 0.55; }\n"
+    s = s + ".hn-signal-strong { color: @success_color; }\n"
+    s = s + ".hn-signal-mid { color: @warning_color; }\n"
+    s = s + ".hn-signal-weak { color: @error_color; }\n"
+    return s
+end
