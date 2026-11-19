@@ -1,0 +1,86 @@
+pub fn names() -> [string] is
+    return [
+        ;; Pakiety
+        "install", "remove", "flatpak-install", "flatpak-remove",
+        ;; Unpack
+        "unpack add-ons", "unpack gaming", "unpack gaming with-roblox", "unpack devtools", "unpack emulators",
+        "unpack cybersecurity", "unpack select", "unpack hacker-mode", "unpack gamescope-session-steam",
+        "unpack automatic-updates", "unpack alacritty-config", "unpack nvidia-drivers", "unpack hackeros-containers",
+        "unpack h#", "unpack h#-utils", "unpack flox", "unpack hammer", "unpack lpm", "unpack isolator",
+        "unpack hexai", "unpack hackerdeck", "unpack hackeros-games-addons", "unpack hackeros-tv", "unpack winboat",
+        "unpack hydra", "unpack hackeros-builder",
+        ;; Pack
+        "pack add-ons", "pack gaming", "pack devtools", "pack emulators", "pack cybersecurity", "pack hacker-mode",
+        "pack automatic-updates", "pack nvidia-drivers", "pack h#", "pack h#-utils", "pack hammer", "pack lpm",
+        "pack hexai", "pack hackerdeck", "pack hackeros-containers", "pack hackeros-games-addons",
+        ;; Env
+        "env create", "env remove", "env enter", "env settings", "env docs",
+        ;; System
+        "update", "update --with-gui", "system logs", "switch hacker-mode", "switch steam-gamemode", "restart", "doctor",
+        ;; Run
+        "run update-system", "run check-updates", "run steam", "run hacker-launcher", "run hackeros-game-mode",
+        "run HackerOS-Store", "run HackerDeck", "run Hacker-Term", "run update-hackeros", "run update-wallpapers",
+        ;; Pluginy
+        "plugin list", "plugin enable", "plugin disable", "plugin info",
+        ;; Enable/Disable
+        "enable motd", "enable special-motd", "disable motd",
+        ;; Settings
+        "settings language", "settings look", "settings look preset", "settings look set", "settings look reset", "settings look show",
+        ;; Narzedzia
+        "languages", "game", "ascii", "enter", "remove-container", "index", "info", "issue", "how-to-create-commands",
+        ;; Shell
+        "help", "clear", "exit", "quit",
+    ]
+end
+
+pub fn descs() -> [string] is
+    return [
+        "Zainstaluj pakiet APT", "Usuń pakiet APT", "Zainstaluj pakiet Flatpak", "Usuń pakiet Flatpak",
+        "Wine, BoxBuddy, WineZGUI, GearLever", "Steam, Heroic, ProtonPlus…", "Gaming + Roblox (Sober, Vinegar)",
+        "VS Code, Rust, Go, Node, Zig…", "shadPS4, Ryujinx, DOSBox-X, RPCS3", "Kontener BlackArch",
+        "Interaktywny wybór (TUI)", "Tryb Hacker-Mode (Wayland)", "Steam GameMode (gamescope)",
+        "Włącz auto-aktualizacje (hup)", "Konfiguracja Alacritty", "Sterowniki NVIDIA", "Kontenery HackerOS",
+        "H# (H-Sharp) — język HackerOS", "Narzędzia pomocnicze H#", "Flox — menedżer środowisk",
+        "Hammer — atomowy menedżer pakietów", "LPM — następca apt", "Isolator — pakiety w kontenerach",
+        "HexAi — AI dla HackerOS", "HackerDeck — nakładka Waydroid", "Dodatki do gier HackerOS", "HackerOS TV", "Winboat",
+        "Motyw Hydra Look-and-Feel", "HackerOS Builder",
+        "Usuń Wine i dodatki", "Usuń narzędzia do gier", "Usuń narzędzia deweloperskie", "Usuń emulatory",
+        "Usuń kontener BlackArch", "Usuń Hacker-Mode", "Wyłącz auto-aktualizacje", "Usuń sterowniki NVIDIA",
+        "Usuń H# (H-Sharp)", "Usuń narzędzia H#", "Usuń Hammer", "Usuń LPM", "Usuń HexAi", "Usuń HackerDeck",
+        "Usuń kontenery HackerOS", "Usuń dodatki do gier",
+        "Utwórz środowisko z pliku .hk", "Usuń środowisko", "Wejdź do środowiska", "Lista środowisk", "Tutorial środowisk",
+        "Aktualizacja systemu (TUI)", "Aktualizacja w nowym oknie", "Logi systemowe (journalctl)", "Przełącz na Hacker-Mode",
+        "Przełącz na Steam GameMode", "Restart usługi systemd", "Diagnostyka systemu",
+        "Skrypt aktualizacji", "Sprawdź aktualizacje", "Uruchom Steam", "Hacker Launcher", "HackerOS Game Mode",
+        "Sklep HackerOS", "HackerDeck", "Terminal HackerOS", "Aktualizuj HackerOS", "Aktualizuj tapety",
+        "Lista pluginów", "Włącz plugin", "Wyłącz plugin", "Info o pluginie",
+        "Włącz MOTD", "Włącz specjalny MOTD", "Wyłącz MOTD",
+        "Zmień język interfejsu", "Pokaż schemat kolorów", "Zastosuj preset kolorów", "Ustaw konkretny kolor",
+        "Przywróć domyślne kolory", "Pokaż bieżące kolory",
+        "Info o językach programowania HackerOS", "Tekstowa gra przygodowa", "Logo HackerOS ASCII",
+        "Wejdź do kontenera distrobox", "Usuń kontener distrobox", "Indeks narzędzi HackerOS", "Wersje narzędzia i systemu",
+        "Zgłoś błąd na GitHub", "Jak tworzyć własne komendy",
+        "Pokaż tę pomoc", "Wyczyść ekran", "Wyjdź z hacker-shell", "Wyjdź z hacker-shell",
+    ]
+end
+
+;; Tytuly grup w kolejnosci wyswietlania.
+pub fn group_titles() -> [string] is
+    return ["📦 Pakiety", "📥 Unpack", "📤 Pack", "🐳 Env", "⚙️  System", "▶️  Run", "🔌 Pluginy", "🎨 Settings", "🔧 Narzędzia", "🖥️  Shell"]
+end
+
+;; Do ktorej grupy (indeks w group_titles) nalezy komenda.
+pub fn group_of(cmd: string) -> int is
+    if cmd == "install" || cmd == "remove" || cmd == "flatpak-install" || cmd == "flatpak-remove" is return 0 end
+    if string_starts_with(cmd, "unpack ") is return 1 end
+    if string_starts_with(cmd, "pack ") is return 2 end
+    if string_starts_with(cmd, "env ") is return 3 end
+    if cmd == "update" || cmd == "update --with-gui" || cmd == "system logs" || cmd == "switch hacker-mode" || cmd == "switch steam-gamemode" || cmd == "restart" || cmd == "doctor" is return 4 end
+    if string_starts_with(cmd, "run ") is return 5 end
+    if string_starts_with(cmd, "plugin ") is return 6 end
+    if string_starts_with(cmd, "settings ") is return 7 end
+    if cmd == "help" || cmd == "clear" || cmd == "exit" || cmd == "quit" is return 9 end
+    ;; enable/disable motd w Pythonie nie nalezaly do zadnej grupy (nie byly w pomocy) — trafiaja do System
+    if string_starts_with(cmd, "enable ") || string_starts_with(cmd, "disable ") is return 4 end
+    return 8
+end
