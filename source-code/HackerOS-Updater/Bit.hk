@@ -1,6 +1,6 @@
 [package]
 -> name        => HackerOS-Updater
--> version     => 2.4.3
+-> version     => 2.4.4
 -> description => "HackerOS Updater — TUI na bibliotece mold (H# + bit + hlib)"
 -> authors     => ["HackerOS Team <hackeros068@gmail.com>"]
 -> license     => GPL-3.0
