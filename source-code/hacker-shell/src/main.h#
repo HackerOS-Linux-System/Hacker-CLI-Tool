@@ -1,4 +1,4 @@
-use "bit -> betterprompt" from "bp"
+use "bit -> BetterPrompt" from "bp"
 use "std -> env"    from "env"
 use "std -> fs"     from "fs"
 use "std -> process" from "process"
