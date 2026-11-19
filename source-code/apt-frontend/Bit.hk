@@ -1,6 +1,6 @@
 [package]
 -> name        => apt-frontend
--> version     => 2.4.3
+-> version     => 2.4.4
 -> description => "Nakładka na apt z paskiem postępu (H# + bit + progress-bar)"
 -> authors     => ["HackerOS Team <hackeros068@gmail.com>"]
 -> license     => GPL-3.0
