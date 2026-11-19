@@ -1,0 +1,68 @@
+use "bit -> BetterPrompt" from "bp"
+mod look
+
+pub fn esc(s: string) -> string is
+    return bp::html_escape(s)
+end
+
+;; Tekst w kolorze (opcjonalnie pogrubiony).
+pub fn c(text: string, hex: string, bold: bool) -> string is
+    let b: string = if bold then " bold='true'" else "" end
+    return "<style fg='" + hex + "'" + b + ">" + esc(text) + "</style>"
+end
+
+pub fn say(markup: string) is
+    bp::print_html(markup)
+end
+
+pub fn width() -> int is
+    return bp::terminal_width()
+end
+
+fn rep(ch: string, n: int) -> string is
+    let mut s: string = ""
+    let mut i: int = 0
+    while i < n is
+        s = s + ch
+        i += 1
+    end
+    return s
+end
+
+;; ──── tytul ──────────────────────────────────── (jak rich.rule.Rule)
+pub fn rule(title: string, line_hex: string, title_hex: string) is
+    let w: int = width()
+    let tw: int = bp::str_width(title)
+    let side: int = (w - tw - 2) / 2
+    if side < 1 is
+        say(c(title, title_hex, true))
+        return
+    end
+    let right: int = w - tw - 2 - side
+    say(c(rep("─", side), line_hex, false) + " " + c(title, title_hex, true) + " " + c(rep("─", right), line_hex, false))
+end
+
+;; Panel z zaokraglona ramka. `rows` to gotowy markup (juz z kolorami); `widths` to
+;; ich widoczna szerokosc (bez znacznikow). Szerokosc panelu = szerokosc terminala.
+pub fn panel(title: string, title_hex: string, border_hex: string, rows: [string], widths: [int]) is
+    let total: int = width()
+    let inner: int = total - 4
+    let tw: int = bp::str_width(title)
+    let mut top: string = ""
+    if tw > 0 && tw + 4 <= total - 2 is
+        let left: int = (total - 2 - tw - 2) / 2
+        let right: int = total - 2 - tw - 2 - left
+        top = c("╭" + rep("─", left) + " ", border_hex, false) + c(title, title_hex, true) + c(" " + rep("─", right) + "╮", border_hex, false)
+    else is
+        top = c("╭" + rep("─", total - 2) + "╮", border_hex, false)
+    end
+    say(top)
+    let mut i: int = 0
+    while i < rows.len() is
+        let pad: int = inner - widths[i]
+        let fill: string = if pad > 0 then rep(" ", pad) else "" end
+        say(c("│", border_hex, false) + " " + rows[i] + fill + " " + c("│", border_hex, false))
+        i += 1
+    end
+    say(c("╰" + rep("─", total - 2) + "╯", border_hex, false))
+end
