@@ -1,6 +1,6 @@
 [package]
 -> name        => hacker-docs
--> version     => 2.4.3
+-> version     => 2.4.4
 -> description => "Dokumentacja i FAQ HackerOS (H# + tui)"
 -> authors     => ["HackerOS Team <hackeros068@gmail.com>"]
 -> license     => GPL-3.0
