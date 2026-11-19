@@ -1,0 +1,21 @@
+[package]
+-> name        => hacker-shell
+-> version     => 2.3.1
+-> lang        => h#
+-> description => Interaktywna powłoka HackerOS (H# + BetterPrompt)
+
+[edition]
+-> edition   => 2026
+-> toolchain => 0.9
+
+[layout]
+-> src => src
+
+[build]
+-> link => static
+
+[default-build]
+-> profile => release
+
+[dependencies]
+-> BetterPrompt => newest
