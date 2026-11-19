@@ -23,8 +23,8 @@
 --> run => mkdir -p cache/build/release && h# compile source-code/update-system/src/main.h# -o cache/build/release/update-system --release
 --> description => Build update-system (H#, static)
 -> build-hacker
---> run => mkdir -p cache/build/release && h# compile source-code/hacker/src/main.h# -o cache/build/release/hacker --release --dynamic
---> description => Build hacker (H#; uses extern dynamic [c], so it is linked dynamically and bit's static-only guard does not apply)
+--> run => mkdir -p cache/build/release && h# compile source-code/hacker/src/main.h# -o cache/build/release/hacker --release
+--> description => Build hacker (H#, static; libc via extern static [c])
 -> build-hacker-help
 --> run => mkdir -p cache/build/release && h# compile source-code/hacker-help/src/main.h# -o cache/build/release/hacker-help --release
 --> description => Build hacker-help (H# + tui, static)
