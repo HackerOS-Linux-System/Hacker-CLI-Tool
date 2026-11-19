@@ -1,0 +1,359 @@
+use "std -> strings" from "strings"
+use "std -> os"      from "os"
+
+;; ── Modele danych ─────────────────────────────────────────────────────────────
+
+pub struct Wifi is
+    pub ssid:     string
+    pub bssid:    string
+    pub signal:   int
+    pub security: string   ;; "" = siec otwarta
+    pub active:   bool
+    pub known:    bool     ;; istnieje zapisany profil o tej nazwie
+    pub chan:     string
+    pub rate:     string
+end
+
+pub struct Wired is
+    pub name:   string
+    pub uuid:   string
+    pub device: string
+    pub active: bool
+end
+
+pub struct Dev is
+    pub name:    string
+    pub kind:    string    ;; wifi / ethernet / loopback / ...
+    pub state:   string    ;; connected / disconnected / unavailable / ...
+    pub conn:    string
+    pub mac:     string
+    pub ip4:     [string]
+    pub ip6:     [string]
+    pub gateway: string
+    pub dns:     [string]
+end
+
+pub struct Snapshot is
+    pub nm_ok:     bool    ;; nmcli istnieje i NetworkManager dziala
+    pub error:     string  ;; opis problemu gdy nm_ok == false
+    pub wifi_on:   bool
+    pub nets:      [Wifi]
+    pub wired:     [Wired]
+    pub devs:      [Dev]
+    pub hostname:  string
+    pub wifi_dev:  string  ;; pierwsze urzadzenie Wi-Fi ("" = brak karty)
+    pub known_ssid: [string]
+end
+
+;; ── Cytowanie dla powloki ─────────────────────────────────────────────────────
+
+;; 'tekst' -> bezpieczny dla `sh` literal (apostrof zamieniany na '\'').
+pub fn shq(s: string) -> string is
+    return "'" + strings::replace_all(s, "'", "'\\''") + "'"
+end
+
+;; `nmcli arg1 arg2 ...` z kazdym argumentem zacytowanym.
+pub fn cmd(args: [string]) -> string is
+    let mut out: string = "LC_ALL=C nmcli"
+    let mut i: int = 0
+    while i < args.len() is
+        out = out + " " + shq(args[i])
+        i += 1
+    end
+    return out
+end
+
+;; ── Parser trybu terse ────────────────────────────────────────────────────────
+
+;; Dzieli linie na pola po nieescapowanych ':'; "\:" -> ':', "\\" -> '\'.
+pub fn split_terse(line: string) -> [string] is
+    let mut parts: [string] = []
+    let mut cur: string = ""
+    let n: int = string_len(line)
+    let mut i: int = 0
+    while i < n is
+        let ch: string = string_at(line, i)
+        if ch == "\\" && i + 1 < n is
+            let nx: string = string_at(line, i + 1)
+            if nx == ":" || nx == "\\" is
+                cur = cur + nx
+                i += 2
+            else is
+                cur = cur + ch
+                i += 1
+            end
+        elsif ch == ":" is
+            parts.push(cur)
+            cur = ""
+            i += 1
+        else is
+            cur = cur + ch
+            i += 1
+        end
+    end
+    parts.push(cur)
+    return parts
+end
+
+;; Pole numeryczne z nmcli -> int (puste / smieci = 0).
+pub fn safe_int(s: string) -> int is
+    let mut v: int = 0
+    let n: int = string_len(s)
+    let mut i: int = 0
+    while i < n is
+        let ch: string = string_at(s, i)
+        if ch >= "0" && ch <= "9" is
+            v = v * 10 + to_int(ch)
+        else is
+            return v
+        end
+        i += 1
+    end
+    return v
+end
+
+fn field(parts: [string], i: int) -> string is
+    if i < parts.len() is return parts[i] end
+    return ""
+end
+
+;; "WPA2 WPA3" -> "WPA2"; "--" -> "" (siec otwarta)
+pub fn short_security(sec: string) -> string is
+    let t: string = strings::trim(sec)
+    if t == "" || t == "--" is return "" end
+    let words: [string] = strings::split_whitespace(t)
+    if words.len() == 0 is return "" end
+    return words[0]
+end
+
+pub fn is_wifi_type(t: string) -> bool is
+    return t == "802-11-wireless" || t == "wifi"
+end
+
+pub fn is_eth_type(t: string) -> bool is
+    return t == "802-3-ethernet" || t == "ethernet"
+end
+
+fn contains_str(arr: [string], s: string) -> bool is
+    let mut i: int = 0
+    while i < arr.len() is
+        if arr[i] == s is return true end
+        i += 1
+    end
+    return false
+end
+
+;; ── Skrypt odswiezajacy (jedna komenda, sekcje @@NAZWA) ───────────────────────
+
+pub fn refresh_script() -> string is
+    let mut s: string = "export LC_ALL=C; "
+    s = s + "echo @@RUNNING; nmcli -t -f RUNNING general 2>&1; "
+    s = s + "echo @@RADIO; nmcli radio wifi 2>&1; "
+    s = s + "echo @@WIFI; nmcli -t -f IN-USE,SSID,BSSID,SIGNAL,SECURITY,CHAN,RATE device wifi list 2>&1; "
+    s = s + "echo @@CONN; nmcli -t -f NAME,UUID,TYPE,DEVICE,ACTIVE connection show 2>&1; "
+    s = s + "echo @@DEV; nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device status 2>&1; "
+    s = s + "echo @@SHOW; nmcli -t -f GENERAL,IP4,IP6 device show 2>&1; "
+    return s
+end
+
+;; ── Parser calego wyniku ──────────────────────────────────────────────────────
+
+fn better(a: Wifi, b: Wifi) -> bool is
+    ;; czy `b` jest lepszym wpisem tej samej sieci niz `a`
+    if b.active && !a.active is return true end
+    if a.active && !b.active is return false end
+    return b.signal > a.signal
+end
+
+;; Sortuje: polaczona pierwsza, potem malejaco po sygnale (stabilne sortowanie przez wstawianie).
+fn sort_nets(nets: [Wifi]) -> [Wifi] is
+    let mut out: [Wifi] = []
+    let mut i: int = 0
+    while i < nets.len() is
+        out.push(nets[i])
+        let mut j: int = out.len() - 1
+        while j > 0 && better(out[j - 1], out[j]) is
+            let tmp: Wifi = out[j - 1]
+            out[j - 1] = out[j]
+            out[j] = tmp
+            j -= 1
+        end
+        i += 1
+    end
+    return out
+end
+
+pub fn parse_snapshot(text: string) -> Snapshot is
+    let mut snap: Snapshot = Snapshot {
+        nm_ok: true, error: "", wifi_on: false,
+        nets: [], wired: [], devs: [],
+        hostname: os::hostname(), wifi_dev: "", known_ssid: [],
+    }
+    let lines: [string] = strings::split(text, "\n")
+    let mut section: string = ""
+    let mut raw_nets: [Wifi] = []
+    let mut cur_dev: int = -1
+    let mut i: int = 0
+    while i < lines.len() is
+        let line: string = strings::trim_end(lines[i])
+        i += 1
+        if string_len(line) == 0 is continue end
+        if string_len(line) > 2 && string_slice(line, 0, 2) == "@@" is
+            section = string_slice(line, 2, string_len(line))
+            continue
+        end
+        if section == "RUNNING" is
+            if line != "running" is
+                snap.nm_ok = false
+                snap.error = line
+            end
+        elsif section == "RADIO" is
+            snap.wifi_on = (line == "enabled")
+        elsif section == "WIFI" is
+            ;; IN-USE,SSID,BSSID,SIGNAL,SECURITY,CHAN,RATE
+            let p: [string] = split_terse(line)
+            if p.len() >= 5 && field(p, 1) != "" is
+                raw_nets.push(Wifi {
+                    ssid: field(p, 1), bssid: field(p, 2), signal: safe_int(field(p, 3)),
+                    security: short_security(field(p, 4)), active: field(p, 0) == "*",
+                    known: false, chan: field(p, 5), rate: field(p, 6),
+                })
+            end
+        elsif section == "CONN" is
+            ;; NAME,UUID,TYPE,DEVICE,ACTIVE
+            let p: [string] = split_terse(line)
+            if p.len() >= 5 is
+                let t: string = field(p, 2)
+                if is_wifi_type(t) is
+                    snap.known_ssid.push(field(p, 0))
+                elsif is_eth_type(t) is
+                    snap.wired.push(Wired {
+                        name: field(p, 0), uuid: field(p, 1),
+                        device: field(p, 3), active: field(p, 4) == "yes",
+                    })
+                end
+            end
+        elsif section == "DEV" is
+            ;; DEVICE,TYPE,STATE,CONNECTION  (pomijamy loopback i p2p)
+            let p: [string] = split_terse(line)
+            if p.len() >= 3 is
+                let t: string = field(p, 1)
+                if t == "wifi" && snap.wifi_dev == "" is snap.wifi_dev = field(p, 0) end
+            end
+        elsif section == "SHOW" is
+            let p: [string] = split_terse(line)
+            let key: string = field(p, 0)
+            let val: string = field(p, 1)
+            ;; adres IPv6 zawiera ':' — skladamy z powrotem wszystkie pola po pierwszym
+            let mut full: string = val
+            let mut k: int = 2
+            while k < p.len() is
+                full = full + ":" + p[k]
+                k += 1
+            end
+            if key == "GENERAL.DEVICE" is
+                snap.devs.push(Dev {
+                    name: full, kind: "", state: "", conn: "", mac: "",
+                    ip4: [], ip6: [], gateway: "", dns: [],
+                })
+                cur_dev = snap.devs.len() - 1
+            elsif cur_dev >= 0 is
+                if key == "GENERAL.TYPE" is snap.devs[cur_dev].kind = full
+                elsif key == "GENERAL.STATE" is snap.devs[cur_dev].state = full
+                elsif key == "GENERAL.CONNECTION" is snap.devs[cur_dev].conn = full
+                elsif key == "GENERAL.HWADDR" is snap.devs[cur_dev].mac = full
+                elsif string_len(key) >= 11 && string_slice(key, 0, 11) == "IP4.ADDRESS" is snap.devs[cur_dev].ip4.push(full)
+                elsif key == "IP4.GATEWAY" is snap.devs[cur_dev].gateway = full
+                elsif string_len(key) >= 7 && string_slice(key, 0, 7) == "IP4.DNS" is snap.devs[cur_dev].dns.push(full)
+                elsif string_len(key) >= 11 && string_slice(key, 0, 11) == "IP6.ADDRESS" is snap.devs[cur_dev].ip6.push(full)
+                end
+            end
+        end
+    end
+
+    ;; sieci: dedupe po SSID (mesh/repeatery) — zostaje polaczona albo najsilniejsza
+    let mut uniq: [Wifi] = []
+    let mut a: int = 0
+    while a < raw_nets.len() is
+        let n: Wifi = raw_nets[a]
+        let mut found: int = -1
+        let mut b: int = 0
+        while b < uniq.len() is
+            if uniq[b].ssid == n.ssid is found = b end
+            b += 1
+        end
+        if found < 0 is
+            uniq.push(n)
+        elsif better(uniq[found], n) is
+            uniq[found] = n
+        end
+        a += 1
+    end
+    let mut c: int = 0
+    while c < uniq.len() is
+        uniq[c].known = contains_str(snap.known_ssid, uniq[c].ssid)
+        c += 1
+    end
+    snap.nets = sort_nets(uniq)
+    return snap
+end
+
+;; ── Komendy-akcje (zwracaja gotowy ciag dla `sh -c`) ──────────────────────────
+
+pub fn radio_cmd(on: bool) -> string is
+    if on is return cmd(["radio", "wifi", "on"]) end
+    return cmd(["radio", "wifi", "off"])
+end
+
+pub fn rescan_cmd() -> string is
+    return cmd(["device", "wifi", "rescan"])
+end
+
+;; Polaczenie z siecia. Haslo NIE trafia do tekstu komendy — jest brane ze zmiennej
+;; srodowiskowej HN_PASS (ustawianej tylko na czas startu zadania).
+pub fn connect_cmd(ssid: string, known: bool, secured: bool, hidden: bool) -> string is
+    if known && !hidden is
+        return cmd(["-w", "45", "connection", "up", "id", ssid])
+    end
+    let mut s: string = cmd(["-w", "45", "device", "wifi", "connect", ssid])
+    if secured is s = s + " password \"$HN_PASS\"" end
+    if hidden is s = s + " hidden yes" end
+    return s
+end
+
+pub fn disconnect_dev_cmd(dev: string) -> string is
+    return cmd(["device", "disconnect", dev])
+end
+
+pub fn forget_cmd(name: string) -> string is
+    return cmd(["connection", "delete", "id", name])
+end
+
+pub fn conn_up_cmd(uuid: string) -> string is
+    return cmd(["-w", "30", "connection", "up", "uuid", uuid])
+end
+
+pub fn conn_down_cmd(uuid: string) -> string is
+    return cmd(["connection", "down", "uuid", uuid])
+end
+
+;; Tlumaczy typowe komunikaty bledow nmcli na krotki, polski opis.
+pub fn explain_error(out: string) -> string is
+    let t: string = strings::trim(out)
+    if string_find(t, "Secrets were required") >= 0 || string_find(t, "(7)") >= 0 is
+        return "Nieprawidłowe hasło"
+    end
+    if string_find(t, "No network with SSID") >= 0 is return "Nie znaleziono sieci" end
+    if string_find(t, "not authorized") >= 0 || string_find(t, "Not authorized") >= 0 is
+        return "Brak uprawnień do zmiany ustawień sieci"
+    end
+    if string_find(t, "NetworkManager is not running") >= 0 is
+        return "NetworkManager nie jest uruchomiony"
+    end
+    if string_find(t, "timed out") >= 0 || string_find(t, "Timeout") >= 0 is
+        return "Przekroczono czas oczekiwania"
+    end
+    if t == "" is return "Nieznany błąd" end
+    let lines: [string] = strings::split(t, "\n")
+    return strings::trim(lines[0])
+end
