@@ -1,6 +1,6 @@
 [package]
 -> name        => hacker-repair
--> version     => 2.4.3
+-> version     => 2.4.4
 -> description => "Narzędzie naprawcze systemu Debian/HackerOS (H# + tui)"
 -> authors     => ["HackerOS Team <hackeros068@gmail.com>"]
 -> license     => GPL-3.0
