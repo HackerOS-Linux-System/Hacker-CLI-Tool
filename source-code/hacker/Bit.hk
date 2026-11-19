@@ -1,14 +1,25 @@
 [package]
 -> name        => hacker
 -> version     => 2.4.3
--> description => cli tool for HackerOS
--> author      => HackerOS Team <hackeros068@gmail.com>
+-> description => "CLI tool for HackerOS"
+-> authors     => ["HackerOS Team <hackeros068@gmail.com>"]
 -> license     => GPL-3.0
+-> lang        => h#
+
+[edition]
+-> edition   => 2026
+-> toolchain => 0.9
+
+[layout]
+-> src => src
 
 [build]
--> lang   => h#
--> entry  => src/main.h#
--> output => build/hacker
+-> link => static
 
-[deps]
--> libc => dynamic
+[default-build]
+-> profile => release
+
+[commands]
+-> check
+--> run => find src -name '*.h#' -print0 | xargs -0 h# check
+--> description => Type-check every module
