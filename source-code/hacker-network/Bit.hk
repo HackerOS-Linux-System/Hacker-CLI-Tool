@@ -1,0 +1,21 @@
+[package]
+-> name        => hacker-network
+-> version     => 2.3.1
+-> lang        => h#
+-> description => Menedżer sieci HackerOS — H# + GTK4 + libadwaita
+
+[edition]
+-> edition   => 2026
+-> toolchain => 0.9
+
+[layout]
+-> src => src
+
+[build]
+-> link => static
+
+[default-build]
+-> profile => release
+
+[dependencies]
+-> gtk => newest
