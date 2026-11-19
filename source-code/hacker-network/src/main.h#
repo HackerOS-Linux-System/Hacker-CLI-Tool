@@ -1,0 +1,18 @@
+use "bit -> gtk" from "gtk"
+
+mod nm
+mod jobs
+mod look
+mod app
+
+fn main() is
+    gtk::init_gtk()
+    gtk::init_adw()
+    gtk::set_color_scheme(gtk::color_scheme_force_dark())
+    gtk::load_css(look::css(look::accent()))
+    let a: gtk::App = gtk::new_app()
+    let m: app::Model = app::build(a)
+    m.win.present()
+    app::refresh(m, true)
+    a.run()
+end
