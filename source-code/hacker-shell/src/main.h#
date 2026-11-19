@@ -1,0 +1,170 @@
+use "bit -> betterprompt" from "bp"
+use "std -> env"    from "env"
+use "std -> fs"     from "fs"
+use "std -> process" from "process"
+
+mod look
+mod ui
+mod commands
+
+pub const VERSION: string = "0.2.0"
+
+fn ln(l: look::Look, hex: string, text: string) -> string is
+    return ui::c(text, hex, false)
+end
+
+;; ─── Banner powitalny ─────────────────────────────────────────────────────────
+
+fn show_banner(l: look::Look) is
+    bp::clear_screen()
+    let r1: string = ui::c("⬡  hacker", l.accent, true) + ui::c("-shell", l.dim, false) + ui::c("  —  interaktywna powłoka HackerOS", l.dim, false)
+    let w1: int = bp::str_width("⬡  hacker-shell  —  interaktywna powłoka HackerOS")
+    let r2: string = ui::c("wpisz ", l.dim, false) + ui::c("help", l.info, true) + ui::c(" aby zobaczyć listę komend  ·  ", l.dim, false) + ui::c("Tab", l.info, true) + ui::c(" autouzupełnianie  ·  ", l.dim, false) + ui::c("Ctrl+D", l.info, true) + ui::c(" wyjście", l.dim, false)
+    let w2: int = bp::str_width("wpisz help aby zobaczyć listę komend  ·  Tab autouzupełnianie  ·  Ctrl+D wyjście")
+    ui::panel("", l.accent, l.accent, [r1, r2], [w1, w2])
+    println("")
+end
+
+fn show_goodbye(l: look::Look) is
+    println("")
+    ui::say(ui::c("  Do zobaczenia, hakerze! 👋", l.accent, true))
+    println("")
+end
+
+;; ─── Pomoc ────────────────────────────────────────────────────────────────────
+
+fn pad_to(s: string, n: int) -> string is
+    let w: int = bp::str_width(s)
+    let mut out: string = s
+    let mut i: int = w
+    while i < n is
+        out = out + " "
+        i += 1
+    end
+    return out
+end
+
+fn show_help(l: look::Look) is
+    let names: [string] = commands::names()
+    let descs: [string] = commands::descs()
+    let titles: [string] = commands::group_titles()
+    println("")
+    ui::rule("hacker-shell — dostępne komendy", l.success, l.accent)
+    println("")
+    let mut g: int = 0
+    while g < titles.len() is
+        let mut rows: [string] = []
+        let mut widths: [int] = []
+        let mut i: int = 0
+        while i < names.len() is
+            if commands::group_of(names[i]) == g is
+                let cmd_cell: string = pad_to(names[i], 32)
+                rows.push(ui::c(cmd_cell, l.info, false) + " " + ui::c(descs[i], l.dim, false))
+                widths.push(bp::str_width(cmd_cell) + 1 + bp::str_width(descs[i]))
+            end
+            i += 1
+        end
+        if rows.len() > 0 is ui::panel(titles[g], l.accent, l.dim, rows, widths) end
+        g += 1
+    end
+    println("")
+    ui::say(ui::c("  Tip: komendy wykonywane są jako 'hacker <cmd>'", l.dim, false))
+    ui::say(ui::c("  Tab — autouzupełnianie  ·  ↑↓ — historia  ·  Ctrl+C — przerwij  ·  Ctrl+D — wyjdź", l.dim, false))
+    println("")
+end
+
+;; ─── Wykonywanie ──────────────────────────────────────────────────────────────
+
+;; Usuwa opcjonalny prefiks `hacker ` (i nadmiarowe spacje).
+pub fn normalize(raw: string) -> string is
+    let mut cmd: string = string_trim(raw)
+    if string_starts_with(cmd, "hacker ") is
+        cmd = string_trim(string_slice(cmd, 7, string_len(cmd)))
+    end
+    return cmd
+end
+
+;; Zwraca kod wyjscia; -1 = wyjdz z powloki.
+fn run_hacker_command(l: look::Look, cmd: string) -> int is
+    if cmd == "exit" || cmd == "quit" is return -1 end
+    if cmd == "help" is
+        show_help(l)
+        return 0
+    end
+    if cmd == "clear" is
+        bp::clear_screen()
+        return 0
+    end
+    if cmd == "" is return 0 end
+    let full: string = "hacker " + cmd
+    ui::say(ui::c("  ❯ " + full, l.dim, false))
+    println("")
+    let rc: int = bp::run_command(full)
+    if rc == 130 is
+        println("")
+        ui::say(ui::c("  Przerwano.", l.warning, false))
+    end
+    return rc
+end
+
+;; ─── Prompt ───────────────────────────────────────────────────────────────────
+
+
+;; Ctrl-D konczy powloke takze przy niepustej linii (jak w starej wersji).
+fn bind_ctrl_d(b: bp::Buffer) -> int is
+    return 4
+end
+
+fn main() is
+    let l: look::Look = look::load()
+    process::run_args("mkdir", ["-p", look::config_dir()])
+    show_banner(l)
+
+    let s = bp::new_session()
+    bp::set_message_html(s, ui::c(" hacker ", l.accent, true) + ui::c("❯ ", l.accent, true))
+    s.history = bp::file_history(look::config_dir() + "/shell_history")
+    let st = bp::new_style()
+    bp::style_add(st, "completion-menu.completion", "bg:#1a1a24 fg:" + l.dim)
+    bp::style_add(st, "completion-menu.completion.current", "bg:#2a2a3a bold fg:" + l.accent)
+    bp::style_add(st, "completion-menu.meta", "bg:#0d0d0f fg:" + l.dim)
+    bp::style_add(st, "completion-menu.meta.current", "bg:#1a1a24 fg:" + l.dim)
+    bp::style_add(st, "auto-suggestion", "fg:" + l.dim)
+    s.style = st
+    s.auto_suggest = 1
+    s.complete_while_typing = 1
+
+    ;; uzupelnianie calych fraz ("unpack gaming") z opisami; prefiks `hacker ` jest ignorowany
+    let comp = bp::words_completer_meta(commands::names(), commands::descs())
+    comp.sentence = 1
+    comp.strip_prefix = "hacker "
+    bp::add_completer(s, comp)
+    bp::add_binding(s, "c-d", bind_ctrl_d)
+
+    let mut running: bool = true
+    while running is
+        let raw: string = bp::prompt(s)
+        if bp::session_eof(s) is
+            show_goodbye(l)
+            running = false
+        elsif bp::session_interrupted(s) is
+            println("")
+            ui::say(ui::c("  (Ctrl+C — wpisz 'exit' aby wyjść)", l.dim, false))
+            println("")
+        else is
+            let cmd: string = normalize(raw)
+            if cmd != "" is
+                let rc: int = run_hacker_command(l, cmd)
+                if rc == -1 is
+                    show_goodbye(l)
+                    running = false
+                elsif rc == 0 is
+                    ui::say(ui::c("  ✓ OK  (exit 0)", l.dim, false))
+                    println("")
+                elsif rc != 130 is
+                    ui::say(ui::c("  ✗ Błąd (exit " + to_string(rc) + ")", l.error, false))
+                    println("")
+                end
+            end
+        end
+    end
+end
