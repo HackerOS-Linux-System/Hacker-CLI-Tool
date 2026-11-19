@@ -1,0 +1,65 @@
+use "std -> env" from "env"
+use "std -> fs"  from "fs"
+
+pub struct Look is
+    pub accent:  string
+    pub success: string
+    pub error:   string
+    pub warning: string
+    pub info:    string
+    pub dim:     string
+end
+
+fn hex_ok(h: string) -> bool is
+    if string_len(h) != 7 || string_at(h, 0) != "#" is return false end
+    let digits: string = "0123456789abcdefABCDEF"
+    let mut i: int = 1
+    while i < 7 is
+        if string_find(digits, string_at(h, i)) < 0 is return false end
+        i += 1
+    end
+    return true
+end
+
+;; Wartosc napisowa klucza z prostego JSON-a, "" gdy brak.
+pub fn json_str(json: string, key: string) -> string is
+    let idx: int = string_find(json, "\"" + key + "\"")
+    if idx < 0 is return "" end
+    let rest: string = string_slice(json, idx + string_len(key) + 2, string_len(json))
+    let colon: int = string_find(rest, ":")
+    if colon < 0 is return "" end
+    let after: string = string_slice(rest, colon + 1, string_len(rest))
+    let q1: int = string_find(after, "\"")
+    if q1 < 0 is return "" end
+    let tail: string = string_slice(after, q1 + 1, string_len(after))
+    let q2: int = string_find(tail, "\"")
+    if q2 < 0 is return "" end
+    return string_slice(tail, 0, q2)
+end
+
+fn pick(json: string, key: string, fallback: string) -> string is
+    let v: string = json_str(json, key)
+    if hex_ok(v) is return v end
+    return fallback
+end
+
+pub fn config_dir() -> string is
+    return env::home() + "/.config/hackeros/hacker"
+end
+
+pub fn from_json(json: string) -> Look is
+    return Look {
+        accent:  pick(json, "accent",  "#c026d3"),
+        success: pick(json, "success", "#22c55e"),
+        error:   pick(json, "error",   "#ef4444"),
+        warning: pick(json, "warning", "#eab308"),
+        info:    pick(json, "info",    "#06b6d4"),
+        dim:     pick(json, "dim",     "#475569"),
+    }
+end
+
+pub fn load() -> Look is
+    let path: string = config_dir() + "/look.json"
+    if fs::exists(path) is return from_json(fs::read(path)) end
+    return from_json("")
+end
