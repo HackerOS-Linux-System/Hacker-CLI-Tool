@@ -29,7 +29,7 @@ pub fn run_apt(apt_args: [string], bar_prefix: string, bar_color: string) -> boo
 
     ;; "  {prefix:<14}  [{bar:46.<kolor>}]  {pos:>3}%  {msg}"
     let tpl: string = "  {{label}}  " + ui::seq_on(code) + "{{bar}}" + ui::seq_off() + "  {{msg}}"
-    let mut bar = pb::quick_bar_custom(100, ui::pad_right(bar_prefix, LABEL_WIDTH), BAR_THEME, tpl, BAR_WIDTH, false)
+    let mut bar = pb::builder::new_bar(100, ui::pad_right(bar_prefix, LABEL_WIDTH)).theme(BAR_THEME).template(tpl).width(BAR_WIDTH).no_color().build()
 
     let dir: string = proc::capture("mktemp -d /tmp/apt-frontend.XXXXXX")
     if dir == "" is
