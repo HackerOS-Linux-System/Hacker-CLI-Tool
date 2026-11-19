@@ -1,0 +1,670 @@
+use "bit -> gtk"   from "gtk"
+use "std -> strings" from "strings"
+use "std -> env"   from "env"
+
+mod nm
+mod jobs
+
+pub const VERSION: string = "0.2.0"
+
+pub struct Model is
+    pub app:         gtk::App
+    pub jobs:        jobs::Jobs
+    pub win:         gtk::Window
+    pub toasts:      gtk::ToastOverlay
+    pub banner:      gtk::Banner
+    pub spinner:     gtk::Spinner
+    pub wifi_row:    gtk::ActionRow
+    pub wifi_switch: gtk::Switch
+    pub wifi_list:   gtk::Box
+    pub wired_list:  gtk::Box
+    pub info_list:   gtk::Box
+    pub pw_dialog:   gtk::Dialog
+    pub pw_entry:    gtk::EntryRow
+    pub hid_dialog:  gtk::Dialog
+    pub hid_ssid:    gtk::EntryRow
+    pub hid_pass:    gtk::EntryRow
+    pub popover:     gtk::Popover
+    ;; stan
+    pub wifi_on:     int
+    pub refreshing:  int
+    pub scanning:    int
+    pub pending_ssid: string
+    pub sig_wifi:    string
+    pub sig_wired:   string
+    pub sig_info:    string
+end
+
+;; ── Pomocnicze ────────────────────────────────────────────────────────────────
+
+fn toast(m: Model, text: string) is
+    gtk::toast(m.toasts, text, 3)
+end
+
+fn toast_err(m: Model, text: string) is
+    gtk::toast_priority(m.toasts, text, 6, gtk::toast_priority_high())
+end
+
+fn update_busy(m: Model) is
+    if jobs::pending(m.jobs) > 0 || m.scanning == 1 is
+        m.spinner.start()
+        gtk::set_visible(m.spinner.handle, true)
+    else is
+        m.spinner.stop()
+        gtk::set_visible(m.spinner.handle, false)
+    end
+end
+
+fn signal_icon(sig: int) -> string is
+    if sig >= 75 is return "network-wireless-signal-excellent-symbolic" end
+    if sig >= 50 is return "network-wireless-signal-good-symbolic" end
+    if sig >= 25 is return "network-wireless-signal-ok-symbolic" end
+    return "network-wireless-signal-weak-symbolic"
+end
+
+fn signal_class(sig: int) -> string is
+    if sig >= 60 is return "hn-signal-strong" end
+    if sig >= 30 is return "hn-signal-mid" end
+    return "hn-signal-weak"
+end
+
+fn badge(text: string, class_name: string) -> gtk::Label is
+    let l: gtk::Label = gtk::new_label(text)
+    gtk::add_css_class(l.handle, "hn-badge")
+    if class_name != "" is gtk::add_css_class(l.handle, class_name) end
+    gtk::set_align(l.handle, gtk::align_center(), gtk::align_center())
+    return l
+end
+
+fn status_page(icon: string, title: string, text: string) -> gtk::StatusPage is
+    let sp: gtk::StatusPage = gtk::new_status_page(icon, title, text)
+    gtk::set_expand(sp.handle, true, false)
+    return sp
+end
+
+;; Wiersz tekstowy bez markupu (SSID potrafi zawierac '&' i '<').
+fn plain_row(title: string, subtitle: string) -> gtk::ActionRow is
+    let r: gtk::ActionRow = gtk::new_action_row(title, subtitle)
+    r.set_use_markup(false)
+    return r
+end
+
+;; ── Laczenie ──────────────────────────────────────────────────────────────────
+
+fn after_action(m: Model, delay_ms: int) is
+    m.app.after(delay_ms, || is refresh(m, true) end)
+end
+
+fn on_connect_done(m: Model, ssid: string, known: bool, rc: int, out: string) is
+    update_busy(m)
+    if rc == 0 is
+        toast(m, "Połączono: " + ssid)
+    else is
+        toast_err(m, "Nie udało się połączyć z „" + ssid + "”: " + nm::explain_error(out))
+        ;; nieudana proba z nowym haslem zostawia w NM zepsuty profil — sprzatamy
+        if !known is
+            jobs::start(m.jobs, nm::forget_cmd(ssid), |rc2: int, out2: string| is update_busy(m) end)
+        end
+    end
+    refresh(m, true)
+end
+
+;; `pass` trafia do zadania wylacznie przez zmienna srodowiskowa HN_PASS (nie do tekstu komendy).
+fn run_connect(m: Model, ssid: string, known: bool, secured: bool, pass: string, hidden: bool) is
+    toast(m, "Łączenie z „" + ssid + "”…")
+    if pass != "" is env::set("HN_PASS", pass) end
+    jobs::start(m.jobs, nm::connect_cmd(ssid, known, secured, hidden), |rc: int, out: string| is on_connect_done(m, ssid, known && !hidden, rc, out) end)
+    if pass != "" is env::remove("HN_PASS") end
+    update_busy(m)
+end
+
+fn open_password_dialog(m: Model, ssid: string) is
+    m.pending_ssid = ssid
+    m.pw_dialog.set_title("Połącz z „" + ssid + "”")
+    m.pw_entry.set_text("")
+    m.pw_dialog.present(m.win)
+    m.pw_entry.grab_focus()
+end
+
+fn on_wifi_connect(m: Model, ssid: string, known: bool, secured: bool) is
+    if known || !secured is
+        run_connect(m, ssid, known, secured, "", false)
+    else is
+        open_password_dialog(m, ssid)
+    end
+end
+
+fn on_pw_submit(m: Model) is
+    let pass: string = m.pw_entry.text()
+    if string_len(pass) < 8 is
+        toast_err(m, "Hasło WPA musi mieć co najmniej 8 znaków")
+        return
+    end
+    m.pw_dialog.close()
+    run_connect(m, m.pending_ssid, false, true, pass, false)
+end
+
+fn on_hidden_submit(m: Model) is
+    let ssid: string = m.hid_ssid.text()
+    let pass: string = m.hid_pass.text()
+    if ssid == "" is
+        toast_err(m, "Podaj nazwę sieci (SSID)")
+        return
+    end
+    m.hid_dialog.close()
+    run_connect(m, ssid, false, pass != "", pass, true)
+end
+
+fn on_wifi_disconnect(m: Model, dev: string) is
+    jobs::start(m.jobs, nm::disconnect_dev_cmd(dev), |rc: int, out: string| is
+        update_busy(m)
+        if rc == 0 is toast(m, "Rozłączono") else is toast_err(m, nm::explain_error(out)) end
+        refresh(m, true)
+    end)
+    update_busy(m)
+end
+
+fn on_wifi_forget(m: Model, ssid: string) is
+    jobs::start(m.jobs, nm::forget_cmd(ssid), |rc: int, out: string| is
+        update_busy(m)
+        if rc == 0 is toast(m, "Zapomniano sieć „" + ssid + "”") else is toast_err(m, nm::explain_error(out)) end
+        refresh(m, true)
+    end)
+    update_busy(m)
+end
+
+fn on_conn_toggle(m: Model, uuid: string, name: string, up: bool) is
+    let script: string = if up then nm::conn_up_cmd(uuid) else nm::conn_down_cmd(uuid) end
+    jobs::start(m.jobs, script, |rc: int, out: string| is
+        update_busy(m)
+        if rc == 0 is toast(m, name) else is toast_err(m, nm::explain_error(out)) end
+        refresh(m, true)
+    end)
+    update_busy(m)
+end
+
+fn on_wifi_switch(m: Model, on: bool) is
+    let cur: bool = m.wifi_on == 1
+    if on == cur is return end            ;; zmiana programowa (z odswiezenia) — ignorujemy
+    m.wifi_on = if on then 1 else 0 end
+    jobs::start(m.jobs, nm::radio_cmd(on), |rc: int, out: string| is
+        update_busy(m)
+        if rc != 0 is toast_err(m, nm::explain_error(out)) end
+        after_action(m, 700)
+    end)
+    update_busy(m)
+end
+
+fn on_scan(m: Model) is
+    if m.wifi_on == 0 is
+        toast(m, "Wi-Fi jest wyłączone")
+        return
+    end
+    m.scanning = 1
+    update_busy(m)
+    jobs::start(m.jobs, nm::rescan_cmd(), |rc: int, out: string| is
+        if rc != 0 is toast(m, nm::explain_error(out)) end
+        m.app.after(2500, || is
+            m.scanning = 0
+            refresh(m, true)
+        end)
+    end)
+end
+
+fn copy_value(m: Model, value: string) is
+    gtk::clipboard_set_text(value)
+    toast(m, "Skopiowano do schowka")
+end
+
+;; ── Widoki dynamiczne ─────────────────────────────────────────────────────────
+
+fn wifi_row(m: Model, n: nm::Wifi, wifi_dev: string) -> gtk::ActionRow is
+    let mut sub: string = "Sygnał " + to_string(n.signal) + "%"
+    if n.security == "" is sub = sub + " · Otwarta" else is sub = sub + " · " + n.security end
+    if n.chan != "" is sub = sub + " · kanał " + n.chan end
+    if n.rate != "" is sub = sub + " · " + n.rate end
+    let row: gtk::ActionRow = plain_row(n.ssid, sub)
+
+    let icon: gtk::Image = gtk::new_icon_image(signal_icon(n.signal))
+    gtk::add_css_class(icon.handle, signal_class(n.signal))
+    row.add_prefix(icon.handle)
+
+    if n.security != "" is
+        let lock: gtk::Image = gtk::new_icon_image("system-lock-screen-symbolic")
+        gtk::add_css_class(lock.handle, "hn-lock")
+        gtk::set_tooltip(lock.handle, "Sieć zabezpieczona (" + n.security + ")")
+        row.add_suffix(lock.handle)
+    end
+    if n.active is
+        row.add_suffix(badge("Połączono", "hn-badge-ok").handle)
+    elsif n.known is
+        row.add_suffix(badge("Zapisana", "hn-badge-sec").handle)
+    end
+
+    let ssid: string = n.ssid
+    let known: bool = n.known
+    let secured: bool = n.security != ""
+    let dev: string = wifi_dev
+
+    if n.known && !n.active is
+        let forget: gtk::Button = gtk::new_icon_button("user-trash-symbolic")
+        gtk::add_css_class(forget.handle, "flat")
+        gtk::set_align(forget.handle, gtk::align_center(), gtk::align_center())
+        gtk::set_tooltip(forget.handle, "Zapomnij sieć")
+        row.add_suffix(forget.handle)
+        m.app.on_click(forget, || is on_wifi_forget(m, ssid) end)
+    end
+
+    if n.active is
+        let b: gtk::Button = gtk::new_button("Rozłącz")
+        gtk::set_align(b.handle, gtk::align_center(), gtk::align_center())
+        row.add_suffix(b.handle)
+        m.app.on_click(b, || is on_wifi_disconnect(m, dev) end)
+    else is
+        let b: gtk::Button = gtk::new_button("Połącz")
+        gtk::add_css_class(b.handle, "suggested-action")
+        gtk::set_align(b.handle, gtk::align_center(), gtk::align_center())
+        row.add_suffix(b.handle)
+        m.app.on_click(b, || is on_wifi_connect(m, ssid, known, secured) end)
+    end
+    return row
+end
+
+fn rebuild_wifi(m: Model, snap: nm::Snapshot) is
+    m.app.unwatch_tree(m.wifi_list.handle)
+    m.wifi_list.clear()
+    if !snap.nm_ok is
+        m.wifi_list.append(status_page("network-error-symbolic", "Brak połączenia z NetworkManagerem", "Uruchom usługę: sudo systemctl start NetworkManager").handle)
+    elsif snap.wifi_dev == "" is
+        m.wifi_list.append(status_page("network-wireless-hardware-disabled-symbolic", "Nie znaleziono karty Wi-Fi", "Podłącz adapter Wi-Fi albo sprawdź sterowniki.").handle)
+    elsif !snap.wifi_on is
+        m.wifi_list.append(status_page("network-wireless-disabled-symbolic", "Wi-Fi jest wyłączone", "Włącz je przełącznikiem powyżej, aby zobaczyć dostępne sieci.").handle)
+    elsif snap.nets.len() == 0 is
+        m.wifi_list.append(status_page("network-wireless-offline-symbolic", "Nie znaleziono sieci", "Spróbuj ponownie przyciskiem odświeżania w nagłówku.").handle)
+    else is
+        let group: gtk::PrefGroup = gtk::new_pref_group("Dostępne sieci", "")
+        let mut i: int = 0
+        while i < snap.nets.len() is
+            group.add(wifi_row(m, snap.nets[i], snap.wifi_dev).handle)
+            i += 1
+        end
+        m.wifi_list.append(group.handle)
+    end
+end
+
+fn rebuild_wired(m: Model, snap: nm::Snapshot) is
+    m.app.unwatch_tree(m.wired_list.handle)
+    m.wired_list.clear()
+    if !snap.nm_ok is
+        m.wired_list.append(status_page("network-error-symbolic", "Brak połączenia z NetworkManagerem", "Uruchom usługę: sudo systemctl start NetworkManager").handle)
+        return
+    end
+    let mut eth_devs: int = 0
+    let mut d: int = 0
+    while d < snap.devs.len() is
+        if nm::is_eth_type(snap.devs[d].kind) is eth_devs += 1 end
+        d += 1
+    end
+    if snap.wired.len() == 0 is
+        let mut desc: string = "Nie wykryto karty Ethernet."
+        if eth_devs > 0 is desc = "Karta Ethernet jest dostępna, ale nie ma zapisanego profilu. Podłącz kabel — NetworkManager utworzy go automatycznie." end
+        m.wired_list.append(status_page("network-wired-disconnected-symbolic", "Brak połączeń przewodowych", desc).handle)
+    else is
+        let group: gtk::PrefGroup = gtk::new_pref_group("Połączenia przewodowe", "")
+        let mut i: int = 0
+        while i < snap.wired.len() is
+            let w: nm::Wired = snap.wired[i]
+            let mut sub: string = "Nieaktywne"
+            if w.active is sub = "Urządzenie: " + w.device end
+            let row: gtk::ActionRow = plain_row(w.name, sub)
+            let icon: gtk::Image = gtk::new_icon_image(if w.active then "network-wired-symbolic" else "network-wired-disconnected-symbolic" end)
+            row.add_prefix(icon.handle)
+            if w.active is row.add_suffix(badge("Połączono", "hn-badge-ok").handle) end
+            let uuid: string = w.uuid
+            let name: string = w.name
+            let active: bool = w.active
+            let b: gtk::Button = gtk::new_button(if w.active then "Rozłącz" else "Połącz" end)
+            if !w.active is gtk::add_css_class(b.handle, "suggested-action") end
+            gtk::set_align(b.handle, gtk::align_center(), gtk::align_center())
+            row.add_suffix(b.handle)
+            m.app.on_click(b, || is on_conn_toggle(m, uuid, if active then "Rozłączono: " + name else "Połączono: " + name end, !active) end)
+            group.add(row.handle)
+            i += 1
+        end
+        m.wired_list.append(group.handle)
+    end
+    if eth_devs > 0 is
+        let g2: gtk::PrefGroup = gtk::new_pref_group("Interfejsy", "")
+        let mut k: int = 0
+        while k < snap.devs.len() is
+            let dv: nm::Dev = snap.devs[k]
+            if nm::is_eth_type(dv.kind) is
+                let r: gtk::ActionRow = plain_row(dv.name, state_pl(dv.state) + " · " + dv.mac)
+                g2.add(r.handle)
+            end
+            k += 1
+        end
+        gtk::set_margins(g2.handle, 18, 0, 0, 0)
+        m.wired_list.append(g2.handle)
+    end
+end
+
+;; "100 (connected)" -> "połączono" itd.
+fn state_pl(st: string) -> string is
+    if string_find(st, "(connected") >= 0 is return "połączono" end
+    if string_find(st, "(disconnected") >= 0 is return "rozłączono" end
+    if string_find(st, "(unavailable") >= 0 is return "niedostępne (kabel odłączony?)" end
+    if string_find(st, "(unmanaged") >= 0 is return "niezarządzane" end
+    if string_find(st, "(connecting") >= 0 is return "łączenie…" end
+    return st
+end
+
+fn info_row(m: Model, title: string, value: string) -> gtk::ActionRow is
+    let shown: string = if value == "" then "—" else value end
+    let row: gtk::ActionRow = plain_row(title, shown)
+    row.set_subtitle_lines(3)
+    gtk::add_css_class(row.handle, "property")
+    if value != "" is
+        let c: gtk::Button = gtk::new_icon_button("edit-copy-symbolic")
+        gtk::add_css_class(c.handle, "flat")
+        gtk::set_align(c.handle, gtk::align_center(), gtk::align_center())
+        gtk::set_tooltip(c.handle, "Kopiuj")
+        row.add_suffix(c.handle)
+        m.app.on_click(c, || is copy_value(m, value) end)
+    end
+    return row
+end
+
+fn join_list(items: [string], sep: string) -> string is
+    let mut out: string = ""
+    let mut i: int = 0
+    while i < items.len() is
+        if i > 0 is out = out + sep end
+        out = out + items[i]
+        i += 1
+    end
+    return out
+end
+
+fn rebuild_info(m: Model, snap: nm::Snapshot) is
+    m.app.unwatch_tree(m.info_list.handle)
+    m.info_list.clear()
+    let sys: gtk::PrefGroup = gtk::new_pref_group("System", "")
+    sys.add(info_row(m, "Nazwa komputera", snap.hostname).handle)
+    m.info_list.append(sys.handle)
+    if !snap.nm_ok is return end
+    let mut i: int = 0
+    while i < snap.devs.len() is
+        let d: nm::Dev = snap.devs[i]
+        if d.kind != "loopback" && (d.ip4.len() > 0 || d.state != "10 (unmanaged)") is
+            let g: gtk::PrefGroup = gtk::new_pref_group(d.name + " · " + d.kind, if d.conn == "--" || d.conn == "" then "Brak aktywnego połączenia" else "Połączenie: " + d.conn end)
+            g.add(info_row(m, "Adres IPv4", join_list(d.ip4, ", ")).handle)
+            g.add(info_row(m, "Brama", d.gateway).handle)
+            g.add(info_row(m, "Serwery DNS", join_list(d.dns, ", ")).handle)
+            if d.ip6.len() > 0 is g.add(info_row(m, "Adres IPv6", join_list(d.ip6, ", ")).handle) end
+            g.add(info_row(m, "Adres MAC", d.mac).handle)
+            m.info_list.append(g.handle)
+        end
+        i += 1
+    end
+end
+
+;; Podpis danych — przebudowujemy liste tylko, gdy cos sie realnie zmienilo
+;; (inaczej co 10 s kasowalaby pozycje przewijania i migala).
+fn sig_wifi(s: nm::Snapshot) -> string is
+    let mut t: string = to_string(s.nm_ok) + to_string(s.wifi_on) + s.wifi_dev + "|"
+    let mut i: int = 0
+    while i < s.nets.len() is
+        let n: nm::Wifi = s.nets[i]
+        t = t + n.ssid + "/" + to_string(n.signal / 10) + "/" + n.security + "/" + to_string(n.active) + to_string(n.known) + ";"
+        i += 1
+    end
+    return t
+end
+
+fn sig_wired(s: nm::Snapshot) -> string is
+    let mut t: string = to_string(s.nm_ok) + "|"
+    let mut i: int = 0
+    while i < s.wired.len() is
+        t = t + s.wired[i].uuid + to_string(s.wired[i].active) + s.wired[i].device + ";"
+        i += 1
+    end
+    let mut d: int = 0
+    while d < s.devs.len() is
+        t = t + s.devs[d].name + s.devs[d].state + ";"
+        d += 1
+    end
+    return t
+end
+
+fn sig_info(s: nm::Snapshot) -> string is
+    let mut t: string = s.hostname + to_string(s.nm_ok) + "|"
+    let mut i: int = 0
+    while i < s.devs.len() is
+        let d: nm::Dev = s.devs[i]
+        t = t + d.name + d.state + d.conn + d.mac + d.gateway + join_list(d.ip4, ",") + join_list(d.ip6, ",") + join_list(d.dns, ",") + ";"
+        i += 1
+    end
+    return t
+end
+
+;; ── Odswiezanie ───────────────────────────────────────────────────────────────
+
+fn on_refresh(m: Model, force: bool, out: string) is
+    m.refreshing = 0
+    let snap: nm::Snapshot = nm::parse_snapshot(out)
+    m.wifi_on = if snap.wifi_on then 1 else 0 end
+    m.wifi_switch.set_active(snap.wifi_on)
+    if snap.nm_ok is
+        m.banner.set_revealed(false)
+        if !snap.wifi_on is m.wifi_row.set_subtitle("Wyłączone")
+        else is
+            let mut cur: string = ""
+            let mut i: int = 0
+            while i < snap.nets.len() is
+                if snap.nets[i].active is cur = snap.nets[i].ssid end
+                i += 1
+            end
+            if cur != "" is m.wifi_row.set_subtitle("Połączono z „" + cur + "”")
+            else is m.wifi_row.set_subtitle("Włączone — niepołączone") end
+        end
+    else is
+        m.banner.set_title("NetworkManager nie działa albo brakuje polecenia nmcli.")
+        m.banner.set_revealed(true)
+        m.wifi_row.set_subtitle("Niedostępne")
+    end
+    let a: string = sig_wifi(snap)
+    if force || a != m.sig_wifi is
+        m.sig_wifi = a
+        rebuild_wifi(m, snap)
+    end
+    let b: string = sig_wired(snap)
+    if force || b != m.sig_wired is
+        m.sig_wired = b
+        rebuild_wired(m, snap)
+    end
+    let c: string = sig_info(snap)
+    if force || c != m.sig_info is
+        m.sig_info = c
+        rebuild_info(m, snap)
+    end
+    update_busy(m)
+end
+
+pub fn refresh(m: Model, force: bool) is
+    if m.refreshing == 1 is return end
+    m.refreshing = 1
+    jobs::start(m.jobs, nm::refresh_script(), |rc: int, out: string| is on_refresh(m, force, out) end)
+    update_busy(m)
+end
+
+fn auto_refresh(m: Model) is
+    if jobs::pending(m.jobs) == 0 is refresh(m, false) end
+end
+
+;; ── Budowa okna ───────────────────────────────────────────────────────────────
+
+fn page(content: gtk::Box) -> gtk::ScrolledWindow is
+    let clamp: gtk::Clamp = gtk::new_clamp(680)
+    gtk::set_margins(content.handle, 18, 24, 12, 12)
+    clamp.set_child(content.handle)
+    let sw: gtk::ScrolledWindow = gtk::new_scrolled_window()
+    sw.set_child(clamp.handle)
+    gtk::set_expand(sw.handle, true, true)
+    return sw
+end
+
+fn make_dialog(title: string, action: gtk::Button, rows: [gtk::EntryRow], hint: string) -> gtk::Dialog is
+    let dlg: gtk::Dialog = gtk::new_dialog(title, 420, 0)
+    let tv: gtk::ToolbarView = gtk::new_toolbar_view()
+    let hb: gtk::AdwHeaderBar = gtk::new_adw_header_bar()
+    tv.add_top_bar(hb.handle)
+    let body: gtk::Box = gtk::vbox(12)
+    gtk::set_margin(body.handle, 18)
+    if hint != "" is
+        let l: gtk::Label = gtk::new_label(hint)
+        l.set_wrap(true)
+        gtk::set_align(l.handle, gtk::align_start(), gtk::align_start())
+        gtk::add_css_class(l.handle, "dim-label")
+        body.append(l.handle)
+    end
+    let group: gtk::PrefGroup = gtk::new_pref_group("", "")
+    let mut i: int = 0
+    while i < rows.len() is
+        group.add(rows[i].handle)
+        i += 1
+    end
+    body.append(group.handle)
+    gtk::add_css_class(action.handle, "suggested-action")
+    gtk::add_css_class(action.handle, "pill")
+    gtk::set_align(action.handle, gtk::align_center(), gtk::align_center())
+    body.append(action.handle)
+    tv.set_content(body.handle)
+    dlg.set_child(tv.handle)
+    return dlg
+end
+
+pub fn build(app: gtk::App) -> Model is
+    let j: jobs::Jobs = jobs::new_jobs()
+    let win: gtk::Window = gtk::new_adw_window("Sieć HackerOS", 760, 660)
+    gtk::set_expand(win.handle, true, true)
+
+    ;; strony
+    let wifi_box: gtk::Box = gtk::vbox(18)
+    let wired_box: gtk::Box = gtk::vbox(18)
+    let info_box: gtk::Box = gtk::vbox(18)
+
+    let wifi_row: gtk::ActionRow = plain_row("Wi-Fi", "Sprawdzanie…")
+    let wifi_icon: gtk::Image = gtk::new_icon_image("network-wireless-symbolic")
+    wifi_row.add_prefix(wifi_icon.handle)
+    let sw: gtk::Switch = gtk::new_switch()
+    gtk::set_align(sw.handle, gtk::align_center(), gtk::align_center())
+    wifi_row.add_suffix(sw.handle)
+    wifi_row.set_activatable_widget(sw.handle)
+    let top: gtk::PrefGroup = gtk::new_pref_group("", "")
+    top.add(wifi_row.handle)
+    let wifi_list: gtk::Box = gtk::vbox(0)
+    wifi_list.append(status_page("content-loading-symbolic", "Wyszukiwanie sieci…", "").handle)
+    wifi_box.append(top.handle)
+    wifi_box.append(wifi_list.handle)
+
+    let wired_list: gtk::Box = gtk::vbox(0)
+    wired_list.append(status_page("content-loading-symbolic", "Sprawdzanie połączeń…", "").handle)
+    wired_box.append(wired_list.handle)
+
+    let info_list: gtk::Box = gtk::vbox(18)
+    info_box.append(info_list.handle)
+
+    let stack: gtk::ViewStack = gtk::new_view_stack()
+    stack.add(page(wifi_box).handle, "wifi", "Wi-Fi", "network-wireless-symbolic")
+    stack.add(page(wired_box).handle, "wired", "Ethernet", "network-wired-symbolic")
+    stack.add(page(info_box).handle, "info", "Informacje", "dialog-information-symbolic")
+    let switcher: gtk::ViewSwitcher = gtk::new_view_switcher(stack)
+
+    ;; naglowek
+    let header: gtk::AdwHeaderBar = gtk::new_adw_header_bar()
+    header.set_title_widget(switcher.handle)
+    let scan: gtk::Button = gtk::new_icon_button("view-refresh-symbolic")
+    gtk::set_tooltip(scan.handle, "Skanuj sieci i odśwież")
+    header.pack_start(scan.handle)
+    let spinner: gtk::Spinner = gtk::new_spinner()
+    gtk::set_visible(spinner.handle, false)
+    header.pack_start(spinner.handle)
+    let menu: gtk::MenuButton = gtk::new_menu_button("")
+    menu.set_icon_name("open-menu-symbolic")
+    let pop: gtk::Popover = gtk::new_popover()
+    let pbox: gtk::Box = gtk::vbox(2)
+    gtk::set_margin(pbox.handle, 6)
+    let hid_btn: gtk::Button = gtk::new_button("Połącz z ukrytą siecią…")
+    gtk::add_css_class(hid_btn.handle, "flat")
+    let about_btn: gtk::Button = gtk::new_button("O programie")
+    gtk::add_css_class(about_btn.handle, "flat")
+    pbox.append(hid_btn.handle)
+    pbox.append(about_btn.handle)
+    pop.set_child(pbox.handle)
+    menu.set_popover(pop)
+    header.pack_end(menu.handle)
+
+    let banner: gtk::Banner = gtk::new_banner("", "")
+    let tv: gtk::ToolbarView = gtk::new_toolbar_view()
+    tv.add_top_bar(header.handle)
+    tv.add_top_bar(banner.handle)
+    tv.set_content(stack.handle)
+    let toasts: gtk::ToastOverlay = gtk::new_toast_overlay()
+    toasts.set_child(tv.handle)
+    win.set_content(toasts.handle)
+
+    ;; dialogi (tworzone raz i uzywane wielokrotnie — callbacki rejestrujemy raz)
+    let pw_entry: gtk::EntryRow = gtk::new_password_entry_row("Hasło")
+    let pw_ok: gtk::Button = gtk::new_button("Połącz")
+    let pw_dialog: gtk::Dialog = make_dialog("Połącz z siecią", pw_ok, [pw_entry], "Podaj hasło do sieci. Zostanie zapisane w NetworkManagerze.")
+    let hid_ssid: gtk::EntryRow = gtk::new_entry_row("Nazwa sieci (SSID)")
+    let hid_pass: gtk::EntryRow = gtk::new_password_entry_row("Hasło (puste = sieć otwarta)")
+    let hid_ok: gtk::Button = gtk::new_button("Połącz")
+    let hid_dialog: gtk::Dialog = make_dialog("Ukryta sieć", hid_ok, [hid_ssid, hid_pass], "")
+    gtk::keep(pw_dialog.handle)
+    gtk::keep(hid_dialog.handle)
+
+    let m: Model = Model {
+        app: app, jobs: j, win: win, toasts: toasts, banner: banner, spinner: spinner,
+        wifi_row: wifi_row, wifi_switch: sw, wifi_list: wifi_list, wired_list: wired_list, info_list: info_list,
+        pw_dialog: pw_dialog, pw_entry: pw_entry, hid_dialog: hid_dialog, hid_ssid: hid_ssid, hid_pass: hid_pass,
+        popover: pop, wifi_on: 0, refreshing: 0, scanning: 0, pending_ssid: "",
+        sig_wifi: "", sig_wired: "", sig_info: "",
+    }
+    wire(m, scan, hid_btn, about_btn, pw_ok, hid_ok)
+    return m
+end
+
+fn about(m: Model) is
+    gtk::show_about_dialog(m.win, "Sieć HackerOS", "io.hackeros.network", "Zespół HackerOS",
+        VERSION, "Menedżer sieci dla HackerOS — Wi-Fi, Ethernet i informacje o połączeniu.",
+        "https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool",
+        "https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/issues",
+        "https://github.com/HackerOS-Linux-System/Hacker-CLI-Tool/issues",
+        "© HackerOS Team", gtk::license_gpl_3_0())
+end
+
+fn wire(m: Model, scan: gtk::Button, hid_btn: gtk::Button, about_btn: gtk::Button, pw_ok: gtk::Button, hid_ok: gtk::Button) is
+    m.app.on_window_close(m.win, || is m.app.quit() end)
+    m.app.on_click(scan, || is on_scan(m) end)
+    m.app.on_click(hid_btn, || is
+        m.popover.popdown()
+        m.hid_ssid.set_text("")
+        m.hid_pass.set_text("")
+        m.hid_dialog.present(m.win)
+        m.hid_ssid.grab_focus()
+    end)
+    m.app.on_click(about_btn, || is
+        m.popover.popdown()
+        about(m)
+    end)
+    m.app.on_click(pw_ok, || is on_pw_submit(m) end)
+    m.app.on_click(hid_ok, || is on_hidden_submit(m) end)
+    m.app.on_switch(m.wifi_switch, |on: bool| is on_wifi_switch(m, on) end)
+    m.app.on_entry_row_activate(m.pw_entry, || is on_pw_submit(m) end)
+    m.app.on_entry_row_activate(m.hid_pass, || is on_hidden_submit(m) end)
+    m.app.on_entry_row_activate(m.hid_ssid, || is on_hidden_submit(m) end)
+    m.app.every(120, || is jobs::tick(m.jobs) end)
+    m.app.every(10000, || is auto_refresh(m) end)
+end
