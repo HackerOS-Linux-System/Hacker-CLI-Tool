@@ -6,7 +6,7 @@ mod env
 mod run_commands
 mod game
 
-extern dynamic [c] is
+extern static [c] is
     fn system(cmd: string) -> int
     fn exit(code: int)
     fn getenv(name: string) -> string
