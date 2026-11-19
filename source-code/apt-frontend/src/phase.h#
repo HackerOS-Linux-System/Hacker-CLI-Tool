@@ -190,7 +190,7 @@ end
 ;; Analizuje linie [st.sc_seen, upto) i zwraca nowy stan.
 pub fn scan_lines(lines: [string], st: Scan, upto: int) -> Scan is
     let mut cur: Scan = st
-    let mut i: int = st.sc_seen
+    let mut i: int = cur.sc_seen
     while i < upto is
         let t: string = string_trim(lines[i])
         if t != "" is cur = scan_line(t, cur) end
