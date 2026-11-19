@@ -1,0 +1,90 @@
+use "std -> process" from "process"
+use "std -> fs"      from "fs"
+use "std -> os"      from "os"
+use "std -> env"     from "env"
+
+pub struct Jobs is
+    pub dir:    string
+    pub seq:    int
+    pub base:   [string]
+    pub active: [int]
+    pub cb:     [fn(int, string) -> void]
+end
+
+;; Katalog roboczy: $XDG_RUNTIME_DIR/hacker-network (tmpfs, 0700) albo /tmp/hacker-network-<pid>.
+pub fn new_jobs() -> Jobs is
+    let rt: string = env::get_or("XDG_RUNTIME_DIR", "")
+    let mut dir: string = "/tmp/hacker-network-" + to_string(os::pid())
+    if rt != "" is dir = rt + "/hacker-network" end
+    process::run_args("mkdir", ["-p", "-m", "700", dir])
+    return Jobs { dir: dir, seq: 0, base: [], active: [], cb: [] }
+end
+
+fn sq(s: string) -> string is
+    return "'" + s + "'"
+end
+
+;; Uruchamia `script` w tle; `cb(kod, tekst)` poleci z `tick`, gdy zadanie sie skonczy.
+pub fn start(j: Jobs, script: string, cb: fn(int, string) -> void) is
+    j.seq += 1
+    let b: string = j.dir + "/j" + to_string(os::pid()) + "_" + to_string(j.seq)
+    let full: string = "( " + script + " ) > " + sq(b + ".out") + " 2>&1; echo $? > " + sq(b + ".rc.tmp") + "; mv " + sq(b + ".rc.tmp") + " " + sq(b + ".rc")
+    ;; wolny slot (zakonczone zadania) albo nowy
+    let mut slot: int = -1
+    let mut i: int = 0
+    while i < j.active.len() is
+        if j.active[i] == 0 && slot < 0 is slot = i end
+        i += 1
+    end
+    if slot >= 0 is
+        j.base[slot] = b
+        j.active[slot] = 1
+        j.cb[slot] = cb
+    else is
+        j.base.push(b)
+        j.active.push(1)
+        j.cb.push(cb)
+    end
+    process::spawn(full)
+end
+
+;; Ile zadan jeszcze trwa (do kolka ladowania).
+pub fn pending(j: Jobs) -> int is
+    let mut n: int = 0
+    let mut i: int = 0
+    while i < j.active.len() is
+        if j.active[i] == 1 is n += 1 end
+        i += 1
+    end
+    return n
+end
+
+;; Sprawdza zakonczone zadania; woluje ich domkniecia.
+pub fn tick(j: Jobs) is
+    let mut i: int = 0
+    while i < j.active.len() is
+        if j.active[i] == 1 is
+            let b: string = j.base[i]
+            if fs::exists(b + ".rc") is
+                let rc_text: string = fs::read(b + ".rc")
+                let out: string = fs::read(b + ".out")
+                fs::remove(b + ".rc")
+                fs::remove(b + ".out")
+                j.active[i] = 0
+                let mut rc: int = 0
+                if string_len(rc_text) > 0 && string_at(rc_text, 0) >= "0" && string_at(rc_text, 0) <= "9" is
+                    rc = to_int(string_slice(rc_text, 0, 1))
+                    if string_len(rc_text) > 1 && string_at(rc_text, 1) >= "0" && string_at(rc_text, 1) <= "9" is
+                        rc = rc * 10 + to_int(string_slice(rc_text, 1, 2))
+                        if string_len(rc_text) > 2 && string_at(rc_text, 2) >= "0" && string_at(rc_text, 2) <= "9" is
+                            rc = rc * 10 + to_int(string_slice(rc_text, 2, 3))
+                        end
+                    end
+                end
+                let cb = j.cb[i]
+                cb(rc, out)
+            end
+        end
+        i += 1
+    end
+end
